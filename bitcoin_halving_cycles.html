@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BTC Zyklen Overlay</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: #0d0d14;
+  color: #c8c8d8;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+header {
+  padding: 14px 24px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
+  gap: 16px;
+}
+
+.header-left h1 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: -0.01em;
+}
+
+.header-left p {
+  font-size: 11px;
+  color: #555;
+  margin-top: 3px;
+}
+
+.live-block {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.live-price {
+  font-size: 22px;
+  font-weight: 700;
+  color: #f7931a;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.live-sub {
+  font-size: 10px;
+  color: #444;
+  margin-top: 2px;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 24px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.seg {
+  display: flex;
+  background: rgba(255,255,255,0.04);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.seg button {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 11px;
+  border: none;
+  background: transparent;
+  color: #555;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.seg button.on {
+  background: rgba(255,255,255,0.11);
+  color: #ddd;
+}
+
+.sep { width:1px; height:18px; background:rgba(255,255,255,0.06); }
+
+.legend {
+  display: flex;
+  gap: 18px;
+  margin-left: auto;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.leg {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+}
+
+.leg-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.leg-line {
+  width: 22px; height: 2.5px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.chart-area {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+}
+
+canvas {
+  display: block;
+  cursor: crosshair;
+}
+
+#tip {
+  position: absolute;
+  display: none;
+  background: rgba(10,10,18,0.95);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 10px;
+  padding: 12px 16px;
+  pointer-events: none;
+  min-width: 190px;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 8px 40px rgba(0,0,0,0.7);
+  z-index: 10;
+}
+
+.tip-title { font-size: 10px; color: #444; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 10px; }
+.tip-row { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 3px 0; }
+.tip-lbl { font-size: 11px; }
+.tip-val { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tip-divider { height: 1px; background: rgba(255,255,255,0.06); margin: 8px 0; }
+.tip-note { font-size: 10px; color: #444; }
+
+footer {
+  padding: 7px 24px;
+  display: flex;
+  gap: 0;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  flex-shrink: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.stat { font-size: 10px; color: #3a3a50; }
+.stat strong { color: #555; }
+.hint { margin-left: auto; font-size: 10px; color: #2a2a3a; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <h1>₿ Bitcoin Halving-Zyklen — Overlay-Vergleich</h1>
+    <p>Beide Zyklen normiert: ATH = 100% · Zyklus 2020 vs. Zyklus 2024 · Scroll &amp; Drag zum Navigieren</p>
+  </div>
+  <div class="live-block">
+    <div class="live-price" id="livePrice">–</div>
+    <div class="live-sub">BTC/EUR Live · <span id="livePct">–</span> % vom ATH</div>
+  </div>
+</header>
+
+<div class="toolbar">
+  <div class="seg">
+    <button class="on" id="bLin" onclick="setScale('lin')">Linear</button>
+    <button id="bLog" onclick="setScale('log')">Logarithmisch</button>
+  </div>
+  <div class="sep"></div>
+  <div class="seg">
+    <button onclick="zoom(1.35)">＋ Zoom</button>
+    <button onclick="zoom(1/1.35)">－ Zoom</button>
+    <button onclick="resetView()">↺ Reset</button>
+  </div>
+  <div class="legend">
+    <div class="leg">
+      <div class="leg-line" style="background:#00d4a8;"></div>
+      <span style="color:#888">Zyklus 2020 <span style="color:#555;font-size:10px">(ATH €63k)</span></span>
+    </div>
+    <div class="leg">
+      <div class="leg-line" style="background:#f7931a;"></div>
+      <span style="color:#bbb">Zyklus 2024 <span style="color:#666;font-size:10px">(ATH €116k)</span></span>
+    </div>
+    <div class="leg">
+      <div class="leg-dot" style="background:#fff;opacity:0.4;"></div>
+      <span style="color:#555;font-size:10px">Heute</span>
+    </div>
+  </div>
+</div>
+
+<div class="chart-area" id="ca">
+  <canvas id="cv"></canvas>
+  <div id="tip">
+    <div class="tip-title" id="tDay">Tag –</div>
+    <div class="tip-row">
+      <span class="tip-lbl" style="color:#00d4a8">Zyklus 2020</span>
+      <span class="tip-val" id="t20" style="color:#00d4a8">–</span>
+    </div>
+    <div class="tip-row">
+      <span class="tip-lbl" style="color:#f7931a">Zyklus 2024</span>
+      <span class="tip-val" id="t24" style="color:#f7931a">–</span>
+    </div>
+    <div class="tip-divider"></div>
+    <div class="tip-row">
+      <span class="tip-lbl" style="color:#555">Abstand</span>
+      <span class="tip-val" id="tDiff" style="color:#888">–</span>
+    </div>
+    <div class="tip-row">
+      <span class="tip-lbl" style="color:#555">Datum 2024</span>
+      <span class="tip-val" id="tDate" style="color:#666;font-size:11px">–</span>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div class="stat"><strong>2020-ATH:</strong> +548 Tage · €63k · = 100%</div>
+  <div class="stat"><strong>2024-ATH:</strong> +535 Tage · €116k · = 100%</div>
+  <div class="stat">Heute: Tag <strong id="fDay">–</strong> · Zyklus 2024 bei <strong id="fPct">–</strong>% vom ATH</div>
+  <div class="hint">Scroll = Zoom · Drag = Pan</div>
+</footer>
+
+<script>
+// ── DATA ──────────────────────────────────────────────────────────────────────
+const HALVING4 = new Date('2020-05-11');
+const HALVING5 = new Date('2024-04-20');
+const TODAY    = new Date('2026-06-25');
+const TODAY_DAY = Math.round((TODAY - HALVING5) / 86400000);
+
+// EUR prices (USD * ~0.92 for 2020 cycle, ~0.91 for 2024 cycle)
+// ATH 2020: $69.044 ≈ €63.320  |  ATH 2024: $126.198 ≈ €116.100
+const ATH2020_EUR = 63320;
+const ATH2024_EUR = 116100;
+
+function interp(pts) {
+  const out = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [d0, p0] = pts[i], [d1, p1] = pts[i + 1];
+    const steps = d1 - d0;
+    for (let s = 0; s < steps; s++) {
+      const t = s / steps, sm = t * t * (3 - 2 * t);
+      out.push({ d: d0 + s, p: p0 + (p1 - p0) * sm });
+    }
+  }
+  out.push({ d: pts.at(-1)[0], p: pts.at(-1)[1] });
+  return out;
+}
+
+function sr(seed) {
+  const x = Math.sin(seed * 9301 + 49297) * 233280;
+  return x - Math.floor(x);
+}
+
+// Cycle 2020 – EUR prices
+const raw2020 = interp([
+  [0,7820],[20,8460],[40,8740],[60,8370],[80,8650],[100,9940],
+  [120,10490],[140,9840],[160,10210],[180,10860],[200,12140],
+  [220,13620],[240,14720],[260,17020],[280,17660],[300,30360],
+  [320,38640],[340,45080],[360,52440],[380,45080],[400,32200],
+  [420,29440],[440,42320],[460,48760],[480,57960],[500,55200],
+  [520,50600],[535,55200],[548,63320], // ATH
+  [560,51520],[580,46000],[610,42320],[640,34960],[670,26680],
+  [700,19320],[730,14900],[760,15360],[790,15730],[820,15550],
+]);
+
+// Cycle 2024 – EUR prices
+const raw2024 = interp([
+  [0,58100],[14,54600],[30,56400],[45,61000],[60,55500],[75,52800],
+  [90,51900],[105,54600],[120,56400],[135,58200],[150,52800],
+  [165,56400],[180,61000],[195,65500],[210,81900],[220,88300],
+  [230,94600],[240,91000],[250,86500],[260,89200],[270,92820],
+  [280,77350],[290,75530],[300,72800],[310,69160],[320,64610],
+  [330,74620],[340,77350],[350,83720],[360,93730],[370,100100],
+  [380,96460],[390,104650],[400,98280],[410,107380],[420,111020],
+  [430,109200],[440,116100], // ATH
+  [445,108290],[455,98280],[465,91000],[470,86450],[480,80080],
+  [490,74620],[500,84630],[510,88270],[520,82810],[530,77350],
+  [540,72800],[550,69160],[555,66430],[560,64610],[565,63700],
+  [570,65520],[575,61880],[580,59150],[583,56890],
+]);
+
+// Normalize both curves so ATH = 100
+// Each point: v = price / ATH * 100
+function norm(pts, ath) {
+  return pts.map(pt => ({ d: pt.d, p: pt.p, v: pt.p / ath * 100 }));
+}
+
+const n2020 = norm(raw2020, ATH2020_EUR);
+const n2024 = norm(raw2024, ATH2024_EUR);
+
+// Candle data for 2024 (normalized)
+const candles = raw2024.map((pt, i) => {
+  const r = pt.p * 0.018;
+  const o = pt.p + (sr(i*4+0)-0.5)*r*0.7;
+  const c = pt.p + (sr(i*4+1)-0.5)*r*0.7;
+  const h = Math.max(o,c) + sr(i*4+2)*r*0.6;
+  const l = Math.min(o,c) - sr(i*4+3)*r*0.6;
+  return { d: pt.d, o:o/ATH2024_EUR*100, c:c/ATH2024_EUR*100, h:h/ATH2024_EUR*100, l:l/ATH2024_EUR*100, bull:c>=o };
+});
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+let scaleMode = 'lin';
+let zoomK = 1;
+let panD  = 0;
+const DMAX = 850;
+let liveP = 56890; // EUR
+let dragging = false, dragX0 = 0, panD0 = 0;
+
+function setScale(s) {
+  scaleMode = s;
+  document.getElementById('bLin').classList.toggle('on', s==='lin');
+  document.getElementById('bLog').classList.toggle('on', s==='log');
+  draw();
+}
+
+function zoom(f) {
+  zoomK = Math.max(1, Math.min(14, zoomK * f));
+  clamp(); draw();
+}
+
+function resetView() { zoomK=1; panD=0; draw(); }
+
+function clamp() {
+  const vis = DMAX / zoomK;
+  panD = Math.max(0, Math.min(panD, Math.max(0, DMAX - vis)));
+}
+
+// ── CANVAS ────────────────────────────────────────────────────────────────────
+const ca  = document.getElementById('ca');
+const cv  = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  cv.width  = ca.clientWidth  * dpr;
+  cv.height = ca.clientHeight * dpr;
+  cv.style.width  = ca.clientWidth  + 'px';
+  cv.style.height = ca.clientHeight + 'px';
+  draw();
+}
+
+window.addEventListener('resize', resize);
+
+// ── DRAW ──────────────────────────────────────────────────────────────────────
+function draw() {
+  const dpr = window.devicePixelRatio || 1;
+  const W = cv.width, H = cv.height;
+  const PL = 62*dpr, PR = 16*dpr, PT = 18*dpr, PB = 34*dpr;
+  const gW = W - PL - PR, gH = H - PT - PB;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Visible day range
+  const vis = DMAX / zoomK;
+  const d0 = panD, d1 = panD + vis;
+
+  // Y range from all visible normalized values
+  let vMin = Infinity, vMax = -Infinity;
+  for (const pt of n2020) if (pt.d>=d0&&pt.d<=d1) { vMin=Math.min(vMin,pt.v); vMax=Math.max(vMax,pt.v); }
+  for (const pt of n2024) if (pt.d>=d0&&pt.d<=d1) { vMin=Math.min(vMin,pt.v); vMax=Math.max(vMax,pt.v); }
+  if (vMin===Infinity) { vMin=50; vMax=200; }
+  const pad = (vMax-vMin)*0.12;
+  vMin = Math.max(0, vMin-pad);
+  vMax = vMax + pad;
+
+  function xOf(d) { return PL + (d - d0) / vis * gW; }
+  function yOf(v) {
+    if (scaleMode==='log') {
+      const lo=Math.log(Math.max(vMin,0.1)), hi=Math.log(vMax);
+      return PT + (1 - (Math.log(Math.max(v,0.1))-lo)/(hi-lo)) * gH;
+    }
+    return PT + (1 - (v-vMin)/(vMax-vMin)) * gH;
+  }
+
+  // ── Background gradient ──
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#0f0f1a');
+  bg.addColorStop(1, '#0d0d14');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // ── Grid ──
+  const ySteps = 7, xStep = 90;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.lineWidth = dpr;
+  for (let i=0; i<=ySteps; i++) {
+    const y = PT + i*gH/ySteps;
+    ctx.beginPath(); ctx.moveTo(PL, y); ctx.lineTo(W-PR, y); ctx.stroke();
+  }
+  for (let d=Math.ceil(d0/xStep)*xStep; d<=d1; d+=xStep) {
+    const x = xOf(d);
+    if (x<PL||x>W-PR) continue;
+    ctx.beginPath(); ctx.moveTo(x, PT); ctx.lineTo(x, PT+gH); ctx.stroke();
+  }
+  ctx.restore();
+
+  // ── Y-axis labels ──
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,0.22)';
+  ctx.font = `${10*dpr}px -apple-system,sans-serif`;
+  ctx.textAlign = 'right';
+  for (let i=0; i<=ySteps; i++) {
+    const frac = 1 - i/ySteps;
+    const v = vMin + frac*(vMax-vMin);
+    const y = PT + i*gH/ySteps;
+    ctx.fillText(v.toFixed(0)+'%', PL-6*dpr, y+4*dpr);
+  }
+  ctx.restore();
+
+  // ── X-axis labels (months) ──
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,0.18)';
+  ctx.font = `${9*dpr}px -apple-system,sans-serif`;
+  ctx.textAlign = 'center';
+  for (let d=Math.ceil(d0/xStep)*xStep; d<=d1; d+=xStep) {
+    const x = xOf(d);
+    if (x<PL+20||x>W-PR-20) continue;
+    const mo = Math.round(d/30.4);
+    ctx.fillText(`M${mo}`, x, PT+gH+18*dpr);
+  }
+  ctx.restore();
+
+  // ── Halving line (day 0) ──
+  const hx = xOf(0);
+  if (hx >= PL && hx <= W-PR) {
+    ctx.save();
+    const grad = ctx.createLinearGradient(hx, PT, hx, PT+gH);
+    grad.addColorStop(0, 'rgba(247,147,26,0.25)');
+    grad.addColorStop(1, 'rgba(247,147,26,0)');
+    ctx.strokeStyle = 'rgba(247,147,26,0.35)';
+    ctx.lineWidth = dpr;
+    ctx.setLineDash([5*dpr, 4*dpr]);
+    ctx.beginPath(); ctx.moveTo(hx, PT); ctx.lineTo(hx, PT+gH); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(247,147,26,0.55)';
+    ctx.font = `bold ${9*dpr}px -apple-system,sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.fillText('HALVING', hx+5*dpr, PT+13*dpr);
+    ctx.restore();
+  }
+
+  // ── Today line ──
+  const tx = xOf(TODAY_DAY);
+  if (tx >= PL && tx <= W-PR) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.lineWidth = dpr;
+    ctx.setLineDash([3*dpr, 6*dpr]);
+    ctx.beginPath(); ctx.moveTo(tx, PT); ctx.lineTo(tx, PT+gH); ctx.stroke();
+    ctx.setLineDash([]);
+    // Glowing dot at current 2024 price
+    const curV = liveP / ATH2024_EUR * 100;
+    if (curV >= vMin && curV <= vMax) {
+      const ty2 = yOf(curV);
+      ctx.shadowColor = '#f7931a';
+      ctx.shadowBlur = 12*dpr;
+      ctx.fillStyle = '#f7931a';
+      ctx.beginPath(); ctx.arc(tx, ty2, 5*dpr, 0, Math.PI*2); ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.font = `${9*dpr}px -apple-system,sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.fillText('HEUTE', tx+5*dpr, PT+13*dpr);
+    ctx.restore();
+  }
+
+  // ── Shaded area between curves ──
+  // Build visible segments for both
+  const seg20 = n2020.filter(pt => pt.d>=d0-1 && pt.d<=d1+1);
+  const seg24 = n2024.filter(pt => pt.d>=d0-1 && pt.d<=d1+1);
+  const maxD = Math.min(
+    seg20.length ? seg20.at(-1).d : 0,
+    seg24.length ? seg24.at(-1).d : 0
+  );
+
+  if (seg20.length > 1 && seg24.length > 1) {
+    ctx.save();
+    ctx.globalAlpha = 0.08;
+    ctx.beginPath();
+    // Forward along 2024
+    let first = true;
+    for (const pt of seg24) {
+      if (pt.d > maxD) break;
+      const x = xOf(pt.d), y = yOf(pt.v);
+      if (first) { ctx.moveTo(x,y); first=false; } else ctx.lineTo(x,y);
+    }
+    // Backward along 2020
+    const seg20rev = [...seg20].reverse();
+    for (const pt of seg20rev) {
+      if (pt.d > maxD) continue;
+      ctx.lineTo(xOf(pt.d), yOf(pt.v));
+    }
+    ctx.closePath();
+    // Color based on who's ahead
+    ctx.fillStyle = '#f7931a';
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  // ── Candles for 2024 (zoomed in, USD-feel) ──
+  if (zoomK >= 2.5) {
+    const cw = Math.max(dpr, gW / vis * 0.6);
+    ctx.save();
+    for (const cd of candles) {
+      if (cd.d < d0-2 || cd.d > d1+2) continue;
+      const x = xOf(cd.d);
+      const col = cd.bull ? 'rgba(0,212,168,0.45)' : 'rgba(255,80,80,0.38)';
+      ctx.strokeStyle = col;
+      ctx.lineWidth = dpr * 0.7;
+      const yH = yOf(cd.h), yL = yOf(cd.l), yO = yOf(cd.o), yC = yOf(cd.c);
+      ctx.beginPath(); ctx.moveTo(x,yH); ctx.lineTo(x,yL); ctx.stroke();
+      ctx.fillStyle = col;
+      const bt = Math.min(yO,yC), bh = Math.max(dpr, Math.abs(yO-yC));
+      ctx.fillRect(x-cw/2, bt, cw, bh);
+    }
+    ctx.restore();
+  }
+
+  // ── Line draw helper ──
+  function drawLine(pts, getD, getV, color, alpha, lw, glow) {
+    const visible = pts.filter(pt => getD(pt) >= d0-1 && getD(pt) <= d1+1);
+    if (visible.length < 2) return;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lw * dpr;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    if (glow) { ctx.shadowColor = color; ctx.shadowBlur = 8*dpr; }
+    ctx.beginPath();
+    let first = true;
+    for (const pt of visible) {
+      const x = xOf(getD(pt)), y = yOf(getV(pt));
+      if (first) { ctx.moveTo(x,y); first=false; } else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Draw 2020 – solid teal
+  drawLine(n2020, pt=>pt.d, pt=>pt.v, '#00d4a8', 0.8, 2, false);
+
+  // Draw 2024 – glowing orange
+  drawLine(n2024, pt=>pt.d, pt=>pt.v, '#f7931a', 1, 2.5, true);
+
+  // ── ATH markers ──
+  function athDot(day, v, color, label) {
+    const x = xOf(day), y = yOf(v);
+    if (x<PL||x>W-PR||y<PT||y>PT+gH) return;
+    ctx.save();
+    ctx.shadowColor = color; ctx.shadowBlur = 14*dpr;
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(x, y, 5*dpr, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.font = `bold ${9*dpr}px -apple-system,sans-serif`;
+    ctx.fillStyle = color;
+    ctx.textAlign = 'left';
+    ctx.fillText(label, x+8*dpr, y-6*dpr);
+    ctx.restore();
+  }
+
+  athDot(548, 100, '#00d4a8', 'ATH €63k = 100%');
+  athDot(440, 100, '#f7931a', 'ATH €116k = 100%');
+
+  // ── Axis border ──
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = dpr;
+  ctx.strokeRect(PL, PT, gW, gH);
+  ctx.restore();
+
+  // ── Footer update ──
+  document.getElementById('fDay').textContent = TODAY_DAY;
+  document.getElementById('fPct').textContent = (liveP/ATH2024_EUR*100).toFixed(1);
+}
+
+// ── TOOLTIP ───────────────────────────────────────────────────────────────────
+const tip = document.getElementById('tip');
+
+function getVal(arr, day) {
+  let best=null, bd=Infinity;
+  for (const pt of arr) {
+    const dd = Math.abs(pt.d - day);
+    if (dd < bd) { bd=dd; best=pt; }
+  }
+  return bd <= 6 ? best : null;
+}
+
+function fmtN(v) { return v==null ? '–' : v.toFixed(1)+'%'; }
+
+function dayToDate(day) {
+  const dt = new Date(HALVING5);
+  dt.setDate(dt.getDate() + day);
+  return dt.toLocaleDateString('de-DE',{day:'2-digit',month:'short',year:'numeric'});
+}
+
+cv.addEventListener('mousemove', e => {
+  const dpr = window.devicePixelRatio||1;
+  const rect = cv.getBoundingClientRect();
+  const mx = (e.clientX-rect.left)*dpr;
+  const W = cv.width;
+  const PL = 62*dpr, PR = 16*dpr;
+  const gW = W-PL-PR;
+  if (mx<PL||mx>W-PR) { tip.style.display='none'; return; }
+
+  const vis = DMAX/zoomK;
+  const day = Math.round(panD + (mx-PL)/gW*vis);
+
+  const p20 = getVal(n2020, day);
+  const p24 = getVal(n2024, day);
+  const v20 = p20?.v ?? null;
+  const v24 = p24?.v ?? null;
+
+  document.getElementById('tDay').textContent = `Tag +${day} nach Halving`;
+  document.getElementById('t20').textContent  = fmtN(v20);
+  document.getElementById('t24').textContent  = fmtN(v24);
+
+  if (v20!=null && v24!=null) {
+    const diff = v24 - v20;
+    const sign = diff>=0 ? '+' : '';
+    document.getElementById('tDiff').textContent = sign+diff.toFixed(1)+'% (2024 vs 2020)';
+    document.getElementById('tDiff').style.color = diff>=0 ? '#f7931a' : '#00d4a8';
+  } else {
+    document.getElementById('tDiff').textContent = '–';
+  }
+  document.getElementById('tDate').textContent = dayToDate(day);
+
+  tip.style.display = 'block';
+  const tw = 200, th = 130;
+  let lx = e.clientX-rect.left+16;
+  let ly = e.clientY-rect.top-65;
+  if (lx+tw > rect.width)  lx = e.clientX-rect.left-tw-10;
+  if (ly < 0) ly = 8;
+  if (ly+th > rect.height) ly = rect.height-th-8;
+  tip.style.left = lx+'px';
+  tip.style.top  = ly+'px';
+
+  if (dragging) {
+    const dx = e.clientX-dragX0;
+    panD = panD0 - dx/rect.width*vis;
+    clamp(); draw();
+  }
+});
+
+cv.addEventListener('mouseleave', () => { tip.style.display='none'; dragging=false; });
+cv.addEventListener('mousedown', e => { dragging=true; dragX0=e.clientX; panD0=panD; cv.style.cursor='grabbing'; });
+cv.addEventListener('mouseup',   () => { dragging=false; cv.style.cursor='crosshair'; });
+
+cv.addEventListener('wheel', e => {
+  e.preventDefault();
+  const rect = cv.getBoundingClientRect();
+  const frac = Math.max(0, Math.min(1, (e.clientX-rect.left-62)/(rect.width-78)));
+  const vis = DMAX/zoomK;
+  const anchor = panD + frac*vis;
+  zoomK = Math.max(1, Math.min(14, zoomK*(e.deltaY<0?1.12:1/1.12)));
+  panD = anchor - frac*(DMAX/zoomK);
+  clamp(); draw();
+}, {passive:false});
+
+// Touch
+let t0d=null, t0k=1;
+cv.addEventListener('touchstart', e => {
+  if (e.touches.length===1) { dragging=true; dragX0=e.touches[0].clientX; panD0=panD; }
+  if (e.touches.length===2) { t0d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); t0k=zoomK; }
+},{passive:true});
+cv.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const rect = cv.getBoundingClientRect();
+  if (e.touches.length===1&&dragging) {
+    panD = panD0-(e.touches[0].clientX-dragX0)/rect.width*(DMAX/zoomK);
+    clamp(); draw();
+  }
+  if (e.touches.length===2&&t0d) {
+    const nd=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+    zoomK=Math.max(1,Math.min(14,t0k*(nd/t0d)));
+    clamp(); draw();
+  }
+},{passive:false});
+cv.addEventListener('touchend',()=>{dragging=false;t0d=null;});
+
+// ── LIVE PRICE ────────────────────────────────────────────────────────────────
+async function fetchPrice() {
+  try {
+    const r = await fetch('https://api.coindesk.com/v1/bpi/currentprice/EUR.json');
+    const d = await r.json();
+    liveP = parseFloat(d.bpi.EUR.rate.replace(/,/g,''));
+  } catch {
+    liveP = 56890;
+  }
+  const fmt = liveP.toLocaleString('de-DE',{maximumFractionDigits:0});
+  document.getElementById('livePrice').textContent = '€'+fmt;
+  document.getElementById('livePct').textContent   = (liveP/ATH2024_EUR*100).toFixed(1)+'%';
+  // Update last actual data point to live price (normalized)
+  if (n2024.length) {
+    n2024.at(-1).v = liveP / ATH2024_EUR * 100;
+    n2024.at(-1).p = liveP;
+  }
+  draw();
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+resize();
+fetchPrice();
+setInterval(fetchPrice, 60000);
+</script>
+</body>
+</html>
