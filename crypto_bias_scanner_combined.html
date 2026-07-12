@@ -1,0 +1,1607 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Krypto Bias-Dashboard &amp; Scanner (kombiniert)</title>
+<style>
+  :root{
+    --bg:#0b0e14; --panel:#131722; --panel2:#1a1f2e; --border:#262b3a;
+    --text:#e6e9f0; --muted:#8b93a7; --green:#3ecf8e; --red:#f0546a;
+    --accent:#5b8def; --amber:#f5c264; --purple:#c084fc; --orange:#fb923c;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; background:var(--bg); color:var(--text); padding:24px;}
+  .wrap{max-width:1100px; margin:0 auto;}
+  h1{font-size:20px; margin:0 0 4px;}
+  .subtitle{color:var(--muted); font-size:13px; margin-bottom:14px;}
+  .info{background:#0f1c2e; border:1px solid #1f3a5c; color:#8fc4f5; padding:10px 14px; border-radius:8px; font-size:12.5px; margin-bottom:16px; line-height:1.5;}
+  .controls{display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end; margin-bottom:12px;}
+  .field{display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--muted);}
+  input, select{background:var(--panel2); border:1px solid var(--border); color:var(--text); padding:8px 10px; border-radius:6px; font-size:13px;}
+  #watchlistInput{width:380px;}
+  button{background:var(--accent); color:#fff; border:none; border-radius:6px; padding:9px 16px; font-size:13px; font-weight:600; cursor:pointer;}
+  button.secondary{background:var(--panel2); color:var(--text); border:1px solid var(--border);}
+  button.secondary.active-cur{background:var(--accent); border-color:var(--accent); color:#fff;}
+  button:disabled{opacity:.5; cursor:not-allowed;}
+  .updated{font-size:12px; color:var(--muted); margin-bottom:10px;}
+  .progress{font-size:12.5px; color:var(--muted); margin-bottom:10px; min-height:16px;}
+
+  .tabs{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px;}
+  .tab-btn{
+    background:var(--panel2); border:1px solid var(--border); color:var(--text);
+    padding:8px 14px; border-radius:100px; font-size:13px; font-weight:600; cursor:pointer;
+    display:flex; align-items:center; gap:6px;
+  }
+  .tab-btn.active{background:var(--accent); border-color:var(--accent);}
+  .tab-btn.has-position{box-shadow:0 0 0 2px var(--amber) inset;}
+  .tab-btn .dot{width:8px; height:8px; border-radius:50%;}
+  .tab-btn .dot.bullish{background:var(--green);} .tab-btn .dot.bearish{background:var(--red);}
+  .tab-btn .dot.neutral{background:var(--muted);} .tab-btn .dot.mixed{background:var(--amber);}
+
+  .main-card{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:18px; margin-bottom:16px;}
+  .main-head{display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px; margin-bottom:6px;}
+  .main-price{font-size:26px; font-weight:700; transition:color 0.25s ease;}
+  .main-price.tick-up{color:var(--green);}
+  .main-price.tick-down{color:var(--red);}
+  .chg{font-size:13px; font-weight:600;}
+  .chg.up{color:var(--green);} .chg.down{color:var(--red);}
+  .badge{display:inline-block; padding:4px 12px; border-radius:100px; font-size:12.5px; font-weight:700;}
+  .badge.bullish{background:#123324; color:var(--green);}
+  .badge.bearish{background:#331419; color:var(--red);}
+  .badge.neutral{background:#20242e; color:var(--muted);}
+  .badge.mixed{background:#2a1c10; color:var(--amber);}
+  canvas#chart{width:100%; height:320px; display:block; background:var(--panel2); border-radius:8px; margin-top:10px; cursor:grab; touch-action:none;}
+  canvas#chart.dragging{cursor:grabbing;}
+  .chart-toolbar{display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:8px; flex-wrap:wrap;}
+  .zoom-hint{font-size:11.5px; color:var(--muted);}
+  .zoom-btns{display:flex; gap:6px;}
+  .zoom-btns button{padding:5px 10px; font-size:12px;}
+  .legend{display:flex; gap:16px; flex-wrap:wrap; font-size:11.5px; color:var(--muted); margin-top:8px;}
+  .legend span{display:inline-flex; align-items:center; gap:5px;}
+  .legend i{width:12px; height:3px; display:inline-block; border-radius:2px;}
+  .legend i.dotmark{width:8px; height:8px; border-radius:50%;}
+  .detail-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-top:14px;}
+  .stat{background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:10px 12px;}
+  .stat .label{font-size:11px; color:var(--muted); text-transform:uppercase;}
+  .stat .value{font-size:15px; font-weight:700; margin-top:2px;}
+  .ok{color:var(--green);} .bad{color:var(--red);}
+
+  table{width:100%; border-collapse:collapse; background:var(--panel); border-radius:10px; overflow:hidden; border:1px solid var(--border);}
+  th, td{padding:9px 12px; text-align:right; font-size:12.5px; border-bottom:1px solid var(--border);}
+  th:first-child, td:first-child{text-align:left;}
+  th{background:var(--panel2); color:var(--muted); font-weight:600; font-size:11px; text-transform:uppercase; cursor:pointer;}
+  th:hover{color:var(--accent);}
+  .scroll-table-wrap{max-height:232px; overflow-y:auto; border-radius:10px; border:1px solid var(--border);}
+  .scroll-table-wrap table{border:none; border-radius:0;}
+  .scroll-table-wrap thead th{position:sticky; top:0; z-index:1;}
+  tr.rowlink{cursor:pointer;}
+  tr.rowlink:hover td{background:#1c2233;}
+  tr.active-row td{background:#16223a;}
+  .pos{color:var(--green); font-weight:600;} .neg{color:var(--red); font-weight:600;}
+  .ribbon-mini{display:inline-flex; gap:2px; vertical-align:middle;}
+  .ribbon-mini div{width:8px; height:8px; border-radius:2px; background:var(--panel2);}
+  .ribbon-mini div.up{background:var(--green);} .ribbon-mini div.down{background:var(--red);}
+
+  .risk-card{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:16px; margin-top:16px; margin-bottom:14px;}
+  .risk-row{display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--border); font-size:13px;}
+  .risk-row:last-child{border-bottom:none;}
+  .status{font-weight:700; font-size:12px; padding:3px 8px; border-radius:100px;}
+  .status.ok{background:#123324; color:var(--green);} .status.warn{background:#331419; color:var(--red);}
+  .counter{display:flex; align-items:center; gap:8px;}
+  .counter button{padding:4px 10px; font-size:14px;}
+  .counter span{min-width:16px; text-align:center; font-weight:700;}
+  textarea{width:100%; min-height:60px; border:1px solid var(--border); border-radius:6px; padding:8px; font-family:inherit; font-size:12.5px; resize:vertical; background:var(--panel2); color:var(--text);}
+  .note{font-size:11.5px; color:var(--muted); margin-top:6px;}
+  .err{color:var(--red); font-size:12.5px;}
+
+  .paper-card{background:var(--panel2); border:1px solid var(--border); border-radius:10px; padding:14px; margin-top:16px;}
+  .paper-head{display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:10px;}
+  .paper-head h3{margin:0; font-size:14px;}
+  .autoclose-toggle{font-size:12px; color:var(--muted); display:flex; align-items:center; gap:6px; cursor:pointer;}
+  .paper-actions{display:flex; gap:10px;}
+  .btn-long{background:var(--green); color:#08210f;}
+  .btn-short{background:var(--red); color:#2a0a0d;}
+  .paper-open{display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;}
+  .paper-open-info{display:flex; gap:18px; flex-wrap:wrap; font-size:12.5px;}
+  .paper-open-info .lbl{color:var(--muted); font-size:11px; text-transform:uppercase;}
+  .paper-pnl{font-size:18px; font-weight:700;}
+  .stats-row{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;}
+
+  .percoin-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px; margin-bottom:18px;}
+  .percoin-card{background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:12px;}
+  .percoin-card h4{margin:0 0 8px; font-size:13px; display:flex; justify-content:space-between; align-items:center;}
+  .percoin-live{font-size:11px; padding:3px 9px; border-radius:100px; font-weight:700;}
+  .percoin-live.pos{background:#123324; color:var(--green);}
+  .percoin-live.neg{background:#331419; color:var(--red);}
+  .percoin-live.none{background:#20242e; color:var(--muted);}
+  .percoin-trade-row{display:flex; justify-content:space-between; gap:6px; padding:4px 0; border-top:1px solid var(--border); font-size:11.5px;}
+  .percoin-summary{font-size:11px; color:var(--muted); margin-top:8px; padding-top:6px; border-top:1px solid var(--border);}
+  .percoin-empty{font-size:11.5px; color:var(--muted); padding:6px 0;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Krypto Bias-Dashboard &amp; Scanner</h1>
+  <div class="subtitle">Diskretionäre Entscheidungshilfe — keine automatische Order-Ausführung.</div>
+  <div class="info">
+    Datenquelle: öffentliche Binance-API, läuft komplett im Browser (EMA/RSI werden lokal berechnet). Kein Login nötig.<br>
+    <strong>Annahme "Ribbon":</strong> EMA 8/20/50. Bullisch = EMA8&gt;EMA20&gt;EMA50, Bearisch = umgekehrt.
+    Punkte im Chart markieren Kerzen, an denen die Bias-Kriterien erfüllt waren (grün=bullish, rot=bearish, gelb=gemischt/uneindeutig).<br>
+    <strong>Einstiegs-Dreiecke (▲/▼):</strong> werden nur gezeichnet, wenn (1) der Bias-Wechsel eine Kerze später noch besteht (Fakeout-Filter — die aktuellste Kerze kann daher noch nicht bestätigt sein) und (2) der übergeordnete Timeframe nicht dagegen steht (1m→15m, 5m→1h, 15m→4h, 1h→4h, 4h→1d, 1d→1w).<br>
+    <strong>Währung:</strong> Umrechnung über den aktuellen EURUSDT-Kurs von Binance — angewendet auf alle angezeigten Preise inkl. Chart und Historie (keine historisch korrekten Wechselkurse je Kerze).<br>
+    <strong>Chart- vs. Trading-Timeframe:</strong> bewusst getrennt. Der Chart-Timeframe ist nur deine Ansicht — du kannst frei umschalten, ohne dass sich etwas an laufenden Positionen ändert. Auto-Trading, Signale und offene Positionen laufen ausschließlich auf dem Trading-Timeframe (Symbol-Tabs und Live-Stand unten zeigen dessen Bias, nicht den des Charts).
+  </div>
+
+  <div class="controls">
+    <div class="field">
+      <label>Watchlist (Komma-getrennt, Binance-Format)</label>
+      <input id="watchlistInput" type="text" value="BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT,ADAUSDT">
+    </div>
+    <div class="field">
+      <label>Chart-Timeframe (nur Ansicht)</label>
+      <select id="timeframe">
+        <option value="1m">1min</option>
+        <option value="5m">5min</option>
+        <option value="15m">15min</option>
+        <option value="1h">1hour</option>
+        <option value="4h" selected>4hour</option>
+        <option value="1d">1day</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Trading-Timeframe (Bot-Strategie, fest)</label>
+      <select id="tradingTimeframe">
+        <option value="1m">1min</option>
+        <option value="5m">5min</option>
+        <option value="15m">15min</option>
+        <option value="1h">1hour</option>
+        <option value="4h" selected>4hour</option>
+        <option value="1d">1day</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Währung</label>
+      <div class="zoom-btns">
+        <button id="curUsdBtn" class="secondary active-cur" onclick="setCurrency('USD')">USD $</button>
+        <button id="curEurBtn" class="secondary" onclick="setCurrency('EUR')" disabled title="Lädt EUR-Kurs...">EUR €</button>
+      </div>
+    </div>
+    <button id="loadBtn" onclick="loadAll()">Laden / Aktualisieren</button>
+  </div>
+  <div class="updated" id="updatedAt"></div>
+  <div class="progress" id="progress"></div>
+
+  <div class="tabs" id="tabs"></div>
+
+  <div class="main-card" id="mainCard">
+    <div class="main-head"><div class="subtitle">Wähle oben ein Symbol aus, sobald geladen.</div></div>
+  </div>
+
+  <div class="risk-card" id="backtestCard">
+    <h2 style="font-size:15px;margin:0 0 6px;">Backtest &amp; Optimierer (aktives Symbol)</h2>
+    <div class="note" style="margin-bottom:10px; line-height:1.5;">
+      Kein echtes Lernen/KI-Modell — testet die aktuell geladene Historie (bis zu 500 Kerzen) mit der Live-Strategie
+      und probiert zusätzlich 4 EMA-Kombos × 4 RSI-Schwellen × 3 Bestätigungs-Varianten × HTF an/aus durch (96 Kombinationen),
+      simuliert für jede die Trades und zeigt die beste. Übergeordneter Timeframe wird dafür mit echter Zeithistorie
+      ausgerichtet (nicht nur der aktuelle Snapshot). Ergebnis ist eine Optimierung auf vergangene Daten — keine Garantie
+      für die Zukunft (Overfitting-Risiko bei so einem Sweep ist real).
+    </div>
+    <button id="backtestBtn" onclick="runBacktestOptimizer()">Backtest starten</button>
+    <span id="backtestProgress" class="progress" style="display:inline-block; margin-left:10px;"></span>
+    <div id="backtestBaseline" style="margin-top:14px;"></div>
+    <div id="backtestResultsWrap" style="display:none; margin-top:14px;">
+      <div class="runhdr" style="font-size:13px; color:var(--muted); margin-bottom:6px;">Top-Kombinationen (sortiert nach Gesamt-PnL) — 5 sichtbar, restliche scrollbar</div>
+      <div class="scroll-table-wrap">
+        <table id="backtestTable">
+          <thead>
+            <tr><th>EMA</th><th>RSI</th><th>Bestätigung</th><th>HTF</th><th>Trades</th><th>Winrate</th><th>Gesamt-PnL</th><th>Max DD</th><th></th></tr>
+          </thead>
+          <tbody id="backtestBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <table id="overviewTable" style="display:none;">
+    <thead>
+      <tr>
+        <th data-key="symbol">Symbol</th>
+        <th data-key="price">Preis</th>
+        <th data-key="momentum">Momentum</th>
+        <th data-key="rsi">RSI(14)</th>
+        <th data-key="distEma20">vs. EMA20</th>
+        <th>Ribbon</th>
+        <th>Bias</th>
+      </tr>
+    </thead>
+    <tbody id="overviewBody"></tbody>
+  </table>
+
+  <div class="risk-card" id="paperLogCard">
+    <div class="paper-head">
+      <h2 style="font-size:15px;margin:0;">Paper-Trading Log (alle Symbole)</h2>
+      <div class="zoom-btns">
+        <button id="autoTradeBtn" class="secondary" onclick="toggleAutoTrade()">Vollautomatisches Paper-Trading: Aus</button>
+        <button id="udModeBtn" class="secondary" onclick="toggleUdMode()" title="Chart/Bias/Signale bleiben unverändert — nur Auto-Trades laufen in die Gegenrichtung">U-D-Modus: Aus</button>
+        <button class="secondary" onclick="resetAllPositions()">Alle offenen Positionen zurücksetzen</button>
+      </div>
+    </div>
+    <div class="note" style="margin-bottom:10px;">Im Automatik-Modus eröffnet/schließt das Tool selbst Positionen bei jedem bestätigten Einstiegssignal (max. 1 Position pro Coin, respektiert HTF-Filter). Läuft immer auf dem Trading-Timeframe für die gesamte Watchlist, nicht nur das aktive Symbol. Im U-D-Modus wird nur die gehandelte Richtung von Auto-Trades gespiegelt (Long-Signal → Short-Position, Öffnungs-/Schließzeitpunkt bleiben gleich) — Chart, Bias und Signale zeigen weiter das Original. Manuelle Trades sind davon nicht betroffen. Bereits offene Positionen bleiben beim Umschalten unverändert, es wirkt nur auf neue Auto-Trades.</div>
+    <div class="stats-row" id="paperStats"></div>
+    <div class="runhdr" style="font-size:13px; color:var(--muted); margin:10px 0 8px;">Live-Stand pro Coin (letzte 3 Trades)</div>
+    <div class="percoin-grid" id="perCoinGrid"></div>
+    <div class="runhdr" style="font-size:13px; color:var(--muted); margin:14px 0 4px;">Alle Trades — 5 sichtbar, restliche scrollbar</div>
+    <div class="scroll-table-wrap" id="paperLogTableWrap" style="display:none;">
+      <table id="paperLogTable">
+        <thead>
+          <tr><th>Symbol</th><th>Richtung</th><th>TF</th><th>Entry</th><th>Exit</th><th>PnL %</th><th>Ergebnis</th><th>Grund</th><th>Geschlossen</th></tr>
+        </thead>
+        <tbody id="paperLogBody"></tbody>
+      </table>
+    </div>
+    <div class="subtitle" id="paperLogEmpty">Noch keine geschlossenen Paper-Trades.</div>
+    <button class="secondary" style="margin-top:10px;" onclick="clearPaperLog()">Log löschen</button>
+  </div>
+
+  <div class="risk-card">
+    <h2 style="font-size:15px;margin:0 0 8px;">Notizen (Makro-Events, wichtige Termine diese Woche)</h2>
+    <textarea id="notes" onchange="saveNotes()" placeholder="z.B. FOMC-Termin, CPI-Daten, Optionsverfall..."></textarea>
+  </div>
+</div>
+
+<script>
+const API = 'https://api.binance.com/api/v3';
+let allData = {};        // symbol -> {closes, ema8, ema20, ema50, rsi, biasArr, price, changePct} — Chart-Timeframe (nur Ansicht)
+let tradingData = {};    // dieselbe Struktur, aber auf dem Trading-Timeframe — steuert Signale, Auto-Trading & offene Positionen
+let activeSymbol = null;
+let sortKey = 'momentum';
+let sortDir = -1;
+let viewState = {start:0, end:0};   // chart zoom/pan window of the ACTIVE symbol
+let viewStates = {};                // symbol -> {start, end}, remembered across refreshes/switches
+const DEFAULT_VISIBLE = 100;
+const KLINES_LIMIT = 500;
+let crosshairPos = null;            // {x,y} in CSS pixels relative to the canvas, or null when not hovering
+
+// ---- Live strategy configuration (editable via Backtest & Optimierer) ----
+let emaPeriods = {fast:8, mid:20, slow:50};
+let rsiThresholds = {upper:60, lower:40};
+let confirmCandles = 1;
+
+function loadStrategyConfig(){
+  try{ emaPeriods = JSON.parse(localStorage.getItem('strategy_ema')) || emaPeriods; }catch(e){}
+  try{ rsiThresholds = JSON.parse(localStorage.getItem('strategy_rsi')) || rsiThresholds; }catch(e){}
+  const cc = parseInt(localStorage.getItem('strategy_confirm'), 10);
+  if(!isNaN(cc)) confirmCandles = cc;
+}
+function saveStrategyConfig(){
+  localStorage.setItem('strategy_ema', JSON.stringify(emaPeriods));
+  localStorage.setItem('strategy_rsi', JSON.stringify(rsiThresholds));
+  localStorage.setItem('strategy_confirm', confirmCandles);
+}
+
+// Higher-timeframe (HTF) used as trend filter for entry signals
+const HTF_MAP = {'1m':'15m','5m':'1h','15m':'4h','1h':'4h','4h':'1d','1d':'1w'};
+
+// ---- Currency ----
+let currency = localStorage.getItem('currency') || 'USD';
+let eurRate = null; // EUR/USDT rate (1 EUR = eurRate USDT)
+
+async function fetchEurRate(){
+  try{
+    const res = await fetch(`${API}/ticker/price?symbol=EURUSDT`);
+    if(!res.ok) throw new Error('EURUSDT nicht verfügbar');
+    const data = await res.json();
+    eurRate = +data.price;
+  }catch(e){
+    eurRate = null;
+  }
+}
+function conv(usdVal){
+  if(usdVal==null) return usdVal;
+  return (currency==='EUR' && eurRate) ? usdVal/eurRate : usdVal;
+}
+function curSym(){ return (currency==='EUR' && eurRate) ? '€' : '$'; }
+function setCurrency(cur){
+  currency = cur;
+  localStorage.setItem('currency', cur);
+  updateCurrencyButtons();
+  renderMain();
+  renderOverviewTable();
+  renderPaperLog();
+}
+// ---- HTF trend filter toggle ----
+let htfFilterEnabled = localStorage.getItem('htf_filter') !== 'false'; // default: on
+
+function toggleHtfFilter(){
+  htfFilterEnabled = !htfFilterEnabled;
+  localStorage.setItem('htf_filter', htfFilterEnabled);
+  updateHtfFilterButton();
+  const d = allData[activeSymbol];
+  if(d && !d.error) drawChart(d);
+}
+function updateHtfFilterButton(){
+  const btn = document.getElementById('htfFilterBtn');
+  if(!btn) return;
+  btn.textContent = htfFilterEnabled ? 'HTF-Trendfilter: An' : 'HTF-Trendfilter: Aus';
+  btn.classList.toggle('active-cur', htfFilterEnabled);
+}
+
+function updateCurrencyButtons(){
+  const usdBtn = document.getElementById('curUsdBtn'), eurBtn = document.getElementById('curEurBtn');
+  if(!usdBtn) return;
+  usdBtn.classList.toggle('active-cur', currency==='USD');
+  eurBtn.classList.toggle('active-cur', currency==='EUR');
+  eurBtn.disabled = !eurRate;
+  eurBtn.title = eurRate ? '' : 'EUR-Kurs (EURUSDT) nicht verfügbar';
+}
+
+function ensureViewState(symbol, len){
+  let vs = viewStates[symbol];
+  if(!vs){
+    const n = Math.min(DEFAULT_VISIBLE, len);
+    vs = {start: len-n, end: len-1};
+  } else {
+    vs = {start: Math.max(0, Math.min(vs.start, len-1)), end: Math.max(0, Math.min(vs.end, len-1))};
+    if(vs.end <= vs.start){
+      const n = Math.min(DEFAULT_VISIBLE, len);
+      vs = {start: len-n, end: len-1};
+    }
+  }
+  viewStates[symbol] = vs;
+  viewState = vs;
+  return vs;
+}
+function syncViewState(){ viewStates[activeSymbol] = viewState; }
+
+// ---- Paper trading state ----
+let openPositions = {};   // symbol -> {direction:'long'|'short', entryPrice, entryTime}
+let tradeLog = [];        // closed trades
+let autoCloseOnFlip = false;
+
+function loadPaperState(){
+  try{ openPositions = JSON.parse(localStorage.getItem('paper_positions')||'{}'); }catch(e){ openPositions = {}; }
+  try{ tradeLog = JSON.parse(localStorage.getItem('paper_tradelog')||'[]'); }catch(e){ tradeLog = []; }
+  autoCloseOnFlip = localStorage.getItem('paper_autoclose') === 'true';
+}
+function savePaperPositions(){ localStorage.setItem('paper_positions', JSON.stringify(openPositions)); }
+function saveTradeLog(){ localStorage.setItem('paper_tradelog', JSON.stringify(tradeLog.slice(-200))); }
+
+function toggleAutoClose(){
+  autoCloseOnFlip = document.getElementById('autoCloseChk').checked;
+  localStorage.setItem('paper_autoclose', autoCloseOnFlip);
+}
+
+function openPaperPosition(direction){
+  openPositionFor(activeSymbol, direction, 'manual');
+}
+
+function openPositionFor(symbol, direction, source, signalDirection){
+  const d = tradingData[symbol] || allData[symbol];
+  if(!d || d.error) return;
+  if(openPositions[symbol]) return;
+  const tf = document.getElementById('tradingTimeframe').value;
+  // signalDirection = die ursprüngliche, nicht invertierte Signalrichtung (steuert den Schließzeitpunkt).
+  // Bei manuellen Trades ist sie identisch mit direction (keine Invertierung).
+  openPositions[symbol] = {direction, entryPrice:d.price, entryTime:Date.now(), source: source||'manual', timeframe: tf, signalDirection: signalDirection || direction};
+  savePaperPositions();
+  renderTabs(Object.keys(tradingData));
+  if(symbol === activeSymbol) renderMain();
+}
+
+function closePaperPosition(symbol, reason){
+  const pos = openPositions[symbol];
+  if(!pos) return;
+  const d = tradingData[symbol] || allData[symbol];
+  const exitPrice = (d && !d.error) ? d.price : pos.entryPrice;
+  const pnlPct = pos.direction === 'long'
+    ? (exitPrice - pos.entryPrice) / pos.entryPrice * 100
+    : (pos.entryPrice - exitPrice) / pos.entryPrice * 100;
+  const inverted = !!(pos.signalDirection && pos.signalDirection !== pos.direction);
+  const trade = {
+    symbol, direction: pos.direction, entryPrice: pos.entryPrice, exitPrice,
+    pnlPct, result: pnlPct >= 0 ? 'win' : 'loss', closedAt: Date.now(), reason,
+    timeframe: pos.timeframe || '—', inverted
+  };
+  tradeLog.push(trade);
+  saveTradeLog();
+  delete openPositions[symbol];
+  savePaperPositions();
+  renderTabs(Object.keys(tradingData));
+  if(symbol === activeSymbol) renderMain();
+  renderPaperLog();
+}
+
+function checkAutoClose(){
+  Object.keys(openPositions).forEach(sym=>{
+    const d = tradingData[sym];
+    if(!d || d.error) return;
+    const bias = d.biasArr[d.closes.length-1];
+    const pos = openPositions[sym];
+    // Schließzeitpunkt richtet sich immer nach dem ursprünglichen Signal (auch im U-D-Modus) —
+    // nur die gehandelte Richtung (pos.direction) ist ggf. gespiegelt.
+    const signalDir = pos.signalDirection || pos.direction;
+    const opposed = (signalDir==='long' && bias.cls==='bearish') || (signalDir==='short' && bias.cls==='bullish');
+    if(!opposed) return;
+    if(pos.source==='auto'){
+      closePaperPosition(sym, 'Auto-Signal (Bias-Wechsel)');
+    } else if(autoCloseOnFlip){
+      closePaperPosition(sym, 'Bias-Wechsel (auto)');
+    }
+  });
+}
+
+// ---- Fully automatic paper trading across the whole watchlist ----
+let autoTradeEnabled = localStorage.getItem('auto_trade') === 'true';
+let lastAutoSignalTime = {};
+
+function loadAutoTradeState(){
+  autoTradeEnabled = localStorage.getItem('auto_trade') === 'true';
+  try{ lastAutoSignalTime = JSON.parse(localStorage.getItem('auto_last_signal')||'{}'); }catch(e){ lastAutoSignalTime = {}; }
+}
+function saveAutoSignalTimes(){ localStorage.setItem('auto_last_signal', JSON.stringify(lastAutoSignalTime)); }
+
+function toggleAutoTrade(){
+  autoTradeEnabled = !autoTradeEnabled;
+  localStorage.setItem('auto_trade', autoTradeEnabled);
+  updateAutoTradeButton();
+}
+function updateAutoTradeButton(){
+  const btn = document.getElementById('autoTradeBtn');
+  if(!btn) return;
+  btn.textContent = autoTradeEnabled ? 'Vollautomatisches Paper-Trading: An' : 'Vollautomatisches Paper-Trading: Aus';
+  btn.classList.toggle('active-cur', autoTradeEnabled);
+}
+
+// ---- U-D-Modus (Upside-Down): Chart/Bias/Signale bleiben unverändert, aber Auto-Trades werden
+// in die Gegenrichtung ausgeführt (Long-Signal -> Short-Position und umgekehrt). Öffnungs-/
+// Schließzeitpunkt bleiben exakt wie beim normalen Signal — nur die gehandelte Richtung (und damit
+// der PnL) ist gespiegelt. Gilt nur für Auto-Trades, nicht für manuell eröffnete Positionen.
+let udModeEnabled = localStorage.getItem('ud_mode') === 'true';
+function toggleUdMode(){
+  udModeEnabled = !udModeEnabled;
+  localStorage.setItem('ud_mode', udModeEnabled);
+  updateUdModeButton();
+}
+function updateUdModeButton(){
+  const btn = document.getElementById('udModeBtn');
+  if(!btn) return;
+  btn.textContent = udModeEnabled ? 'U-D-Modus: An' : 'U-D-Modus: Aus';
+  btn.classList.toggle('active-cur', udModeEnabled);
+}
+
+function runAutoTrade(){
+  if(!autoTradeEnabled) return;
+  Object.keys(tradingData).forEach(sym=>{
+    const d = tradingData[sym];
+    if(!d || d.error) return;
+    const signals = computeEntrySignals(d.biasArr, htfFilterEnabled ? d.htfBias : null, confirmCandles);
+    const confirmedIdx = signals.length - 2;
+    if(confirmedIdx < 0) return;
+    const sig = signals[confirmedIdx];
+    if(!sig) return;
+    const signalTime = d.times[confirmedIdx];
+    if(lastAutoSignalTime[sym] === signalTime) return; // schon verarbeitet
+    lastAutoSignalTime[sym] = signalTime;
+    saveAutoSignalTimes();
+
+    const execDir = udModeEnabled ? (sig==='long' ? 'short' : 'long') : sig;
+    const pos = openPositions[sym];
+    if(!pos){
+      openPositionFor(sym, execDir, 'auto', sig); // max. 1 Position pro Coin (openPositionFor blockt Duplikate ohnehin)
+    } else if(pos.source==='auto' && (pos.signalDirection||pos.direction) !== sig){
+      closePaperPosition(sym, 'Auto-Signal (Richtungswechsel)');
+      openPositionFor(sym, execDir, 'auto', sig);
+    }
+  });
+}
+
+function resetAllPositions(){
+  if(!confirm('Alle offenen Positionen ohne Verbuchung im Log schließen?')) return;
+  openPositions = {};
+  savePaperPositions();
+  renderTabs(Object.keys(tradingData));
+  renderMain();
+  renderPaperLog();
+}
+
+function clearPaperLog(){
+  tradeLog = [];
+  saveTradeLog();
+  renderPaperLog();
+}
+
+function renderPaperLog(){
+  const wins = tradeLog.filter(t=>t.result==='win').length;
+  const total = tradeLog.length;
+  const winRate = total ? (wins/total*100) : 0;
+  const avgPnl = total ? tradeLog.reduce((s,t)=>s+t.pnlPct,0)/total : 0;
+  document.getElementById('paperStats').innerHTML = total ? `
+    <div class="stat"><div class="label">Trades</div><div class="value">${total}</div></div>
+    <div class="stat"><div class="label">Winrate</div><div class="value">${winRate.toFixed(1)}%</div></div>
+    <div class="stat"><div class="label">Ø PnL</div><div class="value ${avgPnl>=0?'ok':'bad'}">${avgPnl>=0?'+':''}${avgPnl.toFixed(2)}%</div></div>
+  ` : '';
+  const tbody = document.getElementById('paperLogBody');
+  const rows = [...tradeLog].reverse();
+  tbody.innerHTML = rows.map(t=>`
+    <tr>
+      <td><strong>${t.symbol}</strong></td>
+      <td>${t.direction==='long'?'Long':'Short'}${t.inverted ? ' <span title="U-D-Modus: Signal war eigentlich '+(t.direction==='long'?'Short':'Long')+'">(U-D)</span>' : ''}</td>
+      <td>${t.timeframe || '—'}</td>
+      <td>${curSym()}${conv(t.entryPrice).toLocaleString('de-DE',{maximumFractionDigits:2})}</td>
+      <td>${curSym()}${conv(t.exitPrice).toLocaleString('de-DE',{maximumFractionDigits:2})}</td>
+      <td class="${t.pnlPct>=0?'pos':'neg'}">${t.pnlPct>=0?'+':''}${t.pnlPct.toFixed(2)}%</td>
+      <td><span class="badge ${t.result==='win'?'bullish':'bearish'}">${t.result==='win'?'Gewinn':'Verlust'}</span></td>
+      <td>${t.reason}</td>
+      <td>${new Date(t.closedAt).toLocaleString('de-DE')}</td>
+    </tr>`).join('');
+  document.getElementById('paperLogTableWrap').style.display = total ? 'block' : 'none';
+  document.getElementById('paperLogEmpty').style.display = total ? 'none' : 'block';
+
+  renderPerCoinGrid();
+}
+
+function renderPerCoinGrid(){
+  const bySymbol = {};
+  tradeLog.forEach(t=>{
+    if(!bySymbol[t.symbol]) bySymbol[t.symbol] = [];
+    bySymbol[t.symbol].push(t);
+  });
+  const watchlistSymbols = Object.keys(tradingData);
+  const symbols = Array.from(new Set([...watchlistSymbols, ...Object.keys(bySymbol)]));
+  if(!symbols.length){ document.getElementById('perCoinGrid').innerHTML = ''; return; }
+
+  document.getElementById('perCoinGrid').innerHTML = symbols.map(sym=>{
+    const trades = (bySymbol[sym]||[]);
+    const last3 = [...trades].reverse().slice(0,3);
+    const d = tradingData[sym];   // Live-Stand basiert auf dem Trading-Timeframe (steuert die Positionen)
+    const pos = openPositions[sym];
+
+    let liveHtml;
+    if(pos && d && !d.error){
+      const livePnl = pos.direction==='long'
+        ? (d.price - pos.entryPrice) / pos.entryPrice * 100
+        : (pos.entryPrice - d.price) / pos.entryPrice * 100;
+      liveHtml = `<span class="percoin-live ${livePnl>=0?'pos':'neg'}">${pos.direction==='long'?'Long':'Short'} ${livePnl>=0?'+':''}${livePnl.toFixed(2)}%</span>`;
+    } else {
+      liveHtml = `<span class="percoin-live none">keine Position</span>`;
+    }
+
+    const tradesHtml = last3.length ? last3.map(t=>`
+      <div class="percoin-trade-row">
+        <span>${t.direction==='long'?'L':'S'} ${curSym()}${conv(t.entryPrice).toLocaleString('de-DE',{maximumFractionDigits:2})}→${curSym()}${conv(t.exitPrice).toLocaleString('de-DE',{maximumFractionDigits:2})}</span>
+        <span class="${t.pnlPct>=0?'pos':'neg'}">${t.pnlPct>=0?'+':''}${t.pnlPct.toFixed(2)}%</span>
+      </div>`).join('') : `<div class="percoin-empty">Noch keine Trades.</div>`;
+
+    let summaryHtml = '';
+    if(trades.length){
+      const w = trades.filter(t=>t.result==='win').length;
+      const sum = trades.reduce((s,t)=>s+t.pnlPct,0);
+      summaryHtml = `<div class="percoin-summary">${trades.length} Trades gesamt · Winrate ${(w/trades.length*100).toFixed(0)}% · Summe <span class="${sum>=0?'pos':'neg'}">${sum>=0?'+':''}${sum.toFixed(2)}%</span></div>`;
+    }
+
+    return `
+      <div class="percoin-card">
+        <h4><strong>${sym}</strong> ${liveHtml}</h4>
+        ${d && d.stale ? '<div class="percoin-empty" style="color:var(--amber);">⚠ letzter Datenabruf fehlgeschlagen, zeige letzten bekannten Stand</div>' : ''}
+        ${tradesHtml}
+        ${summaryHtml}
+      </div>`;
+  }).join('');
+}
+
+// HTF-Bias wird gecacht (5 Min TTL) — spart 1/3 der Requests pro Refresh-Zyklus und reduziert Rate-Limit-Risiko
+let htfCache = {};
+const HTF_TTL_MS = 5 * 60 * 1000;
+
+async function getHtfBiasCached(sym, htfTimeframe){
+  const key = sym + '|' + htfTimeframe + '|' + emaPeriods.fast + ',' + emaPeriods.mid + ',' + emaPeriods.slow + '|' + rsiThresholds.upper + ',' + rsiThresholds.lower;
+  const cached = htfCache[key];
+  if(cached && (Date.now() - cached.fetchedAt) < HTF_TTL_MS){
+    return cached.bias;
+  }
+  try{
+    const htfKlines = await fetchKlines(sym, htfTimeframe, 100);
+    const htfCloses = htfKlines.map(k=>k.close);
+    let bias = null;
+    if(htfCloses.length >= 55){
+      const hE8 = computeEMA(htfCloses,emaPeriods.fast), hE20 = computeEMA(htfCloses,emaPeriods.mid), hE50 = computeEMA(htfCloses,emaPeriods.slow);
+      const hRsi = computeRSI(htfCloses,14);
+      const hi = htfCloses.length-1;
+      bias = computeBiasAt(htfCloses[hi], hE8[hi], hE20[hi], hE50[hi], hRsi[hi], rsiThresholds.upper, rsiThresholds.lower);
+    }
+    htfCache[key] = {bias, fetchedAt: Date.now()};
+    return bias;
+  }catch(e){
+    return cached ? cached.bias : null;
+  }
+}
+
+// ---- Backtest & Optimierer ----
+
+// Simuliert: eröffnet bei jedem Entry-Signal (sofern keine Position offen), schließt bei Bias-Wechsel
+// gegen die Position (identisch zur Live-Logik). Offene Position am Ende bleibt unrealisiert (zählt nicht).
+function simulateBacktest(closesArr, biasArr, entrySignals){
+  let position = null;
+  const pnls = [];
+  for(let i=0;i<closesArr.length;i++){
+    if(position){
+      const opposed = (position.direction==='long' && biasArr[i].cls==='bearish') || (position.direction==='short' && biasArr[i].cls==='bullish');
+      if(opposed){
+        const exitPrice = closesArr[i];
+        const pnlPct = position.direction==='long'
+          ? (exitPrice-position.entryPrice)/position.entryPrice*100
+          : (position.entryPrice-exitPrice)/position.entryPrice*100;
+        pnls.push(pnlPct);
+        position = null;
+      }
+    }
+    if(!position && entrySignals[i]){
+      position = {direction: entrySignals[i], entryPrice: closesArr[i]};
+    }
+  }
+  const wins = pnls.filter(p=>p>=0).length;
+  const total = pnls.length;
+  const totalPnl = pnls.reduce((a,b)=>a+b,0);
+  let equity=0, peak=0, maxDD=0;
+  pnls.forEach(p=>{ equity+=p; peak=Math.max(peak,equity); maxDD=Math.min(maxDD, equity-peak); });
+  return {trades: total, winRate: total ? wins/total*100 : 0, totalPnl, maxDrawdown: maxDD};
+}
+
+// Ordnet eine übergeordnete Bias-Zeitreihe (htfTimes/htfBiasSeries, aufsteigend sortiert) den Primär-Kerzen zu
+// (jeweils der letzte HTF-Wert, dessen Kerze schon begonnen hat — Two-Pointer, O(n+m)).
+function alignHtfBias(primaryTimes, htfTimes, htfBiasSeries){
+  const result = new Array(primaryTimes.length).fill(null);
+  let j = 0;
+  for(let i=0;i<primaryTimes.length;i++){
+    while(j+1 < htfTimes.length && htfTimes[j+1] <= primaryTimes[i]) j++;
+    result[i] = htfTimes[j] <= primaryTimes[i] ? htfBiasSeries[j] : null;
+  }
+  return result;
+}
+
+const BT_EMA_COMBOS = [
+  {fast:5, mid:13, slow:34, label:'5/13/34'},
+  {fast:8, mid:20, slow:50, label:'8/20/50'},
+  {fast:9, mid:21, slow:55, label:'9/21/55'},
+  {fast:13, mid:34, slow:89, label:'13/34/89'}
+];
+const BT_RSI_COMBOS = [
+  {upper:55, lower:45, label:'55/45'},
+  {upper:60, lower:40, label:'60/40'},
+  {upper:65, lower:35, label:'65/35'},
+  {upper:70, lower:30, label:'70/30'}
+];
+const BT_CONFIRM_OPTIONS = [0,1,2];
+const BT_HTF_OPTIONS = [true, false];
+
+async function runBacktestOptimizer(){
+  const btn = document.getElementById('backtestBtn');
+  const progressEl = document.getElementById('backtestProgress');
+  const d = allData[activeSymbol];
+  if(!d || d.error){ progressEl.textContent = 'Keine Daten für aktives Symbol — erst laden.'; return; }
+
+  btn.disabled = true;
+  progressEl.textContent = 'Lade übergeordnete Zeithistorie...';
+  document.getElementById('backtestResultsWrap').style.display = 'none';
+
+  const timeframe = document.getElementById('timeframe').value;
+  const htfTimeframe = HTF_MAP[timeframe] || timeframe;
+  let htfSeries = null;
+  try{
+    const htfKlines = await fetchKlines(activeSymbol, htfTimeframe, 500);
+    htfSeries = { times: htfKlines.map(k=>k.openTime), closes: htfKlines.map(k=>k.close) };
+  }catch(e){ htfSeries = null; }
+
+  progressEl.textContent = 'Simuliere Kombinationen...';
+  await new Promise(r=>setTimeout(r, 10)); // UI kurz Luft zum Neuzeichnen geben
+
+  // Baseline: aktuell live aktive Einstellung
+  const baselineSignals = computeEntrySignals(d.biasArr, htfFilterEnabled ? d.htfBias : null, confirmCandles);
+  const baselinePerf = simulateBacktest(d.closes, d.biasArr, baselineSignals);
+  document.getElementById('backtestBaseline').innerHTML = `
+    <div class="runhdr" style="font-size:13px; color:var(--muted); margin-bottom:6px;">Aktuell live aktive Einstellung (EMA ${emaPeriods.fast}/${emaPeriods.mid}/${emaPeriods.slow}, RSI ${rsiThresholds.upper}/${rsiThresholds.lower}, Bestätigung ${confirmCandles}, HTF ${htfFilterEnabled?'an':'aus'})</div>
+    <div class="stats-row">
+      <div class="stat"><div class="label">Trades</div><div class="value">${baselinePerf.trades}</div></div>
+      <div class="stat"><div class="label">Winrate</div><div class="value">${baselinePerf.winRate.toFixed(1)}%</div></div>
+      <div class="stat"><div class="label">Gesamt-PnL</div><div class="value ${baselinePerf.totalPnl>=0?'ok':'bad'}">${baselinePerf.totalPnl>=0?'+':''}${baselinePerf.totalPnl.toFixed(2)}%</div></div>
+      <div class="stat"><div class="label">Max Drawdown</div><div class="value bad">${baselinePerf.maxDrawdown.toFixed(2)}%</div></div>
+    </div>`;
+
+  const results = [];
+  for(const ema of BT_EMA_COMBOS){
+    const e8 = computeEMA(d.closes, ema.fast);
+    const e20 = computeEMA(d.closes, ema.mid);
+    const e50 = computeEMA(d.closes, ema.slow);
+    for(const rsiC of BT_RSI_COMBOS){
+      const biasArr = d.closes.map((c,i)=>computeBiasAt(c, e8[i], e20[i], e50[i], d.rsi[i], rsiC.upper, rsiC.lower));
+
+      let htfBiasSeriesAligned = null;
+      if(htfSeries){
+        const hE8 = computeEMA(htfSeries.closes, ema.fast);
+        const hE20 = computeEMA(htfSeries.closes, ema.mid);
+        const hE50 = computeEMA(htfSeries.closes, ema.slow);
+        const hRsi = computeRSI(htfSeries.closes, 14);
+        const hBias = htfSeries.closes.map((c,i)=>computeBiasAt(c, hE8[i], hE20[i], hE50[i], hRsi[i], rsiC.upper, rsiC.lower));
+        htfBiasSeriesAligned = alignHtfBias(d.times, htfSeries.times, hBias);
+      }
+
+      for(const htfOn of BT_HTF_OPTIONS){
+        if(htfOn && !htfBiasSeriesAligned) continue; // HTF-Historie nicht verfügbar -> diese Variante überspringen
+        for(const confirm of BT_CONFIRM_OPTIONS){
+          const signals = computeEntrySignals(biasArr, htfOn ? htfBiasSeriesAligned : null, confirm);
+          const perf = simulateBacktest(d.closes, biasArr, signals);
+          if(perf.trades < 2) continue; // zu wenig Datenbasis, keine sinnvolle Aussage
+          results.push({ema, rsiC, confirm, htfOn, ...perf});
+        }
+      }
+    }
+  }
+
+  results.sort((a,b)=>b.totalPnl - a.totalPnl);
+  const top = results.slice(0, 10);
+
+  document.getElementById('backtestBody').innerHTML = top.map((r,idx)=>`
+    <tr>
+      <td>${r.ema.label}</td>
+      <td>${r.rsiC.label}</td>
+      <td>${r.confirm}</td>
+      <td>${r.htfOn?'an':'aus'}</td>
+      <td>${r.trades}</td>
+      <td>${r.winRate.toFixed(1)}%</td>
+      <td class="${r.totalPnl>=0?'pos':'neg'}">${r.totalPnl>=0?'+':''}${r.totalPnl.toFixed(2)}%</td>
+      <td class="neg">${r.maxDrawdown.toFixed(2)}%</td>
+      <td><button class="secondary" onclick="applyBacktestCombo(${idx})">Übernehmen</button></td>
+    </tr>`).join('');
+  window._backtestResults = top;
+
+  document.getElementById('backtestResultsWrap').style.display = results.length ? 'block' : 'none';
+  progressEl.textContent = results.length
+    ? `Fertig — ${results.length} gültige Kombinationen getestet (von 96).`
+    : 'Keine auswertbare Kombination gefunden (zu wenig Historie/Trades).';
+  btn.disabled = false;
+}
+
+function applyBacktestCombo(idx){
+  const r = window._backtestResults && window._backtestResults[idx];
+  if(!r) return;
+  emaPeriods = {fast:r.ema.fast, mid:r.ema.mid, slow:r.ema.slow};
+  rsiThresholds = {upper:r.rsiC.upper, lower:r.rsiC.lower};
+  confirmCandles = r.confirm;
+  htfFilterEnabled = r.htfOn;
+  saveStrategyConfig();
+  localStorage.setItem('htf_filter', htfFilterEnabled);
+  updateHtfFilterButton();
+  htfCache = {}; // Cache invalidieren, da sich die Berechnungsgrundlage ändert
+  loadAll();
+}
+
+async function fetchKlines(symbol, interval, limit, endTime){
+  let url = `${API}/klines?symbol=${symbol}&interval=${interval}&limit=${limit||200}`;
+  if(endTime) url += `&endTime=${endTime}`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error(`Binance API Fehler ${res.status}`);
+  const data = await res.json();
+  return data.map(k=>({openTime:k[0], open:+k[1], high:+k[2], low:+k[3], close:+k[4]}));
+}
+async function fetch24h(symbol){
+  const res = await fetch(`${API}/ticker/24hr?symbol=${symbol}`);
+  if(!res.ok) throw new Error(`Binance API Fehler ${res.status}`);
+  return res.json();
+}
+
+function computeEMA(closes, period){
+  const out = new Array(closes.length).fill(null);
+  if(closes.length < period) return out;
+  const k = 2/(period+1);
+  let sma = closes.slice(0,period).reduce((a,b)=>a+b,0)/period;
+  out[period-1] = sma;
+  for(let i=period;i<closes.length;i++){ out[i] = closes[i]*k + out[i-1]*(1-k); }
+  return out;
+}
+function computeRSI(closes, period=14){
+  const rsi = new Array(closes.length).fill(null);
+  if(closes.length < period+1) return rsi;
+  let gains=0, losses=0;
+  for(let i=1;i<=period;i++){
+    const diff = closes[i]-closes[i-1];
+    if(diff>=0) gains+=diff; else losses-=diff;
+  }
+  let avgGain=gains/period, avgLoss=losses/period;
+  rsi[period] = avgLoss===0 ? 100 : 100-(100/(1+avgGain/avgLoss));
+  for(let i=period+1;i<closes.length;i++){
+    const diff = closes[i]-closes[i-1];
+    const gain = diff>0?diff:0, loss = diff<0?-diff:0;
+    avgGain = (avgGain*(period-1)+gain)/period;
+    avgLoss = (avgLoss*(period-1)+loss)/period;
+    rsi[i] = avgLoss===0 ? 100 : 100-(100/(1+avgGain/avgLoss));
+  }
+  return rsi;
+}
+function computeBiasAt(price, ema8, ema20, ema50, rsiVal, rsiUpper, rsiLower){
+  if(ema8==null || ema20==null || ema50==null || rsiVal==null) return {label:'—', cls:'neutral'};
+  rsiUpper = rsiUpper==null ? 60 : rsiUpper;
+  rsiLower = rsiLower==null ? 40 : rsiLower;
+  const ribbonUp = ema8 > ema20 && ema20 > ema50;
+  const ribbonDown = ema8 < ema20 && ema20 < ema50;
+  const aboveEma20 = price > ema20, belowEma20 = price < ema20;
+  const rsiRoomUp = rsiVal < rsiUpper, rsiRoomDown = rsiVal > rsiLower;
+  const rsiChop = rsiVal >= 45 && rsiVal <= 55;
+  const nearEma20 = Math.abs(price - ema20)/ema20 < 0.003;
+  if(ribbonUp && aboveEma20 && rsiRoomUp) return {label:'Bullish', cls:'bullish', score:1};
+  if(ribbonDown && belowEma20 && rsiRoomDown) return {label:'Bearish', cls:'bearish', score:-1};
+  if((!ribbonUp && !ribbonDown) || nearEma20 || rsiChop) return {label:'Neutral', cls:'neutral', score:0};
+  return {label:'Gemischt', cls:'mixed', score:0};
+}
+
+// Entry signals: transition into bullish/bearish, confirmed N candles later (fakeout filter, N=confirmCandles),
+// and only kept if the higher timeframe bias doesn't oppose the direction (trend filter).
+// htfBias may be a single {cls} object (applied uniformly — used live) or a per-candle array (used in backtests).
+function computeEntrySignals(biasArr, htfBias, confirmN){
+  confirmN = confirmN==null ? 1 : confirmN;
+  const isSeries = Array.isArray(htfBias);
+  const signals = new Array(biasArr.length).fill(null);
+  for(let i=1; i<biasArr.length-confirmN; i++){
+    const prev = biasArr[i-1], cur = biasArr[i];
+    const enteredLong = cur.cls==='bullish' && prev.cls!=='bullish';
+    const enteredShort = cur.cls==='bearish' && prev.cls!=='bearish';
+    if(!enteredLong && !enteredShort) continue;
+    let confirmed = true;
+    for(let k=1;k<=confirmN;k++){
+      if(!biasArr[i+k] || biasArr[i+k].cls !== (enteredLong?'bullish':'bearish')){ confirmed=false; break; }
+    }
+    if(!confirmed) continue;
+    const htfAt = isSeries ? htfBias[i] : htfBias;
+    const htfOk = !htfAt || (enteredLong ? htfAt.cls!=='bearish' : htfAt.cls!=='bullish');
+    if(!htfOk) continue;
+    signals[i] = enteredLong ? 'long' : 'short';
+  }
+  return signals;
+}
+
+// ---- FVG (Fair Value Gap) ----
+// 3-Kerzen-Lücke: Kerze i+1 handelt komplett über (bullisch) bzw. unter (bearisch) Kerze i-1,
+// ohne dass sich die Preisbereiche überschneiden — die "Lücke" ist die Zone dazwischen.
+// Gilt als gefüllt, sobald der Kurs später komplett durch die Zone hindurchhandelt.
+let fvgEnabled = localStorage.getItem('fvg_filter') === 'true'; // default: aus (optionale Zusatzebene)
+
+function toggleFvg(){
+  fvgEnabled = !fvgEnabled;
+  localStorage.setItem('fvg_filter', fvgEnabled);
+  updateFvgButton();
+  const d = allData[activeSymbol];
+  if(d && !d.error) drawChart(d);
+}
+function updateFvgButton(){
+  const btn = document.getElementById('fvgBtn');
+  if(!btn) return;
+  btn.textContent = fvgEnabled ? 'FVG: An' : 'FVG: Aus';
+  btn.classList.toggle('active-cur', fvgEnabled);
+}
+
+// Mindestgröße einer Lücke relativ zum Preis — filtert winzige, irrelevante Wick-Lücken raus
+// (ohne das würde praktisch jede dritte Kerze irgendeine mini-FVG erzeugen).
+const FVG_MIN_GAP_PCT = 0.0012;
+// Wie viele offene FVGs maximal gleichzeitig eingezeichnet werden (nur die jüngsten)
+const FVG_MAX_SHOWN = 6;
+
+function computeFVGs(highs, lows, closes){
+  const fvgs = [];
+  for(let i=1;i<highs.length-1;i++){
+    if(lows[i+1] > highs[i-1]){
+      const bottom = highs[i-1], top = lows[i+1];
+      if((top-bottom)/bottom >= FVG_MIN_GAP_PCT) fvgs.push({idx:i, top, bottom, type:'bullish', filledAt:null});
+    }
+    if(highs[i+1] < lows[i-1]){
+      const bottom = highs[i+1], top = lows[i-1];
+      if((top-bottom)/bottom >= FVG_MIN_GAP_PCT) fvgs.push({idx:i, top, bottom, type:'bearish', filledAt:null});
+    }
+  }
+  fvgs.forEach(f=>{
+    for(let j=f.idx+2;j<closes.length;j++){
+      if(f.type==='bullish' && lows[j] <= f.bottom){ f.filledAt = j; break; }
+      if(f.type==='bearish' && highs[j] >= f.top){ f.filledAt = j; break; }
+    }
+  });
+  return fvgs;
+}
+
+// Nur die (noch) offenen, relevant großen Lücken — das ist, was auf dem Chart gezeichnet
+// und in der Kennzahl "Offene FVGs" gezählt wird. Bei vielen offenen Lücken nur die jüngsten N.
+function getOpenFVGs(d){
+  return computeFVGs(d.highs, d.lows, d.closes)
+    .filter(f=>f.filledAt==null)
+    .sort((a,b)=>b.idx-a.idx)
+    .slice(0, FVG_MAX_SHOWN);
+}
+
+// Holt Klines für EIN Symbol + EINEN Timeframe und berechnet EMA/RSI/Bias/HTF-Bias daraus.
+// ticker wird übergeben (timeframe-unabhängig, einmal pro Symbol/Zyklus geholt) statt erneut gefetcht.
+async function fetchAndComputeBias(sym, timeframe, ticker){
+  const htfTimeframe = HTF_MAP[timeframe] || timeframe;
+  const klines = await fetchKlines(sym, timeframe, KLINES_LIMIT);
+  const times = klines.map(k=>k.openTime);
+  const opens = klines.map(k=>k.open);
+  const highs = klines.map(k=>k.high);
+  const lows = klines.map(k=>k.low);
+  const closes = klines.map(k=>k.close);
+  if(closes.length < 55) throw new Error('zu wenig Historie');
+  const ema8 = computeEMA(closes,emaPeriods.fast), ema20 = computeEMA(closes,emaPeriods.mid), ema50 = computeEMA(closes,emaPeriods.slow);
+  const rsi = computeRSI(closes,14);
+  const biasArr = closes.map((c,i)=>computeBiasAt(c, ema8[i], ema20[i], ema50[i], rsi[i], rsiThresholds.upper, rsiThresholds.lower));
+  const htfBias = await getHtfBiasCached(sym, htfTimeframe);
+  return {
+    times, opens, highs, lows, closes, ema8, ema20, ema50, rsi, biasArr,
+    htfBias, htfTimeframe, timeframe,
+    price:+ticker.lastPrice, changePct:+ticker.priceChangePercent, error:null, stale:false
+  };
+}
+
+// ---- Unbegrenzte Historie: lädt beim Heranzoomen an den linken Rand ältere Kerzen nach und
+// rechnet EMA/RSI/Bias für die gesamte (dann längere) Serie neu ----
+let loadingMoreHistory = {};
+let noMoreHistory = {};
+async function loadMoreHistory(sym){
+  const d = allData[sym];
+  if(!d || d.error || loadingMoreHistory[sym] || noMoreHistory[sym]) return;
+  loadingMoreHistory[sym] = true;
+  if(sym === activeSymbol) drawChart(d);
+  try{
+    const oldestTime = d.times[0];
+    const older = await fetchKlines(sym, d.timeframe, 500, oldestTime - 1);
+    if(!older || !older.length){ noMoreHistory[sym] = true; return; }
+    const addedCount = older.length;
+    d.times = older.map(k=>k.openTime).concat(d.times);
+    d.opens = older.map(k=>k.open).concat(d.opens);
+    d.highs = older.map(k=>k.high).concat(d.highs);
+    d.lows = older.map(k=>k.low).concat(d.lows);
+    d.closes = older.map(k=>k.close).concat(d.closes);
+    d.ema8 = computeEMA(d.closes, emaPeriods.fast);
+    d.ema20 = computeEMA(d.closes, emaPeriods.mid);
+    d.ema50 = computeEMA(d.closes, emaPeriods.slow);
+    d.rsi = computeRSI(d.closes, 14);
+    d.biasArr = d.closes.map((c,i)=>computeBiasAt(c, d.ema8[i], d.ema20[i], d.ema50[i], d.rsi[i], rsiThresholds.upper, rsiThresholds.lower));
+    const vs = viewStates[sym];
+    if(vs){
+      vs.start += addedCount; vs.end += addedCount;
+      viewStates[sym] = vs;
+      if(sym === activeSymbol) viewState = vs;
+    }
+  }catch(e){
+    // Fehlschlag ist kein Drama — beim nächsten Ranzoomen an den Rand wird es einfach erneut versucht
+  }finally{
+    loadingMoreHistory[sym] = false;
+    if(sym === activeSymbol) drawChart(allData[sym]);
+  }
+}
+
+let isLoading = false;
+async function loadAll(){
+  if(isLoading) return;
+  isLoading = true;
+  const btn = document.getElementById('loadBtn');
+  const progressEl = document.getElementById('progress');
+  const watchlist = document.getElementById('watchlistInput').value.split(',').map(s=>s.trim().toUpperCase()).filter(Boolean);
+  const timeframe = document.getElementById('timeframe').value;
+  const tradingTimeframe = document.getElementById('tradingTimeframe').value;
+  if(!watchlist.length){ isLoading = false; return; }
+
+  localStorage.setItem('combo_watchlist', document.getElementById('watchlistInput').value);
+  localStorage.setItem('combo_timeframe', timeframe);
+  localStorage.setItem('trading_timeframe', tradingTimeframe);
+
+  btn.disabled = true;
+  // letzter erfolgreicher Stand — Fallback bei Fetch-Fehlern (z.B. Rate-Limit)
+  const prevData = allData;
+  const prevTradingData = tradingData;
+  allData = {};
+  tradingData = {};
+  let done = 0;
+
+  await fetchEurRate();
+  updateCurrencyButtons();
+  if(currency==='EUR' && !eurRate) currency = 'USD';
+
+  const sameTimeframe = timeframe === tradingTimeframe;
+
+  for(const sym of watchlist){
+    progressEl.textContent = `Lade ${sym}... (${done+1}/${watchlist.length})`;
+    try{
+      const ticker = await fetch24h(sym);
+      const chartResult = await fetchAndComputeBias(sym, timeframe, ticker);
+      // Falls hier zuvor per "unbegrenzte Historie" ältere Kerzen nachgeladen wurden, gehen die
+      // bei diesem 30s-Refresh sonst verloren (Fetch liefert wieder nur die letzten 500) — deshalb
+      // den älteren, bereits geladenen Teil vor den frischen Fetch setzen und alles neu berechnen.
+      const prevChart = prevData[sym];
+      if(prevChart && !prevChart.error && prevChart.timeframe===timeframe && prevChart.times.length > chartResult.times.length){
+        const newOldest = chartResult.times[0];
+        const cutIdx = prevChart.times.findIndex(t => t >= newOldest);
+        if(cutIdx > 0){
+          chartResult.times = prevChart.times.slice(0,cutIdx).concat(chartResult.times);
+          chartResult.opens = prevChart.opens.slice(0,cutIdx).concat(chartResult.opens);
+          chartResult.highs = prevChart.highs.slice(0,cutIdx).concat(chartResult.highs);
+          chartResult.lows = prevChart.lows.slice(0,cutIdx).concat(chartResult.lows);
+          chartResult.closes = prevChart.closes.slice(0,cutIdx).concat(chartResult.closes);
+          chartResult.ema8 = computeEMA(chartResult.closes, emaPeriods.fast);
+          chartResult.ema20 = computeEMA(chartResult.closes, emaPeriods.mid);
+          chartResult.ema50 = computeEMA(chartResult.closes, emaPeriods.slow);
+          chartResult.rsi = computeRSI(chartResult.closes, 14);
+          chartResult.biasArr = chartResult.closes.map((c,i)=>computeBiasAt(c, chartResult.ema8[i], chartResult.ema20[i], chartResult.ema50[i], chartResult.rsi[i], rsiThresholds.upper, rsiThresholds.lower));
+          // Kein Index-Shift nötig: der übernommene ältere Teil liegt in beiden Arrays exakt an
+          // denselben Indizes [0, cutIdx) — ein Shift hier war der Bug, der den Zoom resettet hat.
+        }
+      }
+      allData[sym] = chartResult;
+      // Wenn Chart- und Trading-Timeframe identisch sind, denselben Fetch wiederverwenden statt doppelt zu laden
+      tradingData[sym] = sameTimeframe ? chartResult : await fetchAndComputeBias(sym, tradingTimeframe, ticker);
+    }catch(e){
+      // Fetch fehlgeschlagen (z.B. Rate-Limit) — letzten guten Stand weiterverwenden statt Position "verschwinden" zu lassen
+      allData[sym] = (prevData[sym] && !prevData[sym].error) ? {...prevData[sym], stale:true} : {error:e.message};
+      tradingData[sym] = (prevTradingData[sym] && !prevTradingData[sym].error) ? {...prevTradingData[sym], stale:true} : {error:e.message};
+    }
+    done++;
+  }
+  progressEl.textContent = `Fertig — ${watchlist.length} Symbole geladen.`;
+  document.getElementById('updatedAt').textContent = 'Aktualisiert: ' + new Date().toLocaleTimeString('de-DE') + ' | Chart: ' + timeframe + ' | Trading: ' + tradingTimeframe;
+
+  checkAutoClose();
+  runAutoTrade();
+
+  if(!activeSymbol || !allData[activeSymbol]) activeSymbol = watchlist[0];
+  renderTabs(watchlist);
+  renderMain();
+  renderOverviewTable();
+  renderPaperLog();
+  connectPriceStream(activeSymbol);
+  btn.disabled = false;
+  isLoading = false;
+}
+
+// ---- Live-Preis-Ticker (Binance WebSocket) fürs aktuell angezeigte Symbol ----
+// Läuft unabhängig vom 30s-Klines-Refresh, aktualisiert Preis/Änderung/PnL sofort bei jedem Tick.
+let priceWs = null, priceWsSymbol = null, lastTickPrice = null, priceFlashTimeout = null;
+
+function connectPriceStream(sym){
+  if(!sym || sym === priceWsSymbol) return;
+  if(priceWs){ try{ priceWs.close(); }catch(e){} priceWs = null; }
+  priceWsSymbol = sym;
+  lastTickPrice = null;
+  try{
+    priceWs = new WebSocket(`wss://stream.binance.com:9443/ws/${sym.toLowerCase()}@ticker`);
+    priceWs.onmessage = (ev)=>{
+      let msg; try{ msg = JSON.parse(ev.data); }catch(e){ return; }
+      const price = +msg.c, changePct = +msg.P;
+      if(isNaN(price)) return;
+      if(allData[sym] && !allData[sym].error){ allData[sym].price = price; allData[sym].changePct = changePct; }
+      if(tradingData[sym] && !tradingData[sym].error){ tradingData[sym].price = price; tradingData[sym].changePct = changePct; }
+      if(sym === activeSymbol) updateLivePriceDisplay(price, changePct);
+    };
+    priceWs.onerror = ()=>{};
+  }catch(e){ priceWs = null; }
+}
+
+function updateLivePriceDisplay(price, changePct){
+  const priceEl = document.getElementById('mainPriceEl');
+  if(!priceEl) return;
+  const dir = lastTickPrice==null ? 0 : (price>lastTickPrice ? 1 : (price<lastTickPrice ? -1 : 0));
+  lastTickPrice = price;
+  priceEl.textContent = curSym()+conv(price).toLocaleString('de-DE',{maximumFractionDigits:2});
+  clearTimeout(priceFlashTimeout);
+  priceEl.classList.remove('tick-up','tick-down');
+  if(dir>0) priceEl.classList.add('tick-up');
+  else if(dir<0) priceEl.classList.add('tick-down');
+  if(dir!==0){ priceFlashTimeout = setTimeout(()=>priceEl.classList.remove('tick-up','tick-down'), 900); }
+
+  const chgEl = document.getElementById('mainChgEl');
+  if(chgEl){
+    const up = changePct >= 0;
+    chgEl.textContent = (up?'+':'')+changePct.toFixed(2)+'% (24h)';
+    chgEl.className = 'chg ' + (up?'up':'down');
+  }
+  const curEl = document.getElementById('paperCurPrice');
+  if(curEl) curEl.textContent = curSym()+conv(price).toLocaleString('de-DE',{maximumFractionDigits:2});
+  const pnlEl = document.getElementById('paperLivePnl');
+  const pos = openPositions[activeSymbol];
+  if(pnlEl && pos){
+    const pnlPct = pos.direction==='long' ? (price-pos.entryPrice)/pos.entryPrice*100 : (pos.entryPrice-price)/pos.entryPrice*100;
+    pnlEl.textContent = (pnlPct>=0?'+':'')+pnlPct.toFixed(2)+'%';
+    pnlEl.className = 'paper-pnl ' + (pnlPct>=0?'ok':'bad');
+  }
+}
+
+function renderTabs(watchlist){
+  const tabsEl = document.getElementById('tabs');
+  tabsEl.innerHTML = watchlist.map(sym=>{
+    const d = tradingData[sym];   // Tab-Punkt zeigt den Trading-Timeframe-Bias, nicht den des Charts
+    const cls = d && !d.error && d.biasArr.length ? d.biasArr[d.biasArr.length-1].cls : 'neutral';
+    const active = sym === activeSymbol ? 'active' : '';
+    const hasPos = openPositions[sym] ? 'has-position' : '';
+    const posTag = openPositions[sym] ? (openPositions[sym].direction==='long' ? ' ▲' : ' ▼') : '';
+    return `<button class="tab-btn ${active} ${hasPos}" onclick="selectSymbol('${sym}')"><span class="dot ${cls}"></span>${sym}${posTag}</button>`;
+  }).join('');
+}
+
+function selectSymbol(sym){
+  activeSymbol = sym;
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  renderTabs(Object.keys(tradingData));
+  renderMain();
+  document.querySelectorAll('#overviewBody tr').forEach(tr=>tr.classList.toggle('active-row', tr.dataset.symbol===sym));
+  connectPriceStream(sym);
+}
+
+function renderMain(){
+  const el = document.getElementById('mainCard');
+  const d = allData[activeSymbol];
+  if(!d){ el.innerHTML = '<div class="subtitle">Keine Daten.</div>'; return; }
+  if(d.error){ el.innerHTML = `<div class="err">Fehler bei ${activeSymbol}: ${d.error}</div>`; return; }
+
+  const i = d.closes.length-1;
+  const bias = d.biasArr[i];
+  const up = d.changePct >= 0;
+  const ribbonCells = [d.ema8[i]>d.ema20[i]?'up':'down', d.ema20[i]>d.ema50[i]?'up':'down'];
+  const td = tradingData[activeSymbol];
+  const chartTf = document.getElementById('timeframe').value;
+  const tradingTf = document.getElementById('tradingTimeframe').value;
+  const tdBadge = (td && !td.error && chartTf !== tradingTf)
+    ? `<span class="badge ${td.biasArr[td.closes.length-1].cls}" title="Trading-Timeframe (${tradingTf}) — steuert Signale/Positionen">Trading ${tradingTf}: ${td.biasArr[td.closes.length-1].label}</span>`
+    : '';
+
+  const openFvgs = getOpenFVGs(d);
+  const openBull = openFvgs.filter(f=>f.type==='bullish').length;
+  const openBear = openFvgs.filter(f=>f.type==='bearish').length;
+  const nearestAbove = openFvgs.filter(f=>f.bottom > d.price).sort((a,b)=>a.bottom-b.bottom)[0];
+  const nearestBelow = openFvgs.filter(f=>f.top < d.price).sort((a,b)=>b.top-a.top)[0];
+  const nearestFvg = [nearestAbove, nearestBelow].filter(Boolean).sort((a,b)=>{
+    const distA = a===nearestAbove ? a.bottom-d.price : d.price-a.top;
+    const distB = b===nearestAbove ? b.bottom-d.price : d.price-b.top;
+    return distA - distB;
+  })[0];
+  const nearestFvgText = nearestFvg
+    ? `${curSym()}${conv(nearestFvg.bottom).toLocaleString('de-DE',{maximumFractionDigits:2})}–${curSym()}${conv(nearestFvg.top).toLocaleString('de-DE',{maximumFractionDigits:2})} (${nearestFvg.type==='bullish'?'bullisch':'bearisch'})`
+    : '—';
+
+  el.innerHTML = `
+    <div class="main-head">
+      <div>
+        <h2 style="margin:0;">${activeSymbol} <span class="badge ${bias.cls}">${bias.label}</span> ${d.htfBias ? `<span class="badge ${d.htfBias.cls}" title="Übergeordneter Timeframe (${d.htfTimeframe})">HTF ${d.htfTimeframe}: ${d.htfBias.label}</span>` : ''} ${tdBadge}</h2>
+        <div class="main-price" id="mainPriceEl">${curSym()}${conv(d.price).toLocaleString('de-DE',{maximumFractionDigits:2})}</div>
+        <div class="chg ${up?'up':'down'}" id="mainChgEl">${up?'+':''}${d.changePct.toFixed(2)}% (24h)</div>
+      </div>
+    </div>
+    <canvas id="chart"></canvas>
+    <div class="chart-toolbar">
+      <div class="zoom-hint">Scrollen = zoomen, Ziehen = verschieben, Hover = Fadenkreuz, Rand erreichen = mehr Historie laden</div>
+      <div class="zoom-btns">
+        <button id="htfFilterBtn" class="secondary ${htfFilterEnabled?'active-cur':''}" onclick="toggleHtfFilter()">HTF-Trendfilter: ${htfFilterEnabled?'An':'Aus'}</button>
+        <button id="fvgBtn" class="secondary ${fvgEnabled?'active-cur':''}" onclick="toggleFvg()">FVG: ${fvgEnabled?'An':'Aus'}</button>
+        <button class="secondary" onclick="zoomChart(0.7)">Zoom +</button>
+        <button class="secondary" onclick="zoomChart(1.4)">Zoom −</button>
+        <button class="secondary" onclick="resetZoom()">Zurücksetzen</button>
+      </div>
+    </div>
+    <div class="legend">
+      <span><i style="background:${getComputedColor('--green')}"></i> Kerze bullisch</span>
+      <span><i style="background:${getComputedColor('--red')}"></i> Kerze bearisch</span>
+      <span><i style="background:${getComputedColor('--accent')}"></i> EMA${emaPeriods.fast}</span>
+      <span><i style="background:${getComputedColor('--orange')}"></i> EMA${emaPeriods.mid}</span>
+      <span><i style="background:${getComputedColor('--purple')}"></i> EMA${emaPeriods.slow}</span>
+      <span><i class="dotmark" style="background:${getComputedColor('--green')}"></i> Bullish-Signal</span>
+      <span><i class="dotmark" style="background:${getComputedColor('--red')}"></i> Bearish-Signal</span>
+      <span><i class="dotmark" style="background:${getComputedColor('--amber')}"></i> Gemischt</span>
+      <span style="color:${getComputedColor('--green')}">▲ Long-Einstieg</span>
+      <span style="color:${getComputedColor('--red')}">▼ Short-Einstieg</span>
+      <span><i style="background:rgba(60,200,120,0.35)"></i> FVG bullisch (offen)</span>
+      <span><i style="background:rgba(230,70,70,0.35)"></i> FVG bearisch (offen)</span>
+    </div>
+    <div class="detail-grid">
+      <div class="stat"><div class="label">EMA${emaPeriods.fast}</div><div class="value">${curSym()}${conv(d.ema8[i]).toFixed(2)}</div></div>
+      <div class="stat"><div class="label">EMA${emaPeriods.mid}</div><div class="value">${curSym()}${conv(d.ema20[i]).toFixed(2)}</div></div>
+      <div class="stat"><div class="label">EMA${emaPeriods.slow}</div><div class="value">${curSym()}${conv(d.ema50[i]).toFixed(2)}</div></div>
+      <div class="stat"><div class="label">RSI(14)</div><div class="value">${d.rsi[i].toFixed(1)}</div></div>
+      <div class="stat"><div class="label">Preis vs. EMA${emaPeriods.mid}</div><div class="value ${d.price>d.ema20[i]?'ok':'bad'}">${d.price>d.ema20[i]?'über':'unter'}</div></div>
+      <div class="stat"><div class="label">Ribbon</div><div class="value">${ribbonCells[0]==='up'&&ribbonCells[1]==='up'?'aufwärts':ribbonCells[0]==='down'&&ribbonCells[1]==='down'?'abwärts':'gemischt'}</div></div>
+      <div class="stat"><div class="label">HTF (${d.htfTimeframe||'—'})</div><div class="value">${d.htfBias ? d.htfBias.label : 'n/v'}</div></div>
+      <div class="stat" title="${openBull} bullisch, ${openBear} bearisch, noch nicht wieder gefüllt"><div class="label">Offene FVGs</div><div class="value">${openFvgs.length}</div></div>
+      <div class="stat"><div class="label">Nächste FVG-Zone</div><div class="value" style="font-size:12px;">${nearestFvgText}</div></div>
+    </div>
+    ${renderPaperWidget(d, tradingData[activeSymbol])}
+  `;
+  ensureViewState(activeSymbol, d.closes.length);
+  crosshairPos = null;
+  drawChart(d);
+  setupChartInteraction(d);
+}
+
+function renderPaperWidget(d, td){
+  const pos = openPositions[activeSymbol];
+  const toggle = `<label class="autoclose-toggle"><input type="checkbox" id="autoCloseChk" ${autoCloseOnFlip?'checked':''} onchange="toggleAutoClose()"> Auto-Exit bei Bias-Wechsel</label>`;
+
+  if(!pos){
+    return `
+      <div class="paper-card">
+        <div class="paper-head"><h3>Paper Trading — Übungsmodus</h3>${toggle}</div>
+        <div class="paper-actions">
+          <button class="btn-long" onclick="openPaperPosition('long')">Long eröffnen @ ${curSym()}${conv(d.price).toLocaleString('de-DE',{maximumFractionDigits:2})}</button>
+          <button class="btn-short" onclick="openPaperPosition('short')">Short eröffnen @ ${curSym()}${conv(d.price).toLocaleString('de-DE',{maximumFractionDigits:2})}</button>
+        </div>
+      </div>`;
+  }
+
+  const pnlPct = pos.direction === 'long'
+    ? (d.price - pos.entryPrice) / pos.entryPrice * 100
+    : (pos.entryPrice - d.price) / pos.entryPrice * 100;
+  const durationMin = Math.round((Date.now() - pos.entryTime) / 60000);
+  // Der Bias-Wechsel, der die Position tatsächlich schließt, kommt vom Trading-Timeframe — nicht vom Chart
+  const tdBias = (td && !td.error) ? td.biasArr[td.closes.length-1] : d.biasArr[d.closes.length-1];
+  const signalDir = pos.signalDirection || pos.direction;
+  const flipped = (signalDir==='long' && tdBias.cls==='bearish') || (signalDir==='short' && tdBias.cls==='bullish');
+  const isInverted = signalDir !== pos.direction;
+  const currentTf = document.getElementById('tradingTimeframe').value;
+  const tfSwitched = pos.timeframe && pos.timeframe !== currentTf;
+
+  return `
+    <div class="paper-card">
+      <div class="paper-head"><h3>Paper Trading — Übungsmodus</h3>${toggle}</div>
+      <div class="paper-open">
+        <div class="paper-open-info">
+          <div><div class="lbl">Richtung</div>${pos.direction==='long'?'Long':'Short'} <span class="badge neutral" style="font-size:10px;padding:2px 6px;">${pos.source==='auto'?'Auto':'Manuell'}</span>${isInverted ? ' <span class="badge mixed" style="font-size:10px;padding:2px 6px;" title="Signal war eigentlich '+(signalDir==='long'?'Long':'Short')+', U-D-Modus hat die Richtung getauscht">U-D</span>' : ''}</div>
+          <div><div class="lbl">Entry</div>${curSym()}${conv(pos.entryPrice).toLocaleString('de-DE',{maximumFractionDigits:2})}</div>
+          <div><div class="lbl">Aktuell</div><span id="paperCurPrice">${curSym()}${conv(d.price).toLocaleString('de-DE',{maximumFractionDigits:2})}</span></div>
+          <div><div class="lbl">Dauer</div>${durationMin} min</div>
+          <div><div class="lbl">Eröffnet auf</div>${pos.timeframe || '—'}</div>
+          <div><div class="lbl">Live PnL</div><span class="paper-pnl ${pnlPct>=0?'ok':'bad'}" id="paperLivePnl">${pnlPct>=0?'+':''}${pnlPct.toFixed(2)}%</span></div>
+        </div>
+        <button class="secondary" onclick="closePaperPosition('${activeSymbol}','manuell')">Schließen</button>
+      </div>
+      ${flipped ? '<div class="note" style="color:var(--amber); margin-top:8px;">⚠ Bias (Trading-Timeframe) hat gegen deine Position gedreht.</div>' : ''}
+      ${tfSwitched ? `<div class="note" style="color:var(--amber); margin-top:8px;">⚠ Eröffnet auf ${pos.timeframe}, Trading-Timeframe ist jetzt auf ${currentTf} gestellt — Exit-Signale laufen ab sofort auf ${currentTf}.</div>` : ''}
+    </div>`;
+}
+
+function getComputedColor(varName){
+  return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+}
+
+function resetZoom(){
+  const d = allData[activeSymbol];
+  if(!d || d.error) return;
+  const n = Math.min(DEFAULT_VISIBLE, d.closes.length);
+  viewState = {start: d.closes.length-n, end: d.closes.length-1};
+  syncViewState();
+  drawChart(d);
+}
+function zoomChart(factor){
+  const d = allData[activeSymbol];
+  if(!d || d.error) return;
+  applyZoom(d, factor, 0.5);
+}
+function applyZoom(d, factor, centerFrac){
+  const totalLen = d.closes.length;
+  const range = viewState.end - viewState.start;
+  let newRange = Math.round(range * factor);
+  newRange = Math.max(15, Math.min(totalLen, newRange));
+  const centerIdx = viewState.start + centerFrac*range;
+  let newStart = Math.round(centerIdx - centerFrac*newRange);
+  let newEnd = newStart + newRange;
+  if(newStart < 0){ newEnd -= newStart; newStart = 0; }
+  if(newEnd > totalLen-1){ newStart -= (newEnd-(totalLen-1)); newEnd = totalLen-1; }
+  newStart = Math.max(0, newStart);
+  viewState = {start:newStart, end:newEnd};
+  syncViewState();
+  drawChart(d);
+  if(newStart <= 20) loadMoreHistory(activeSymbol);
+}
+
+function setupChartInteraction(d){
+  const canvas = document.getElementById('chart');
+  if(!canvas) return;
+
+  canvas.onwheel = (e) => {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+    applyZoom(d, e.deltaY < 0 ? 0.85 : 1.15, frac);
+  };
+
+  let dragging = false, dragStartX = 0, dragStartView = null;
+  canvas.onmousedown = (e) => {
+    dragging = true;
+    dragStartX = e.clientX;
+    dragStartView = {...viewState};
+    canvas.classList.add('dragging');
+  };
+
+  canvas.onmousemove = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    crosshairPos = {x: e.clientX - rect.left, y: e.clientY - rect.top};
+    if(!dragging) drawChart(d);
+  };
+  canvas.onmouseleave = () => {
+    crosshairPos = null;
+    if(!dragging) drawChart(d);
+  };
+
+  window.onmousemove = (e) => {
+    if(!dragging) return;
+    const rect = canvas.getBoundingClientRect();
+    const range = dragStartView.end - dragStartView.start;
+    const pxPerIdx = rect.width / range;
+    const idxDelta = Math.round((e.clientX - dragStartX) / pxPerIdx);
+    let newStart = dragStartView.start - idxDelta;
+    let newEnd = dragStartView.end - idxDelta;
+    const totalLen = d.closes.length;
+    if(newStart < 0){ newEnd -= newStart; newStart = 0; }
+    if(newEnd > totalLen-1){ newStart -= (newEnd-(totalLen-1)); newEnd = totalLen-1; }
+    newStart = Math.max(0, newStart);
+    viewState = {start:newStart, end:newEnd};
+    syncViewState();
+    crosshairPos = {x: e.clientX - rect.left, y: e.clientY - rect.top};
+    drawChart(d);
+    if(newStart <= 20) loadMoreHistory(activeSymbol);
+  };
+  window.onmouseup = () => {
+    dragging = false;
+    canvas.classList.remove('dragging');
+  };
+}
+
+function drawChart(d){
+  const canvas = document.getElementById('chart');
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth || 900, h = 320;
+  canvas.width = w*dpr; canvas.height = h*dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,w,h);
+
+  const start = viewState.start;
+  const end = viewState.end;
+  const N = end - start + 1;
+  const opens = d.opens.slice(start, end+1).map(conv);
+  const highs = d.highs.slice(start, end+1).map(conv);
+  const lows = d.lows.slice(start, end+1).map(conv);
+  const closes = d.closes.slice(start, end+1).map(conv);
+  const ema8 = d.ema8.slice(start, end+1).map(conv), ema20 = d.ema20.slice(start, end+1).map(conv), ema50 = d.ema50.slice(start, end+1).map(conv);
+  const biasArr = d.biasArr.slice(start, end+1);
+  const times = (d.times || []).slice(start, end+1);
+  const entrySignals = computeEntrySignals(d.biasArr, htfFilterEnabled ? d.htfBias : null, confirmCandles).slice(start, end+1);
+
+  const allVals = highs.concat(lows).concat(ema8.filter(Boolean)).concat(ema20.filter(Boolean)).concat(ema50.filter(Boolean));
+  const min = Math.min(...allVals), max = Math.max(...allVals);
+  const padTop=20, padBottom=28, padL=8, padR=8;
+  const xStep = (w-padL-padR)/Math.max(1,(N-1));
+  const scaleY = v => padTop + (1-(v-min)/((max-min)||1))*(h-padTop-padBottom);
+  const scaleX = i => padL + i*xStep;
+
+  function plotLine(arr, color, width){
+    ctx.strokeStyle = color; ctx.lineWidth = width; ctx.beginPath();
+    let started = false;
+    arr.forEach((v,i)=>{
+      if(v==null) return;
+      const x = scaleX(i), y = scaleY(v);
+      if(!started){ ctx.moveTo(x,y); started = true; } else { ctx.lineTo(x,y); }
+    });
+    ctx.stroke();
+  }
+
+  // Dünnes Hintergrundraster — passt sich automatisch an Zoom/Pan an, da min/max/N bei jedem Draw neu berechnet werden
+  function plotGrid(){
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.lineWidth = 1;
+    const hLines = 4;
+    for(let i=0;i<=hLines;i++){
+      const y = Math.round(padTop + (i/hLines)*(h-padTop-padBottom)) + 0.5;
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w-padR, y); ctx.stroke();
+    }
+    const vLines = 6;
+    for(let i=0;i<=vLines;i++){
+      const x = Math.round(padL + (i/vLines)*(w-padL-padR)) + 0.5;
+      ctx.beginPath(); ctx.moveTo(x, padTop); ctx.lineTo(x, h-padBottom); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // FVG (Fair Value Gap): 3-Kerzen-Lücke — Kerze i+1 eröffnet/schließt komplett über (bullisch)
+  // bzw. unter (bearisch) der Kerze i-1, ohne Überlappung. Nur (noch) offene, relevant große Lücken
+  // werden gezeichnet — gefüllte und Mikro-Lücken bleiben ausgeblendet, sonst wird es unübersichtlich.
+  function plotFVGs(){
+    if(!fvgEnabled) return;
+    const fvgs = getOpenFVGs(d);
+    fvgs.forEach(f=>{
+      if(f.idx > end || end < start) return;
+      const xi1 = Math.max(f.idx, start) - start;
+      const xi2 = end - start;
+      const x1 = scaleX(xi1), x2 = scaleX(xi2) + xStep*0.5;
+      const top = conv(f.top), bottom = conv(f.bottom);
+      const y1 = scaleY(top), y2 = scaleY(bottom);
+      const isBull = f.type==='bullish';
+      const yy = Math.min(y1,y2), hh = Math.max(1, Math.abs(y2-y1));
+      const xx = Math.min(x1,x2), ww = Math.max(1, Math.abs(x2-x1));
+      ctx.fillStyle = isBull ? 'rgba(60,200,120,0.10)' : 'rgba(230,70,70,0.10)';
+      ctx.fillRect(xx, yy, ww, hh);
+      ctx.strokeStyle = isBull ? 'rgba(60,200,120,0.45)' : 'rgba(230,70,70,0.45)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(xx, yy, ww, hh);
+    });
+  }
+
+  function plotCandles(){
+    const bodyW = Math.max(1, xStep*0.6);
+    const green = getComputedColor('--green'), red = getComputedColor('--red');
+    for(let i=0;i<closes.length;i++){
+      if(closes[i]==null || opens[i]==null) continue;
+      const x = scaleX(i);
+      const up = closes[i] >= opens[i];
+      const color = up ? green : red;
+      ctx.strokeStyle = color; ctx.fillStyle = color;
+      // wick
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, scaleY(highs[i]));
+      ctx.lineTo(x, scaleY(lows[i]));
+      ctx.stroke();
+      // body
+      const yOpen = scaleY(opens[i]), yClose = scaleY(closes[i]);
+      const top = Math.min(yOpen, yClose);
+      const bh = Math.max(1, Math.abs(yClose - yOpen));
+      ctx.fillRect(x - bodyW/2, top, bodyW, bh);
+    }
+  }
+
+  plotGrid();
+  plotFVGs();
+  plotCandles();
+  plotLine(ema50, getComputedColor('--purple'), 1.5);
+  plotLine(ema20, getComputedColor('--orange'), 1.5);
+  plotLine(ema8, getComputedColor('--accent'), 1.5);
+
+  if(loadingMoreHistory[activeSymbol]){
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(padL, 4, 150, 16);
+    ctx.fillStyle = getComputedColor('--accent'); ctx.font = '10px sans-serif'; ctx.textAlign = 'left';
+    ctx.fillText('Lade ältere Daten…', padL+4, 15);
+  } else if(noMoreHistory[activeSymbol] && start <= 2){
+    ctx.fillStyle = 'rgba(139,147,167,0.7)'; ctx.font = '10px sans-serif'; ctx.textAlign = 'left';
+    ctx.fillText('Anfang der verfügbaren Historie erreicht', padL+2, 15);
+  }
+
+  // signal markers along the bottom (persistent bias state per candle)
+  const markerY = h - padBottom + 12;
+  biasArr.forEach((b,i)=>{
+    if(b.cls==='bullish' || b.cls==='bearish' || b.cls==='mixed'){
+      const color = b.cls==='bullish' ? getComputedColor('--green') : b.cls==='bearish' ? getComputedColor('--red') : getComputedColor('--amber');
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(scaleX(i), markerY, 2.2, 0, Math.PI*2);
+      ctx.fill();
+    }
+  });
+
+  // entry markers: confirmed transitions into bullish/bearish that also pass the HTF filter
+  const green = getComputedColor('--green'), red = getComputedColor('--red');
+  entrySignals.forEach((sig,i)=>{
+    if(!sig) return;
+    const x = scaleX(i), y = scaleY(closes[i]);
+    ctx.beginPath();
+    if(sig==='long'){
+      ctx.fillStyle = green;
+      ctx.moveTo(x, y+12); ctx.lineTo(x-5, y+20); ctx.lineTo(x+5, y+20);
+    } else {
+      ctx.fillStyle = red;
+      ctx.moveTo(x, y-12); ctx.lineTo(x-5, y-20); ctx.lineTo(x+5, y-20);
+    }
+    ctx.closePath();
+    ctx.fill();
+  });
+
+  // y-axis labels
+  ctx.fillStyle = '#8b93a7'; ctx.font = '10px sans-serif'; ctx.textAlign = 'right';
+  ctx.fillText(max.toFixed(2), w-padR, padTop+8);
+  ctx.fillText(min.toFixed(2), w-padR, h-padBottom-4);
+
+  // crosshair overlay: dashed lines + date/time label (top) + price label (right)
+  if(crosshairPos && crosshairPos.x>=padL && crosshairPos.x<=w-padR && crosshairPos.y>=padTop && crosshairPos.y<=h-padBottom){
+    const mx = crosshairPos.x, my = crosshairPos.y;
+    let idx = Math.round((mx - padL) / xStep);
+    idx = Math.max(0, Math.min(N-1, idx));
+    const snappedX = scaleX(idx);
+    const priceAtY = min + (1 - (my-padTop)/(h-padTop-padBottom)) * (max-min);
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(230,233,240,0.35)';
+    ctx.setLineDash([4,3]);
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(snappedX, padTop); ctx.lineTo(snappedX, h-padBottom); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(padL, my); ctx.lineTo(w-padR, my); ctx.stroke();
+    ctx.setLineDash([]);
+
+    const t = times[idx];
+    const dateStr = t ? new Date(t).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+    ctx.font = '10px sans-serif';
+    const dateW = ctx.measureText(dateStr).width + 12;
+    const dateBoxX = Math.min(Math.max(snappedX-dateW/2, padL), w-padR-dateW);
+    ctx.fillStyle = getComputedColor('--accent');
+    ctx.fillRect(dateBoxX, 2, dateW, 14);
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
+    ctx.fillText(dateStr, dateBoxX + dateW/2, 12);
+
+    const priceStr = curSym() + priceAtY.toLocaleString('de-DE',{maximumFractionDigits:2});
+    const priceW = ctx.measureText(priceStr).width + 12;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = getComputedColor('--accent');
+    ctx.fillRect(w-padR-priceW, my-8, priceW, 16);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(priceStr, w-padR-priceW+6, my+3);
+    ctx.restore();
+  }
+}
+
+function renderOverviewTable(){
+  const rows = Object.keys(allData).map(sym=>{
+    const d = allData[sym];
+    if(d.error) return {symbol:sym, error:d.error};
+    const i = d.closes.length-1;
+    const momentum = (d.closes[i]-d.closes[i-1])/d.closes[i-1]*100;
+    const distEma20 = (d.price - d.ema20[i])/d.ema20[i]*100;
+    const bias = d.biasArr[i];
+    return {symbol:sym, price:d.price, momentum, rsi:d.rsi[i], distEma20, ema8:d.ema8[i], ema20:d.ema20[i], ema50:d.ema50[i], bias, error:null};
+  });
+  const sorted = rows.sort((a,b)=>{
+    if(a.error) return 1; if(b.error) return -1;
+    return (a[sortKey]-b[sortKey]) * sortDir;
+  });
+  const tbody = document.getElementById('overviewBody');
+  tbody.innerHTML = sorted.map(r=>{
+    if(r.error) return `<tr><td>${r.symbol}</td><td colspan="6" class="err">Fehler: ${r.error}</td></tr>`;
+    const momCls = r.momentum>=0?'pos':'neg';
+    const distCls = r.distEma20>=0?'pos':'neg';
+    const ribbon = [r.ema8>r.ema20?'up':'down', r.ema20>r.ema50?'up':'down'].map(c=>`<div class="${c}"></div>`).join('');
+    const activeCls = r.symbol===activeSymbol ? 'active-row' : '';
+    return `
+      <tr class="rowlink ${activeCls}" data-symbol="${r.symbol}" onclick="selectSymbol('${r.symbol}')">
+        <td><strong>${r.symbol}</strong></td>
+        <td>${curSym()}${conv(r.price).toLocaleString('de-DE',{maximumFractionDigits:2})}</td>
+        <td class="${momCls}">${r.momentum>=0?'+':''}${r.momentum.toFixed(3)}%</td>
+        <td>${r.rsi.toFixed(1)}</td>
+        <td class="${distCls}">${r.distEma20>=0?'+':''}${r.distEma20.toFixed(2)}%</td>
+        <td><span class="ribbon-mini">${ribbon}</span></td>
+        <td><span class="badge ${r.bias.cls}">${r.bias.label}</span></td>
+      </tr>`;
+  }).join('');
+  document.getElementById('overviewTable').style.display = 'table';
+}
+
+document.querySelectorAll('th[data-key]').forEach(th=>{
+  th.addEventListener('click', ()=>{
+    const key = th.dataset.key;
+    if(sortKey===key) sortDir*=-1; else { sortKey=key; sortDir=-1; }
+    renderOverviewTable();
+  });
+});
+
+function loadNotes(){ document.getElementById('notes').value = localStorage.getItem('bias_notes') || ''; }
+function saveNotes(){ localStorage.setItem('bias_notes', document.getElementById('notes').value); }
+
+const savedWatchlist = localStorage.getItem('combo_watchlist');
+const savedTimeframe = localStorage.getItem('combo_timeframe');
+const savedTradingTimeframe = localStorage.getItem('trading_timeframe');
+if(savedWatchlist) document.getElementById('watchlistInput').value = savedWatchlist;
+if(savedTimeframe) document.getElementById('timeframe').value = savedTimeframe;
+if(savedTradingTimeframe) document.getElementById('tradingTimeframe').value = savedTradingTimeframe;
+
+loadStrategyConfig();
+loadNotes();
+loadPaperState();
+loadAutoTradeState();
+renderPaperLog();
+updateHtfFilterButton();
+updateFvgButton();
+updateAutoTradeButton();
+updateUdModeButton();
+loadAll();
+setInterval(loadAll, 30000);
+window.addEventListener('resize', ()=>{ if(allData[activeSymbol] && !allData[activeSymbol].error) drawChart(allData[activeSymbol]); });
+</script>
+</body>
+</html>
