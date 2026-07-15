@@ -1,0 +1,3621 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Strategie Reverse-Engineering Dashboard — BTC / ETH / SOL</title>
+<style>
+  :root{
+    --bg:#0b0e14; --panel:#141a24; --chartbg:#1a1f2e; --border:#262c3a; --text:#e6edf3;
+    --muted:#8b949e; --accent:#58a6ff; --green:#3fb950; --red:#f85149; --amber:#d29922;
+    --long:#38bdf8; --short:#fb923c;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.4;padding:14px;font-size:13px}
+  h1{font-size:16px;margin:0 0 8px}
+  .subtitle{color:var(--muted);font-size:11px;margin:0}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px}
+  .tabs{display:flex;gap:6px;margin-bottom:8px}
+  .tab{padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-size:11.5px;font-weight:600}
+  .tab.active{background:var(--accent);color:#0e1117;border-color:var(--accent)}
+  select, textarea, button{
+    background:#0d1117;color:var(--text);border:1px solid var(--border);border-radius:5px;padding:5px 8px;font-size:11.5px;font-family:inherit
+  }
+  button{background:var(--accent);color:#0e1117;font-weight:600;cursor:pointer;border:none}
+  button:hover{opacity:.9}
+  button:disabled{opacity:.5;cursor:default}
+  button.secondary{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+  button.secondary.active{background:var(--accent);color:#0e1117}
+  label{font-size:10px;color:var(--muted);display:block;margin-bottom:3px}
+  table{width:100%;border-collapse:collapse;font-size:11.5px}
+  th,td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--border)}
+  th{color:var(--muted);font-weight:600;font-size:10.5px;text-transform:uppercase;letter-spacing:.03em}
+  .pos{color:var(--green)} .neg{color:var(--red)}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+  .toolgroup{display:flex;gap:6px}
+  .chart-wrap{position:relative;height:460px;background:var(--chartbg);border-radius:8px;margin:0 100px}
+  .chart-wrap canvas#priceChart{display:block;width:100%;height:100%;cursor:crosshair}
+  .equity-wrap{position:relative;height:180px;background:var(--chartbg);border-radius:8px;margin-top:8px}
+  .equity-wrap canvas#autoEquityCanvas{display:block;width:100%;height:100%}
+  .status{color:var(--muted);font-size:11px}
+  .badge{display:inline-block;padding:1px 6px;border-radius:999px;font-size:10px;font-weight:600;background:#1f2530;color:var(--amber);margin-left:6px}
+  .best{background:rgba(63,185,80,.12)}
+  code{background:#0d1117;padding:1px 5px;border-radius:4px;font-size:11px}
+  .footnote{color:var(--muted);font-size:10.5px;margin-top:6px}
+  .ticker{display:flex;align-items:baseline;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+  .ticker-value{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;transition:color .2s}
+  .pulse-dot{width:7px;height:7px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 1.6s infinite;margin-right:4px}
+  @keyframes pulse{0%{opacity:1}50%{opacity:.25}100%{opacity:1}}
+  .warn{color:var(--amber) !important}
+  .alert-blocks{display:flex;gap:8px;margin-bottom:8px;align-items:stretch}
+  .alert-block{flex:1;min-width:0;background:#12161c;border:1px solid var(--border);border-radius:7px;padding:7px 10px;transition:border-color .3s,background .3s}
+  .alert-block.active{border-color:var(--amber);background:rgba(210,153,34,0.08)}
+  .alert-block-title{font-weight:700;font-size:10px;color:var(--muted);margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em}
+  .alert-block-body{font-size:11px;line-height:1.6}
+  .alert-item{display:flex;justify-content:space-between;gap:8px;white-space:nowrap;overflow:hidden}
+  .alert-item span:first-child{overflow:hidden;text-overflow:ellipsis}
+  .alert-item.long{color:var(--long)}
+  .alert-item.short{color:var(--short)}
+  .alert-time{color:var(--muted);font-weight:600;flex-shrink:0}
+  .hover-overlay{
+    position:fixed; top:14px; right:14px; z-index:50; pointer-events:none;
+    background:rgba(13,17,23,0.96); border:1px solid var(--border); border-radius:7px;
+    padding:8px 10px; width:230px; display:flex; flex-direction:column; gap:3px;
+    box-shadow:0 4px 14px rgba(0,0,0,0.4);
+  }
+  .hover-row{display:flex;justify-content:space-between;gap:10px;font-size:10.5px}
+  .hover-row .hover-label{flex-shrink:0}
+  .hover-label{color:var(--muted)}
+  .hover-value{font-weight:700;text-align:right}
+  #hoverSignal{white-space:normal;line-height:1.35}
+  .bottom-note{color:var(--muted);font-size:10.5px;margin-top:16px;line-height:1.6;max-width:900px}
+  .exit-banner{background:#12161c;border:1px solid var(--border);border-radius:7px;padding:8px 10px;margin-top:8px}
+  .exit-banner-row{display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap}
+  .exit-banner-row input[type=number]{width:80px}
+  .exit-banner-desc{color:var(--muted);font-size:10.5px;margin-top:5px;line-height:1.5}
+  .view-tabs{display:flex;gap:8px;margin-bottom:10px}
+  .view-tab{padding:7px 14px;border-radius:7px;border:1px solid var(--border);background:var(--panel);color:var(--muted);cursor:pointer;font-size:12.5px;font-weight:600}
+  .view-tab.active{background:var(--accent);color:#0e1117;border-color:var(--accent)}
+  .auto-live-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-left:6px;animation:pulse 1.6s infinite;vertical-align:middle}
+  .stats-row{display:flex;gap:10px;flex-wrap:wrap}
+  .stat-box{background:#12161c;border:1px solid var(--border);border-radius:7px;padding:8px 12px;min-width:110px}
+  .stat-box .stat-label{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}
+  .stat-box .stat-value{font-size:16px;font-weight:700}
+  .percoin-grid{display:flex;gap:10px;flex-wrap:wrap}
+  .percoin-card{flex:1;min-width:220px;background:#12161c;border:1px solid var(--border);border-radius:7px;padding:10px}
+  .percoin-card h3{font-size:12px;margin:0 0 6px}
+  .percoin-live{font-size:11.5px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+  .percoin-trade-row{display:flex;justify-content:space-between;font-size:11px;padding:2px 0;color:var(--muted)}
+  .percoin-summary{font-size:10.5px;color:var(--muted);margin-top:6px}
+  .percoin-empty{color:var(--muted);font-size:11px}
+  .percoin-signal{font-size:10.5px;color:var(--muted);margin-bottom:7px}
+  .percoin-controls{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
+  button.small{padding:3px 7px;font-size:10.5px}
+</style>
+</head>
+<body>
+
+<h1>Strategie Reverse-Engineering Dashboard<span class="badge" id="instanceBadge" style="display:none"></span></h1>
+
+<div class="view-tabs">
+  <button class="view-tab active" id="viewTabAnalysis">Analyse &amp; Backtest</button>
+  <button class="view-tab" id="viewTabAuto">Automatik-Trading<span class="auto-live-dot" id="autoLiveDot" style="display:none"></span></button>
+</div>
+
+<div id="analysisView">
+
+<div class="card">
+  <div class="tabs" id="coinTabs"></div>
+
+  <div class="ticker">
+    <span class="pulse-dot"></span>
+    <span class="ticker-value" id="liveTickerValue">—</span>
+    <span class="status" id="liveTickerStatus">lade…</span>
+  </div>
+
+  <div class="row" style="margin-bottom:8px">
+    <div>
+      <label>Kerzen-Intervall</label>
+      <select id="intervalSelect"></select>
+    </div>
+    <div>
+      <label>Chart-Overlay: Strategiesignale</label>
+      <select id="stratSelect"></select>
+    </div>
+    <div class="toolgroup">
+      <button class="secondary" id="zoomInBtn">Zoom +</button>
+      <button class="secondary" id="zoomOutBtn">Zoom −</button>
+      <button class="secondary" id="resetZoomBtn">Zoom zurücksetzen</button>
+    </div>
+    <div>
+      <button class="secondary" id="loadMoreBtn">+ 1000 ältere Kerzen laden</button>
+    </div>
+    <div class="toolgroup">
+      <button class="secondary" id="toggleEmaBtn">EMAs</button>
+      <button class="secondary" id="toggleFvgBtn">FVG</button>
+      <button class="secondary" id="toggleFibBtn">Fibonacci</button>
+      <button class="secondary" id="toggleIchimokuBtn">Ichimoku</button>
+      <button class="secondary" id="toggleSwingBtn">Swings</button>
+      <button class="secondary" id="toggleSRBtn">S/R-Zonen</button>
+    </div>
+    <div id="status" class="status">Lade Kerzendaten…</div>
+  </div>
+
+  <div class="alert-blocks">
+    <div class="alert-block" id="alertBlock-bitcoin">
+      <div class="alert-block-title">BTC</div>
+      <div class="alert-block-body" id="alertBody-bitcoin">Lade…</div>
+    </div>
+    <div class="alert-block" id="alertBlock-ethereum">
+      <div class="alert-block-title">ETH</div>
+      <div class="alert-block-body" id="alertBody-ethereum">Lade…</div>
+    </div>
+    <div class="alert-block" id="alertBlock-solana">
+      <div class="alert-block-title">SOL</div>
+      <div class="alert-block-body" id="alertBody-solana">Lade…</div>
+    </div>
+  </div>
+
+  <div class="chart-wrap">
+    <canvas id="priceChart"></canvas>
+    <div id="hoverInfoBanner" class="hover-overlay">
+      <div class="hover-row"><span class="hover-label">Zeit</span><span class="hover-value" id="hoverTime">—</span></div>
+      <div class="hover-row"><span class="hover-label">Open</span><span class="hover-value" id="hoverOpen">—</span></div>
+      <div class="hover-row"><span class="hover-label">High</span><span class="hover-value" id="hoverHigh">—</span></div>
+      <div class="hover-row"><span class="hover-label">Low</span><span class="hover-value" id="hoverLow">—</span></div>
+      <div class="hover-row"><span class="hover-label">Close</span><span class="hover-value" id="hoverClose">—</span></div>
+      <div class="hover-row"><span class="hover-label">Signal</span><span class="hover-value" id="hoverSignal">—</span></div>
+    </div>
+  </div>
+  <div class="exit-banner">
+    <div class="exit-banner-row">
+      <div>
+        <label>Exit-Strategie (gilt für alle 8 Strategien)</label>
+        <select id="exitModeSelect"></select>
+      </div>
+      <div id="exitParamWrap" style="display:none">
+        <label id="exitParamLabel">Parameter</label>
+        <input type="number" id="exitParamInput">
+      </div>
+      <div>
+        <label>ATR-Sicherheitsnetz (nur bei Marktstruktur)</label>
+        <select id="atrSafetySelect"></select>
+      </div>
+    </div>
+    <div class="exit-banner-desc" id="exitModeDesc"></div>
+    <div class="exit-banner-desc">
+      ATR-Sicherheitsnetz: nimmt beim Marktstruktur-Exit zusätzlich den engeren von Swing-Level und
+      ATR-basiertem Stop — schützt, wenn sich noch kein Pivot gebildet hat oder der Kurs sehr volatil läuft.
+    </div>
+    <div class="exit-banner-row" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
+      <div>
+        <label>Fakeout-Filter für Einstiege</label>
+        <select id="entryFilterSelect"></select>
+      </div>
+      <div>
+        <label>Volumen-Filter</label>
+        <select id="volumeFilterSelect"></select>
+      </div>
+      <div>
+        <label>Multi-Timeframe-Bestätigung</label>
+        <select id="mtfFilterSelect"></select>
+      </div>
+      <div>
+        <label id="mtfHigherTfLabel">Höherer Zeitrahmen (für aktuellen Zeitrahmen)</label>
+        <select id="mtfHigherTfSelect"></select>
+      </div>
+      <div>
+        <label>Swing-Breakout-Bestätigung</label>
+        <select id="swingBreakoutSelect"></select>
+      </div>
+    </div>
+    <div class="exit-banner-desc">
+      Fakeout-Filter: ein Signal muss sich über N Kerzen halten, bevor es zählt (dient auch als Wartezeit nach
+      einem eigenen Exit). Volumen-Filter: Wechsel nur bei Kerzenvolumen über dem gewählten Vielfachen des
+      20er-Durchschnitts. Multi-Timeframe: Wechsel nur, wenn der nächsthöhere Zeitrahmen (SMA20-Trend) übereinstimmt
+      — welcher Zeitrahmen als "höher" gilt, ist per Select frei wählbar (Standard: deutlich größerer Sprung statt
+      nur der nächstgrößeren Kerze, damit der Trend dort wirklich unabhängig ist). Swing-Breakout: Wechsel nur bei
+      Schlusskurs jenseits des letzten Swing-Hochs/-Tiefs, statt nur einer Indikator-Schwelle. Alle Filter einzeln
+      an/abschaltbar, kombinierbar, gelten für alle 8 Strategien.
+    </div>
+  </div>
+  <div class="exit-banner">
+    <div class="exit-banner-row">
+      <div>
+        <label>Backtest-Fenster (Kerzen)</label>
+        <input type="number" id="optimizerWindowInput" min="20" max="5000" step="10" value="300">
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <input type="checkbox" id="optimizerRefineFilters" style="width:auto;padding:0" checked>
+        <label style="margin:0" for="optimizerRefineFilters">Filter mit verfeinern (Signalfilter/Volumen/Swing-Breakout/MTF)</label>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <input type="checkbox" id="optimizerWalkForward" style="width:auto;padding:0">
+        <label style="margin:0" for="optimizerWalkForward">Walk-Forward (Out-of-Sample-Validierung)</label>
+      </div>
+      <div id="optimizerOosWrap" style="display:none">
+        <label>Out-of-Sample-Anteil</label>
+        <select id="optimizerOosSelect"></select>
+      </div>
+      <div>
+        <button id="optimizerBtn">Beste Kombination finden &amp; aktivieren</button>
+      </div>
+    </div>
+    <div class="exit-banner-desc" id="optimizerResult">
+      Testet alle 8 Entry-Strategien × 5 Exit-Strategien (Standard-Parameter je Exit-Modus) für den aktuell
+      gewählten Coin/Zeitrahmen über die letzten N Kerzen und übernimmt die beste Kombination direkt in
+      Chart-Overlay und Exit-Strategie. Ist „Filter mit verfeinern" aktiv, wird zusätzlich für genau diese
+      Gewinner-Kombination die beste Einstellung der vier Entry-Filter gesucht (zweistufige Suche, siehe unten).
+    </div>
+    <div class="exit-banner-desc">
+      <strong>Walk-Forward:</strong> Ohne diese Option wird die "beste Kombination" auf genau dem Fenster gesucht,
+      über das anschließend auch ihre Rendite berichtet wird — klassisches In-Sample-Overfitting-Risiko (die
+      Kombi könnte einfach zufällig zu diesem einen Fenster passen). Mit aktivierter Option wird das
+      Backtest-Fenster gesplittet: nur der ÄLTERE Teil (In-Sample) fließt in die Suche nach bester
+      Strategie/Exit/Filtern ein, der NEUERE Teil (Out-of-Sample, per Anteil einstellbar) wird der Gewinner-Kombi
+      erst danach zur reinen Kontrolle vorgelegt — sie hat diese Kerzen beim Optimieren nie gesehen. Weicht die
+      Out-of-Sample-Rendite stark von der In-Sample-Rendite ab, ist das ein Warnsignal für Überanpassung statt
+      einer wirklich robusten Kombination.
+    </div>
+  </div>
+  <div class="footnote">
+    Blaues Dreieck unten = Long-Einstieg, oranges Dreieck oben = Short-Einstieg. Hohler Kreis = Ausstieg. Standardmäßig zeigt
+    der Chart die Signale <strong>aller</strong> 8 Strategien gleichzeitig (Overlay „Alle Strategien"); beim Darüberfahren
+    verrät das Banner oben rechts, welche Strategie(n) genau ausgelöst haben. Alarm-Blöcke zeigen die jeweils letzten
+    Signale je Coin (neu → alt) — bei Intervallen bis 30 Min zeitbasiert (30-Minuten-Fenster), bei größeren Intervallen
+    kerzenbasiert (letzte 15 Kerzen), da ein festes Zeitfenster dort zu schnell leerläuft. Ältere Signale bleiben trotzdem
+    als Symbol im Chart stehen. EMAs = 9/20/50/200. FVG = offene Gaps ≥0,1% Kurs.
+  </div>
+</div>
+
+<div class="card">
+  <h2 style="font-size:13px;margin:0 0 8px">Strategie-Vergleich — <span id="compTitle">Bitcoin</span></h2>
+  <table id="compTable">
+    <thead>
+      <tr><th>Strategie</th><th>Rendite</th><th>vs. Buy&Hold</th><th>Max DD</th><th>Einstiege</th><th>Trefferquote</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  <div class="footnote">Long/Short-Simulation, keine Gebühren/Slippage berücksichtigt. Reine Heuristik, keine Anlageberatung.</div>
+</div>
+
+<div class="bottom-note">
+  Live-Kerzenchart über die öffentliche Binance-API (BTCEUR / ETHEUR / SOLEUR) mit Fadenkreuz-Cursor, EMAs, Fair-Value-Gaps
+  und Fibonacci-Retracement. Standardmäßig laufen die 8 Strategien immer long ODER short, Ausstieg = nächstes Gegensignal
+  (reine Annahme, keine echte Exit-Logik). Über das Exit-Strategie-Banner unter dem Chart lässt sich das für alle 8
+  Strategien gemeinsam auf ein fixes Stop-Loss/Take-Profit, einen ATR-Trailing-Stop oder ein Zeitlimit umstellen — dann
+  kann eine Position auch zwischenzeitlich flach sein. Der Chart zeigt
+  standardmäßig die Signale aller 8 Strategien gleichzeitig (per Dropdown auf eine einzelne Strategie einschränkbar); das
+  Hover-Banner oben rechts nennt beim Darüberfahren die genauen auslösenden Strategien. Die drei Alarm-Blöcke scannen
+  alle acht Strategien je Coin auf dem eingestellten Zeitrahmen: bei Intervallen bis 30 Minuten zeitbasiert (30-Min-Fenster),
+  bei größeren Intervallen kerzenbasiert (letzte 15 Kerzen), jeweils mit Uhrzeit, neueste zuerst. Live-Preis läuft über
+  einen Binance-WebSocket (Fallback: Polling) und färbt sich grün/rot je nach Kursrichtung. Zoom per Mausrad oder Buttons
+  hält die neueste Kerze am rechten Rand fest. Historie wird beim Zurückscrollen/-zoomen automatisch im Hintergrund
+  nachgeladen (unbegrenzt weit zurück), der Button funktioniert weiterhin manuell. Zusätzliche Overlays: Ichimoku-Wolke
+  (Senkou A/B ohne Vorwärtsprojektion über den letzten Kerzenindex hinaus), Swing-Hochs/-Tiefs sowie geclusterte
+  Support-/Widerstandszonen aus denselben Pivots. Vier zusätzliche, einzeln an/abschaltbare Entry-/Exit-Filter im
+  Banner unter dem Chart: Volumen-Filter (Einstieg nur bei überdurchschnittlichem Kerzenvolumen), Multi-Timeframe-
+  Bestätigung (Einstieg nur wenn der nächsthöhere Zeitrahmen zustimmt), Swing-Breakout-Bestätigung (Einstieg erst bei
+  echtem Ausbruch über/unter das letzte Swing-Level statt nur Indikator-Schwelle) und ein ATR-Sicherheitsnetz für den
+  Marktstruktur-Exit. Reine Analyse — keine Order-Ausführung, keine API-Keys, keine Wallet-Verbindung. Mehrere
+  unabhängige Instanzen dieser Datei gleichzeitig laufen lassen (z.B. verschiedene Automatik-Strategien parallel
+  testen): an die URL <code>?instance=NAME</code> anhängen (z.B. <code>...html?instance=eth</code>) — jede Instanz
+  bekommt dann ihren eigenen, isolierten Automatik-Speicher (Positionen/Log/Einstellungen), ohne sich gegenseitig
+  zu überschreiben. Ohne diesen Parameter bleibt alles wie gewohnt.
+</div>
+
+</div>
+
+<div id="autoTradeView" style="display:none">
+
+<div class="card">
+  <div class="row" style="margin-bottom:8px">
+    <div>
+      <label>Automatik-Zeitrahmen (unabhängig vom Analyse-Chart)</label>
+      <select id="autoIntervalSelect"></select>
+    </div>
+    <div>
+      <label>Automatik-Modus</label>
+      <select id="autoModeSelect"></select>
+    </div>
+    <div>
+      <label>Automatik-Strategie (nur im Modus "Feste Strategie")</label>
+      <select id="autoStratSelect"></select>
+    </div>
+    <div>
+      <label id="autoMtfHigherTfLabel">Höherer Zeitrahmen (für Automatik-Zeitrahmen)</label>
+      <select id="autoMtfHigherTfSelect"></select>
+    </div>
+    <div class="toolgroup">
+      <button id="autoToggleBtn">Automatik starten</button>
+      <button class="secondary" id="autoResetPositionsBtn">Offene Positionen zurücksetzen</button>
+      <button class="secondary" id="autoClearLogBtn">Log löschen</button>
+    </div>
+    <div id="autoStatus" class="status">Automatik ist aus.</div>
+  </div>
+  <div class="exit-banner-desc">
+    Hat eine <strong>eigene, vom Analyse-Tab unabhängige</strong> Exit-Strategie und eigene Entry-Filter (siehe Karte
+    unten) — Tests/Änderungen im Analyse-Tab wirken sich nicht mehr auf die laufende Automatik aus. Ein
+    Strategie-/Zeitrahmen-Wechsel hier betrifft nur <strong>neue</strong> Einstiege — eine bereits offene Position
+    bleibt bis zu ihrem Ausstieg an die Strategie/den Zeitrahmen "eingefroren", mit der/dem sie eröffnet wurde. Prüft
+    alle 30 Sekunden (und sofort beim Zurückkehren in den Tab) für alle drei Coins, ob die maßgebliche
+    Strategie-Position vom offenen Papier-Trade abweicht, und öffnet/schließt entsprechend automatisch.
+    Ausführungspreis = letzter bekannter Schlusskurs der (evtl. noch laufenden) Kerze, nicht der Live-Tick-Preis.
+    Jede Coin-Karte unten zeigt zusätzlich das aktuelle Rohsignal inkl. Zeitpunkt des letzten Wechsels — unabhängig
+    vom Zeitfenster der Alarm-Blöcke im Analyse-Tab, die ältere Signale nach einer Weile ausblenden, obwohl die
+    Position weiterläuft. Manuelles Schließen/Eröffnen pro Coin pausiert die Automatik für diesen Coin automatisch
+    mit (Button „Automatik fortsetzen" gibt die Kontrolle zurück). Reines Paper-Trading im Browser-Speicher
+    (localStorage) dieses Geräts — keine echte Order, keine API-Keys, keine Wallet-Verbindung, keine Anlageberatung.
+  </div>
+</div>
+
+<div class="card">
+  <h2 style="font-size:13px;margin:0 0 8px">Exit-Strategie &amp; Entry-Filter (nur Automatik)</h2>
+  <div class="exit-banner">
+    <div class="exit-banner-row">
+      <div>
+        <label>Exit-Strategie (gilt für alle 8 Strategien, nur Automatik)</label>
+        <select id="autoExitModeSelect"></select>
+      </div>
+      <div id="autoExitParamWrap" style="display:none">
+        <label id="autoExitParamLabel">Parameter</label>
+        <input type="number" id="autoExitParamInput">
+      </div>
+      <div>
+        <label>ATR-Sicherheitsnetz (nur bei Marktstruktur)</label>
+        <select id="autoAtrSafetySelect"></select>
+      </div>
+    </div>
+    <div class="exit-banner-desc" id="autoExitModeDesc"></div>
+    <div class="exit-banner-row" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
+      <div>
+        <label>Fakeout-Filter für Einstiege</label>
+        <select id="autoEntryFilterSelect"></select>
+      </div>
+      <div>
+        <label>Volumen-Filter</label>
+        <select id="autoVolumeFilterSelect"></select>
+      </div>
+      <div>
+        <label>Multi-Timeframe-Bestätigung</label>
+        <select id="autoMtfFilterSelect"></select>
+      </div>
+      <div>
+        <label>Swing-Breakout-Bestätigung</label>
+        <select id="autoSwingBreakoutSelect"></select>
+      </div>
+    </div>
+    <div class="exit-banner-desc">
+      Eigener Satz derselben sechs Einstellungen wie im Analyse-Tab (siehe dortige Erklärung), hier aber komplett
+      unabhängig — praktisch, um im Analyse-Tab in Ruhe mit Filtern/Exit-Varianten zu experimentieren, ohne dass sich
+      dadurch rückwirkend die laufende Automatik-Strategie ändert. Der höhere Zeitrahmen für die
+      Multi-Timeframe-Bestätigung wird weiterhin über den Select oben ("Höherer Zeitrahmen") je Automatik-Zeitrahmen
+      eingestellt (der ist ohnehin schon pro Zeitrahmen unabhängig vom Analyse-Chart).
+    </div>
+  </div>
+</div>
+
+<div class="card" id="autoDynamicParamsWrap" style="display:none">
+  <h2 style="font-size:13px;margin:0 0 8px">Rotations-Parameter (Modus "Dynamisch")</h2>
+  <div class="exit-banner-row">
+    <div>
+      <label>Vergleichsfenster (Kerzen)</label>
+      <input type="number" id="autoDynamicWindowInput" min="20" max="2000" step="10">
+    </div>
+    <div>
+      <label>Mindest-Renditevorsprung für Wechsel (Prozentpunkte)</label>
+      <input type="number" id="autoDynamicMinEdgeInput" min="0" max="50" step="0.5">
+    </div>
+    <div>
+      <label>Mindesthaltezeit vor Rotation (Kerzen)</label>
+      <input type="number" id="autoDynamicMinHoldInput" min="0" max="500" step="1">
+    </div>
+  </div>
+  <div class="exit-banner-desc">
+    Vergleicht bei jedem 30s-Tick die rollierende Rendite (letzte X Kerzen, ohne Gebühren/Slippage) aller 8
+    Strategien für den Automatik-Zeitrahmen. Liegt eine ANDERE Strategie als die gerade gehaltene um mindestens
+    den Mindest-Vorsprung besser UND ist die Position schon mindestens die Mindesthaltezeit offen, wird gewechselt
+    (Exit + sofortiger Neueinstieg unter der besseren Strategie, im Log als "Strategie-Rotation" markiert). Der
+    normale Exit der gehaltenen Strategie (eigenes Gegensignal/Flach) hat davon unabhängig immer Vorrang.
+    <strong>Achtung:</strong> das ist eine Wette darauf, dass kurzfristige Outperformance anhält — empirisch keine
+    verlässliche Annahme (Strategie-Performance kann sich schnell umkehren) und je nach Fenstergröße reine
+    Rückspiegel-Optimierung. Kein Gebühren-/Spread-Modell — häufigeres Wechseln wäre im echten Handel teurer, als
+    hier simuliert wird.
+  </div>
+</div>
+
+<div class="card">
+  <h2 style="font-size:13px;margin:0 0 8px">Auswertung</h2>
+  <div class="stats-row" id="autoStatsRow"></div>
+  <div class="equity-wrap">
+    <canvas id="autoEquityCanvas"></canvas>
+  </div>
+  <div class="exit-banner-desc">
+    Eigenkapitalkurve je Coin (kumulierte Rendite aus geschlossenen Trades, plus die noch offene Position
+    mark-to-market zum letzten bekannten Kurs) sowie eine gleichgewichtete Durchschnittskurve über alle drei Coins
+    ("Kombiniert"). Ohne Gebühren/Slippage, reine Paper-Trading-Simulation.
+  </div>
+</div>
+
+<div class="card">
+  <h2 style="font-size:13px;margin:0 0 8px">Offene Positionen &amp; letzte Trades je Coin</h2>
+  <div class="percoin-grid" id="autoPerCoinGrid"></div>
+</div>
+
+<div class="card">
+  <h2 style="font-size:13px;margin:0 0 8px">Paper-Trading-Log</h2>
+  <div style="max-height:420px;overflow:auto">
+    <table id="autoLogTable">
+      <thead>
+        <tr><th>Coin</th><th>Richtung</th><th>Entry</th><th>Exit</th><th>PnL</th><th>Grund</th><th>Eröffnet</th><th>Geschlossen</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <div class="footnote" id="autoLogEmpty">Noch keine geschlossenen Trades.</div>
+</div>
+
+</div>
+
+<script>
+const COINS = {
+  bitcoin:  {label:"Bitcoin (BTC)",  short:"BTC", symbol:"BTCEUR"},
+  ethereum: {label:"Ethereum (ETH)", short:"ETH", symbol:"ETHEUR"},
+  solana:   {label:"Solana (SOL)",   short:"SOL", symbol:"SOLEUR"}
+};
+const INTERVALS = [
+  {value:"1m",  label:"1 Minute"},
+  {value:"5m",  label:"5 Minuten"},
+  {value:"15m", label:"15 Minuten"},
+  {value:"30m", label:"30 Minuten"},
+  {value:"1h",  label:"1 Stunde"},
+  {value:"4h",  label:"4 Stunden"},
+  {value:"12h", label:"12 Stunden"},
+  {value:"1d",  label:"1 Tag"},
+  {value:"3d",  label:"3 Tage"},
+  {value:"1w",  label:"1 Woche"},
+  {value:"1M",  label:"1 Monat"}
+];
+const STRAT_LABELS = {
+  sma:        "SMA-Crossover",
+  rsi:        "RSI Mean-Reversion",
+  boll:       "Bollinger-Breakout",
+  mom:        "Momentum",
+  macd:       "MACD-Crossover",
+  stoch:      "Stochastic Osc.",
+  donchian:   "Donchian-Breakout",
+  supertrend: "Supertrend"
+};
+const STRAT_LABELS_FULL = {
+  sma:        "SMA-Crossover (Trendfolge)",
+  rsi:        "RSI Mean-Reversion",
+  boll:       "Bollinger-Breakout",
+  mom:        "Momentum",
+  macd:       "MACD-Crossover (Trendfolge)",
+  stoch:      "Stochastic Oscillator (Mean-Reversion)",
+  donchian:   "Donchian-Breakout",
+  supertrend: "Supertrend (ATR-Trendfolge)"
+};
+const EMA_CONFIGS = [
+  {period:9,   color:'#ffe9a8', label:'EMA 9'},
+  {period:20,  color:'#a8f0f7', label:'EMA 20'},
+  {period:50,  color:'#e0c3ff', label:'EMA 50'},
+  {period:200, color:'#ffc2ea', label:'EMA 200'}
+];
+const INTERVAL_MS = {
+  '1m':60e3, '5m':5*60e3, '15m':15*60e3, '30m':30*60e3,
+  '1h':60*60e3, '4h':4*60*60e3, '12h':12*60*60e3,
+  '1d':24*60*60e3, '3d':3*24*60*60e3, '1w':7*24*60*60e3, '1M':30*24*60*60e3
+};
+const ALERT_WINDOW_MS = 30*60*1000;   // Zeitfenster für Intervalle bis 30 Min (Signale älter als 30 Min fallen raus, bleiben aber im Chart)
+const ALERT_WINDOW_CANDLES = 15;      // Kerzen-Fenster für Intervalle > 30 Min (fixes Zeitfenster wäre dort zu kurz/zu lang)
+
+// Exit-Modelle: standardmäßig reine Signalumkehr (Annahme, keine "echte" Exit-Logik). Alternativ können
+// die Positionen über feste Stop-Loss/Take-Profit-Schwellen, einen ATR-Trailing-Stop oder ein Zeitlimit
+// geschlossen werden — dann kann eine Position auch mal FLACH (0) sein, bis das Signal erneut bestätigt.
+const EXIT_MODES = {
+  reversal: { label:'Signalumkehr (Standard)', paramLabel:null, paramDefault:null,
+    desc:'Ausstieg = nächstes Gegensignal. Keine Stop-Loss/Take-Profit-Logik, immer long oder short im Markt.' },
+  stoploss: { label:'Fixes Stop-Loss / Take-Profit', paramLabel:'Stop-Loss in % (Take-Profit = 2×)', paramDefault:2, min:0.2, max:20, step:0.1,
+    desc:'Ausstieg, sobald der Kurs X% gegen die Position läuft (Stop-Loss) oder 2×X% dafür (Take-Profit, festes 1:2-Chance-Risiko-Verhältnis). Bis dahin bleibt die Position offen, auch über ein Gegensignal hinaus — außer das Gegensignal kommt zuerst.' },
+  trailing: { label:'ATR-Trailing-Stop (Chandelier Exit)', paramLabel:'ATR-Multiplikator', paramDefault:3, min:0.5, max:8, step:0.1,
+    desc:'Nachlaufender Stop im Abstand von X × ATR(14) vom höchsten (Long) bzw. niedrigsten (Short) Kurs seit Einstieg. Klassischer volatilitätsbasierter Trailing-Stop, wie bei der Supertrend-Strategie.' },
+  time: { label:'Zeitbasiert (max. N Kerzen)', paramLabel:'Max. Kerzen in Position', paramDefault:10, min:1, max:200, step:1,
+    desc:'Ausstieg spätestens nach N Kerzen, unabhängig vom weiteren Kursverlauf — oder früher bei einem Gegensignal.' },
+  structure: { label:'Marktstruktur (Higher-Lows / Lower-Highs)', paramLabel:'Pivot-Fenster (Kerzen je Seite)', paramDefault:3, min:1, max:10, step:1,
+    desc:'Hält die Position, solange die Struktur intakt bleibt, statt bei jeder kurzen Gegenbewegung auszusteigen. Bei Long gilt das letzte bestätigte Swing-Tief (Higher-Low) als Referenz — erst ein Schlusskurs darunter bricht die Struktur und löst den Exit aus; bei Short entsprechend über dem letzten Swing-Hoch (Lower-High). Kurze Fakeouts, die dieses Niveau nicht durchbrechen, werden ignoriert und die Position bleibt offen. Ein Pivot gilt erst nach N Kerzen auf beiden Seiten als bestätigt (kein Blick in die Zukunft) — größeres Fenster = robustere, aber trägere Struktur.' }
+};
+let exitMode = 'reversal';
+let exitParam = null;
+let entryConfirmBars = 2; // Fakeout-Filter für Einstiege: 0 = aus (Rohsignal ungefiltert), sonst N Bestätigungskerzen
+
+let ohlcCache = {};      // "coin::interval" -> {times[],opens[],highs[],lows[],closes[]}  (aufsteigend sortiert)
+let strategyCache = {};  // "coin::interval" -> {stratKey -> result}
+let activeCoin = "bitcoin";
+let activeInterval = "1d";
+let chart = null;
+let tickerTimer = null;
+let chartRefreshTimer = null;
+let lastTickerOkAt = null;
+let lastPriceValue = null;
+let priceSocket = null;
+let showEMAs = false;
+let showFVG = false;
+let showFib = false;
+let showIchimoku = false;
+let showSwings = false;
+let showSR = false;
+let isLoadingMoreHistory = false;
+let historyExhausted = {}; // "coin::interval" -> true, sobald Binance keine älteren Kerzen mehr liefert
+
+// Zusätzliche, alle einzeln an/abschaltbare Entry-/Exit-Verbesserungen
+let volumeFilterMult = 0;      // 0 = aus, sonst: Einstieg nur bei Volumen >= Durchschnitt(20) * mult
+let mtfFilterOn = false;       // Einstieg nur, wenn übergeordneter Zeitrahmen (SMA20-Trend) übereinstimmt
+let swingBreakoutBars = 0;     // 0 = aus, sonst: Einstieg nur bei Schlusskurs jenseits des letzten Swing-Punkts
+let structureAtrSafetyMult = 0; // 0 = aus, sonst: im Marktstruktur-Exit zusätzlich ATR-Sicherheitsnetz (engerer Stop gilt)
+let pendingHigherTFFetch = {}; // "coin::higherInterval" -> true während eines Hintergrund-Nachladens
+// Standard-Zuordnung "welcher Zeitrahmen gilt als der übergeordnete" je Basis-Intervall -- bewusst ein deutlich
+// größerer Sprung (meist Faktor 6-16) statt der nächstgrößeren Kerzengröße, damit der SMA20-Trend dort wirklich
+// eine andere/langsamere Marktstruktur zeigt statt nur eine leicht geglättete Version desselben Zeitfensters.
+// Unveränderlich (dient als "Standard"-Referenz für die UI) -- die tatsächlich genutzte Zuordnung ist NEXT_HIGHER_TF weiter unten, per Select überschreibbar.
+const DEFAULT_NEXT_HIGHER_TF = {
+  '1m':'15m', '5m':'1h', '15m':'4h', '30m':'4h', '1h':'12h', '4h':'1d', '12h':'3d', '1d':'1w', '3d':'1M', '1w':'1M'
+  // '1M' hat keinen höheren Zeitrahmen mehr -> MTF-Filter dort automatisch wirkungslos
+};
+let NEXT_HIGHER_TF = { ...DEFAULT_NEXT_HIGHER_TF }; // per Select im Analyse-/Automatik-Tab je Intervall überschreibbar (nicht persistiert, wie die übrigen Analyse-Einstellungen)
+
+// Alle Intervalle, die "höher" als das gegebene sind (gemäß Reihenfolge in INTERVALS) -- Auswahlmöglichkeiten
+// für den Multi-Timeframe-Override-Select. Für '1M' (letztes Intervall) leer -> kein höherer Zeitrahmen wählbar.
+function higherTFOptionsFor(interval){
+  const idx = INTERVALS.findIndex(i=>i.value===interval);
+  if(idx < 0) return [];
+  return INTERVALS.slice(idx+1);
+}
+// Setzt/entfernt eine manuelle Override für den höheren Zeitrahmen eines Basis-Intervalls und sorgt dafür, dass
+// alle davon abhängigen Berechnungen (Entry-Filter-Kontext in buildStrategies) neu aufgebaut werden -- sowohl für
+// den Analyse-Chart-Zeitrahmen als auch für den (ggf. abweichenden) Automatik-Zeitrahmen.
+function setHigherTFOverride(interval, value){
+  if(!value || value === DEFAULT_NEXT_HIGHER_TF[interval]){
+    if(DEFAULT_NEXT_HIGHER_TF[interval]) NEXT_HIGHER_TF[interval] = DEFAULT_NEXT_HIGHER_TF[interval];
+    else delete NEXT_HIGHER_TF[interval];
+  } else {
+    NEXT_HIGHER_TF[interval] = value;
+  }
+  invalidateStrategyCacheAndRebuild();
+}
+function invalidateStrategyCacheAndRebuild(){
+  strategyCache = {};
+  Object.keys(COINS).forEach(c=>{
+    const k1 = c+'::'+activeInterval; if(ohlcCache[k1]) buildStrategies(c, activeInterval, 'analyse');
+    // Profil 'auto': die Automatik hat seit der Filter-Entkopplung ihre eigenen Exit-/Entry-Einstellungen, die
+    // NEXT_HIGHER_TF-Override betrifft aber weiterhin beide Profile gemeinsam (pro Basis-Intervall geteilt).
+    const k2 = c+'::'+autoTradeInterval; if(ohlcCache[k2]) buildStrategies(c, autoTradeInterval, 'auto');
+  });
+  if(chart){ updateChartInPlace(); } else if(typeof renderChart==='function'){ renderChart(); }
+  if(typeof renderTable==='function') renderTable();
+  if(typeof updateAlertBanner==='function') updateAlertBanner();
+  if(typeof renderAutoTradeUI==='function') renderAutoTradeUI();
+}
+
+// ---------- Mehrere unabhängige Instanzen dieser Datei gleichzeitig laufen lassen ----------
+// Alles andere im Tool (aktiver Coin, Zeitrahmen, Exit-Strategie, Filter, geladene Kerzen...) lebt nur im
+// Arbeitsspeicher der jeweiligen Browser-Tab-Seite und ist damit ohnehin automatisch pro Tab unabhängig. NUR die
+// Automatik-Paper-Trading-Daten (Positionen/Log/Einstellungen) landen in localStorage -- und das teilen sich
+// mehrere Tabs derselben Datei/desselben Ursprungs je nach Browser, würden sich also laufend gegenseitig
+// überschreiben. Mit "?instance=NAME" an die URL angehängt bekommt jede Instanz ihren eigenen, isolierten
+// localStorage-Namensraum. Ohne Parameter: unverändertes Standardverhalten (kompatibel zu bereits gespeicherten
+// Daten aus früheren Versionen dieser Datei).
+function getInstanceId(){
+  try{
+    if(typeof location === 'undefined' || !location.search) return '';
+    const raw = new URLSearchParams(location.search).get('instance');
+    if(!raw) return '';
+    return raw.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40);
+  }catch(e){ return ''; }
+}
+const INSTANCE_ID = getInstanceId();
+const LS_PREFIX = INSTANCE_ID ? ('inst_'+INSTANCE_ID+'_') : '';
+
+// ---------- Automatik-Trading (Paper-Trading) ----------
+// Nutzt dieselbe buildStrategies()-Engine wie der Analyse-Tab, aber mit einem EIGENEN, unabhängigen Satz Exit-
+// Strategie + Entry-Filter (siehe autoExitMode/autoEntryConfirmBars/... weiter unten) -- Testen/Umschalten im
+// Analyse-Tab beeinflusst die laufende Automatik dadurch nicht mehr. Zeitrahmen und die einzelne Entry-Strategie
+// sind ohnehin schon unabhängig vom Analyse-Chart wählbar, da eine automatische Live-Position eine eindeutige
+// Strategie statt "Alle"/"Kein Signalfilter" braucht. Reines Paper-Trading, keine echte Order-Ausführung.
+let autoTradeEnabled = false;
+let autoTradeInterval = '15m';
+let autoTradeStratKey = 'macd';
+let autoOpenPositions = {}; // coin -> {direction:'long'|'short', entryPrice, entryTime, entryIdx, stratKey, interval} -- stratKey/interval sind an der Position "eingefroren" (die Position mit der sie eröffnet wurde), damit ein späterer Wechsel der Automatik-Strategie/-Zeitrahmen laufende Trades nicht rückwirkend umdeutet
+let autoTradeLog = [];      // geschlossene Trades: {coin, direction, entryPrice, exitPrice, entryTime, exitTime, pnlPct, result, reason, stratKey, exitModeKey, interval}
+let autoCoinPaused = {};    // coin -> true, wenn die Automatik für diesen Coin manuell angehalten wurde (z.B. nach manuellem Exit/Entry) -- automatischer Loop überspringt diesen Coin komplett, bis er wieder fortgesetzt wird
+// "Dynamischer" Automatik-Modus: statt einer fest gewählten Strategie wird laufend geprüft, welche der 8
+// Strategien über ein Vergleichsfenster die beste rollierende Rendite erzielt hat, und bei ausreichendem
+// Vorsprung + Mindesthaltezeit dorthin rotiert. Bewusst mit Sicherheitsbremsen gegen Overfitting/Whipsaw --
+// siehe runAutoTradeDynamicForCoin().
+let autoTradeMode = 'fixed';        // 'fixed' | 'dynamic'
+let autoDynamicWindow = 100;        // Vergleichsfenster in Kerzen für den rollierenden Rendite-Vergleich
+let autoDynamicMinEdgePct = 2;      // Mindest-Renditevorsprung in Prozentpunkten, den eine andere Strategie haben muss, um zu wechseln
+let autoDynamicMinHoldBars = 5;     // Mindesthaltezeit in Kerzen, bevor eine reine Rotation (nicht der normale Exit) überhaupt greifen darf
+// Eigene, vom Analyse-Tab UNABHÄNGIGE Exit-Strategie + Entry-Filter für die Automatik. Vorher teilten sich beide
+// Tabs dieselben globalen Variablen (exitMode, entryConfirmBars, ...) -- praktisch fürs schnelle Ausprobieren im
+// Analyse-Chart, aber nervig für die Automatik: jeder Test dort hat rückwirkend die laufende Live-Strategie
+// mitverändert. Jetzt hat die Automatik ihren eigenen, persistierten Satz derselben sechs Einstellungen; die
+// Analyse-Tab-Variablen (exitMode, exitParam, entryConfirmBars, volumeFilterMult, swingBreakoutBars, mtfFilterOn,
+// structureAtrSafetyMult) bleiben unverändert und wirken nur noch auf Chart/Backtest im Analyse-Tab.
+let autoExitMode = 'reversal';
+let autoExitParam = null;
+let autoStructureAtrSafetyMult = 0;
+let autoEntryConfirmBars = 2;
+let autoVolumeFilterMult = 0;
+let autoSwingBreakoutBars = 0;
+let autoMtfFilterOn = false;
+const AUTO_TRADE_LS_KEYS = {
+  enabled: LS_PREFIX+'srt_autoTradeEnabled', interval: LS_PREFIX+'srt_autoTradeInterval', stratKey: LS_PREFIX+'srt_autoTradeStratKey',
+  positions: LS_PREFIX+'srt_autoOpenPositions', log: LS_PREFIX+'srt_autoTradeLog', paused: LS_PREFIX+'srt_autoCoinPaused',
+  mode: LS_PREFIX+'srt_autoTradeMode', dynWindow: LS_PREFIX+'srt_autoDynamicWindow', dynMinEdge: LS_PREFIX+'srt_autoDynamicMinEdgePct', dynMinHold: LS_PREFIX+'srt_autoDynamicMinHoldBars',
+  exitMode: LS_PREFIX+'srt_autoExitMode', exitParam: LS_PREFIX+'srt_autoExitParam', atrSafety: LS_PREFIX+'srt_autoStructureAtrSafetyMult',
+  entryConfirmBars: LS_PREFIX+'srt_autoEntryConfirmBars', volumeFilter: LS_PREFIX+'srt_autoVolumeFilterMult',
+  swingBreakout: LS_PREFIX+'srt_autoSwingBreakoutBars', mtfFilter: LS_PREFIX+'srt_autoMtfFilterOn'
+};
+
+// ---------- Formatting ----------
+function fmtEUR(x){
+  if(x==null || isNaN(x)) return "—";
+  const decimals = x < 1 ? 6 : x < 100 ? 4 : 2;
+  return new Intl.NumberFormat('de-DE', {style:'currency', currency:'EUR', minimumFractionDigits:decimals, maximumFractionDigits:decimals}).format(x);
+}
+function fmtPct(x){
+  if(x==null) return "—";
+  const pct = (x*100).toFixed(1)+"%";
+  return `<span class="${x>=0?'pos':'neg'}">${x>=0?'+':''}${pct}</span>`;
+}
+function fmtClock(ts){
+  return new Date(ts).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+}
+
+// ---------- Data fetching (Binance public REST + WebSocket, no key required) ----------
+async function fetchKlines(symbol, interval, opts={}){
+  const limit = opts.limit || 1000;
+  let url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+  if(opts.endTime) url += `&endTime=${opts.endTime}`;
+  if(opts.startTime) url += `&startTime=${opts.startTime}`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error(`Binance API-Fehler (${res.status})`);
+  const raw = await res.json();
+  return raw.map(r => ({ time:r[0], open:parseFloat(r[1]), high:parseFloat(r[2]), low:parseFloat(r[3]), close:parseFloat(r[4]), volume:parseFloat(r[5]) }));
+}
+async function fetchLivePrice(coin){
+  const symbol = COINS[coin].symbol;
+  const res = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`);
+  if(!res.ok) throw new Error('rate-limited');
+  const json = await res.json();
+  return parseFloat(json.price);
+}
+async function ensureData(coin, interval){
+  const key = coin+'::'+interval;
+  if(ohlcCache[key]) return ohlcCache[key];
+  const candles = await fetchKlines(COINS[coin].symbol, interval, {limit:1000});
+  ohlcCache[key] = {
+    times:  candles.map(c=>c.time),
+    opens:  candles.map(c=>c.open),
+    highs:  candles.map(c=>c.high),
+    lows:   candles.map(c=>c.low),
+    closes: candles.map(c=>c.close),
+    volumes: candles.map(c=>c.volume)
+  };
+  return ohlcCache[key];
+}
+async function ensureAllCoinsData(interval){
+  await Promise.all(Object.keys(COINS).map(coin => ensureData(coin, interval)));
+}
+
+// ---------- Indicators ----------
+function sma(arr, period){
+  const out = new Array(arr.length).fill(null);
+  let sum = 0;
+  for(let i=0;i<arr.length;i++){
+    sum += arr[i];
+    if(i>=period) sum -= arr[i-period];
+    if(i>=period-1) out[i] = sum/period;
+  }
+  return out;
+}
+function stdev(arr, period){
+  const out = new Array(arr.length).fill(null);
+  for(let i=period-1;i<arr.length;i++){
+    const slice = arr.slice(i-period+1, i+1);
+    const mean = slice.reduce((a,b)=>a+b,0)/period;
+    const variance = slice.reduce((a,b)=>a+(b-mean)*(b-mean),0)/period;
+    out[i] = Math.sqrt(variance);
+  }
+  return out;
+}
+function rsi(arr, period){
+  const out = new Array(arr.length).fill(null);
+  let gains=0, losses=0, avgG=null, avgL=null;
+  for(let i=1;i<arr.length;i++){
+    const diff = arr[i]-arr[i-1];
+    const gain = diff>0?diff:0;
+    const loss = diff<0?-diff:0;
+    if(i<=period){
+      gains += gain; losses += loss;
+      if(i===period){
+        avgG=gains/period; avgL=losses/period;
+        out[i] = avgL===0?100:100-(100/(1+avgG/avgL));
+      }
+    } else {
+      avgG = (avgG*(period-1)+gain)/period;
+      avgL = (avgL*(period-1)+loss)/period;
+      out[i] = avgL===0?100:100-(100/(1+avgG/avgL));
+    }
+  }
+  return out;
+}
+function ema(arr, period){
+  const n = arr.length;
+  const out = new Array(n).fill(null);
+  const k = 2/(period+1);
+  let prev = null;
+  for(let i=0;i<n;i++){
+    if(arr[i]==null) continue;
+    if(prev==null){
+      if(i>=period-1){
+        let sum=0, cnt=0;
+        for(let j=i-period+1;j<=i;j++){ if(arr[j]!=null){ sum+=arr[j]; cnt++; } }
+        if(cnt===period){ prev = sum/period; out[i]=prev; }
+      }
+    } else {
+      prev = arr[i]*k + prev*(1-k);
+      out[i] = prev;
+    }
+  }
+  return out;
+}
+function atr(highs, lows, closes, period){
+  const n = closes.length;
+  const tr = new Array(n).fill(0);
+  for(let i=0;i<n;i++){
+    tr[i] = (i===0) ? (highs[i]-lows[i]) : Math.max(highs[i]-lows[i], Math.abs(highs[i]-closes[i-1]), Math.abs(lows[i]-closes[i-1]));
+  }
+  const out = new Array(n).fill(null);
+  let sum=0;
+  for(let i=0;i<n;i++){
+    if(i<period){ sum+=tr[i]; if(i===period-1) out[i]=sum/period; }
+    else { out[i] = (out[i-1]*(period-1)+tr[i])/period; }
+  }
+  return out;
+}
+function stochasticK(highs, lows, closes, period){
+  const n = closes.length;
+  const out = new Array(n).fill(null);
+  for(let i=period-1;i<n;i++){
+    let hh=-Infinity, ll=Infinity;
+    for(let j=i-period+1;j<=i;j++){ if(highs[j]>hh) hh=highs[j]; if(lows[j]<ll) ll=lows[j]; }
+    out[i] = hh===ll ? 50 : ((closes[i]-ll)/(hh-ll))*100;
+  }
+  return out;
+}
+
+// ---------- Strategy engine (immer im Markt: 1 = long, -1 = short) ----------
+function positionToResult(position, closes){
+  const n = closes.length;
+  const equity = new Array(n).fill(1);
+  const trades = [];
+  let peak = 1, maxDD = 0;
+  for(let i=1;i<n;i++){
+    const ret = (closes[i]-closes[i-1])/closes[i-1];
+    const prevPos = position[i-1];
+    const activeRet = prevPos===1 ? ret : (prevPos===-1 ? -ret : 0);
+    equity[i] = equity[i-1]*(1+activeRet);
+    peak = Math.max(peak, equity[i]);
+    maxDD = Math.min(maxDD, (equity[i]-peak)/peak);
+    if(position[i]===1 && position[i-1]!==1) trades.push({i, type:'long'});
+    if(position[i]===-1 && position[i-1]!==-1) trades.push({i, type:'short'});
+  }
+  const exits = [];
+  for(let t=1;t<trades.length;t++){
+    exits.push({ i: trades[t].i, type: trades[t-1].type });
+  }
+  const totalReturn = equity[n-1]-1;
+  const buyHold = closes[n-1]/closes[0]-1;
+  let wins=0, total=0;
+  for(let t=0;t<trades.length;t++){
+    const entry = trades[t];
+    const exitIdx = (t+1<trades.length) ? trades[t+1].i : n-1;
+    const entryPrice = closes[entry.i], exitPrice = closes[exitIdx];
+    const pnl = entry.type==='long' ? (exitPrice-entryPrice) : (entryPrice-exitPrice);
+    total++;
+    if(pnl>0) wins++;
+  }
+  return { position, equity, trades, exits, totalReturn, buyHold, maxDD, winRate: total ? wins/total : null };
+}
+
+// ---------- Swing-Hochs/-Tiefs (Fraktale) für den Marktstruktur-Exit ----------
+// Ein Punkt gilt erst dann als bestätigter Swing, wenn "bars" Kerzen auf BEIDEN Seiten vorliegen und
+// niedriger/höher sind — dadurch ist ein Swing frühestens "bars" Kerzen im Nachhinein bekannt (kein Lookahead).
+function findSwingPoints(highs, lows, bars){
+  const n = highs.length;
+  const swingHighAt = new Array(n).fill(false);
+  const swingLowAt = new Array(n).fill(false);
+  for(let i=bars; i<n-bars; i++){
+    let isHigh = true, isLow = true;
+    for(let j=i-bars; j<=i+bars; j++){
+      if(j===i) continue;
+      if(highs[j] >= highs[i]) isHigh = false;
+      if(lows[j] <= lows[i]) isLow = false;
+    }
+    if(isHigh) swingHighAt[i] = true;
+    if(isLow) swingLowAt[i] = true;
+  }
+  return {swingHighAt, swingLowAt};
+}
+
+// ---------- Fakeout-Filter für Einstiege ----------
+// Ein Roh-Signalwechsel zählt erst dann als "bestätigt", wenn er sich über "confirmBars" aufeinanderfolgende
+// Kerzen hält. Kurze 1-2-Kerzen-Ausreißer (Fakeouts) werden so herausgefiltert, bevor überhaupt ein Einstieg
+// (und damit potenziell ein Exit+Wiedereinstieg-Geflacker um eine Strukturgrenze herum) entsteht.
+function applyEntryConfirmFilter(rawSignal, confirmBars){
+  if(!confirmBars || confirmBars<=0) return rawSignal;
+  const n = rawSignal.length;
+  const filtered = new Array(n).fill(0);
+  let candidate = null, candidateCount = 0, confirmed = 0;
+  for(let i=0;i<n;i++){
+    const s = rawSignal[i];
+    if(s === candidate) candidateCount++;
+    else { candidate = s; candidateCount = 1; }
+    if(candidateCount >= confirmBars) confirmed = candidate;
+    filtered[i] = confirmed;
+  }
+  return filtered;
+}
+
+// ---------- Volumen-Filter für Einstiege ----------
+// Ein Signalwechsel wird erst übernommen, wenn an GENAU der Kerze, die den Wechsel auslösen würde, das
+// Volumen mindestens "mult" × den Durchschnitt der letzten 20 Kerzen erreicht. Bis dahin bleibt die alte
+// Richtung bestehen -> filtert schwache Ausbrüche/Crossovers ohne Rückhalt heraus.
+function applyVolumeFilter(rawSignal, volumes, mult, period=20){
+  if(!mult || mult<=0 || !volumes) return rawSignal;
+  const n = rawSignal.length;
+  const avgVol = sma(volumes, period);
+  const filtered = new Array(n).fill(0);
+  let confirmed = 0;
+  for(let i=0;i<n;i++){
+    const s = rawSignal[i];
+    if(s !== confirmed){
+      if(avgVol[i] != null && volumes[i] >= avgVol[i]*mult) confirmed = s;
+    }
+    filtered[i] = confirmed;
+  }
+  return filtered;
+}
+
+// ---------- Swing-Breakout-Bestätigung für Einstiege ----------
+// Strenger als eine reine Indikator-Schwelle: ein Wechsel auf long wird erst übernommen, wenn der
+// Schlusskurs tatsächlich über das letzte bestätigte Swing-Hoch bricht (bzw. bei short unter das letzte
+// Swing-Tief) - nutzt dieselben Pivots wie der Marktstruktur-Exit und die Swing-Visualisierung.
+function applySwingBreakoutFilter(rawSignal, highs, lows, closes, bars){
+  if(!bars || bars<=0) return rawSignal;
+  const {swingHighAt, swingLowAt} = findSwingPoints(highs, lows, bars);
+  const n = rawSignal.length;
+  const filtered = new Array(n).fill(0);
+  let confirmed = 0, lastSwingLow = null, lastSwingHigh = null;
+  for(let i=0;i<n;i++){
+    const confirmIdx = i - bars;
+    if(confirmIdx >= 0){
+      if(swingLowAt[confirmIdx]) lastSwingLow = lows[confirmIdx];
+      if(swingHighAt[confirmIdx]) lastSwingHigh = highs[confirmIdx];
+    }
+    const s = rawSignal[i];
+    if(s !== confirmed){
+      if(s === 1 && lastSwingHigh != null && closes[i] > lastSwingHigh) confirmed = 1;
+      else if(s === -1 && lastSwingLow != null && closes[i] < lastSwingLow) confirmed = -1;
+    }
+    filtered[i] = confirmed;
+  }
+  return filtered;
+}
+
+// ---------- Multi-Timeframe-Bestätigung ----------
+// Ordnet jede Kerze der aktuellen Zeitebene der zeitlich zugehörigen Kerze im nächsthöheren Zeitrahmen zu
+// (letzte höhere Kerze, deren Startzeit <= aktueller Kerzenzeit ist). Beide Zeitreihen sind aufsteigend
+// sortiert -> ein einfacher Zeiger-Durchlauf reicht, ohne pro Kerze neu zu suchen.
+function mapToHigherTF(lowerTimes, higherTimes){
+  const map = new Array(lowerTimes.length).fill(-1);
+  let j = -1;
+  for(let i=0;i<lowerTimes.length;i++){
+    while(j+1 < higherTimes.length && higherTimes[j+1] <= lowerTimes[i]) j++;
+    map[i] = j;
+  }
+  return map;
+}
+// Übergeordneter Trend = Schlusskurs über/unter SMA(20) auf dem höheren Zeitrahmen. Lädt die Daten des
+// höheren Zeitrahmens bei Bedarf einmalig im Hintergrund nach (buildStrategies bleibt dadurch synchron);
+// bis die Daten da sind, liefert die Funktion null und der Filter wirkt in der Zwischenzeit nicht (statt zu blockieren).
+function computeHigherTFTrend(coin, interval){
+  if(!mtfFilterOn) return null;
+  const higherInterval = NEXT_HIGHER_TF[interval];
+  if(!higherInterval) return null;
+  const higherKey = coin+'::'+higherInterval;
+  const higherData = ohlcCache[higherKey];
+  if(!higherData || higherData.closes.length < 25){
+    if(!pendingHigherTFFetch[higherKey]){
+      pendingHigherTFFetch[higherKey] = true;
+      ensureData(coin, higherInterval).then(()=>{
+        delete pendingHigherTFFetch[higherKey];
+        invalidateStrategyCacheFor(coin, interval);
+        if(activeCoin===coin && activeInterval===interval){ updateChartInPlace(); renderTable(); }
+        updateAlertBanner();
+      }).catch(()=>{ delete pendingHigherTFFetch[higherKey]; });
+    }
+    return null;
+  }
+  const avg = sma(higherData.closes, 20);
+  const trend = higherData.closes.map((c,j)=> avg[j]==null ? null : (c>=avg[j] ? 1 : -1));
+  return { trend, times: higherData.times };
+}
+function applyMTFFilter(rawSignal, higherTF, lowerTimes){
+  if(!higherTF) return rawSignal;
+  const map = mapToHigherTF(lowerTimes, higherTF.times);
+  const n = rawSignal.length;
+  const filtered = new Array(n).fill(0);
+  let confirmed = 0;
+  for(let i=0;i<n;i++){
+    const s = rawSignal[i];
+    if(s !== confirmed){
+      const hj = map[i];
+      const ht = (hj>=0) ? higherTF.trend[hj] : null;
+      if(ht == null || ht === s) confirmed = s;
+    }
+    filtered[i] = confirmed;
+  }
+  return filtered;
+}
+
+// Bündelt alle optionalen Entry-Filter in einer festen, nachvollziehbaren Reihenfolge: erst grobe
+// Bestätigungskriterien (Volumen, Struktur-Breakout, übergeordneter Trend), dann die zeitliche
+// Bestätigung (Kerzenzahl) als letzter Schritt.
+function applyEntryFilters(rawSignal, ctx){
+  let sig = rawSignal;
+  if(volumeFilterMult > 0) sig = applyVolumeFilter(sig, ctx.volumes, volumeFilterMult);
+  if(swingBreakoutBars > 0) sig = applySwingBreakoutFilter(sig, ctx.highs, ctx.lows, ctx.closes, swingBreakoutBars);
+  if(mtfFilterOn && ctx.higherTF) sig = applyMTFFilter(sig, ctx.higherTF, ctx.times);
+  if(entryConfirmBars > 0) sig = applyEntryConfirmFilter(sig, entryConfirmBars);
+  return sig;
+}
+
+// ---------- Alternative Exit-Modelle (statt reiner Signalumkehr) ----------
+// "signal" ist die durchgehende Long/Short-Vorgabe der jeweiligen Strategie (wie bisher). Statt jedes
+// Gegensignal sofort 1:1 als Ausstieg zu werten, kann die Position hier auch zwischenzeitlich FLACH (0)
+// sein, bis ein eigenes Exit-Kriterium (Stop-Loss/Take-Profit, Trailing-Stop, Zeitlimit, Strukturbruch)
+// UND/ODER ein neues Signal erneut eine Richtung vorgibt.
+function simulateExits(signal, highs, lows, closes, ctx, mode, param, reentryCooldown){
+  const n = closes.length;
+  const trades = [], exits = [];
+  const position = new Array(n).fill(0);
+  let posType = null, entryPrice = null, entryIdx = null, trailStop = null;
+  let lastSwingLow = null, lastSwingHigh = null;
+  let cooldownUntil = -1;
+  const atrArr = ctx && ctx.atrArr;
+  const swingHighAt = ctx && ctx.swingHighAt;
+  const swingLowAt = ctx && ctx.swingLowAt;
+  const structBars = Math.max(1, Math.round(param || 1));
+  const cooldown = reentryCooldown || 0;
+
+  const openTrade = (i, type) => {
+    posType = type; entryPrice = closes[i]; entryIdx = i; trailStop = null;
+    trades.push({i, type});
+    position[i] = type === 'long' ? 1 : -1;
+  };
+
+  for(let i=1;i<n;i++){
+    if(mode === 'structure' && swingHighAt && swingLowAt){
+      // Ein an Index (i-structBars) geformter Pivot ist erst jetzt (structBars Kerzen später) bestätigt.
+      const confirmIdx = i - structBars;
+      if(confirmIdx >= 0){
+        if(swingLowAt[confirmIdx]) lastSwingLow = lows[confirmIdx];
+        if(swingHighAt[confirmIdx]) lastSwingHigh = highs[confirmIdx];
+      }
+    }
+    const sig = signal[i];
+    if(posType === null){
+      // Nach einem eigenen Exit-Kriterium (nicht nach Signalumkehr) erst nach "cooldown" Kerzen wieder
+      // einsteigen -> verhindert sofortiges Geflacker, wenn der Kurs genau um die Exit-Schwelle pendelt.
+      if(i > cooldownUntil){
+        if(sig === 1) openTrade(i, 'long');
+        else if(sig === -1) openTrade(i, 'short');
+      }
+      continue;
+    }
+    const reversal = (posType === 'long' && sig === -1) || (posType === 'short' && sig === 1);
+    let customExit = false;
+    if(mode === 'stoploss'){
+      const slPct = param/100, tpPct = slPct*2;
+      if(posType === 'long'){ if(lows[i] <= entryPrice*(1-slPct) || highs[i] >= entryPrice*(1+tpPct)) customExit = true; }
+      else { if(highs[i] >= entryPrice*(1+slPct) || lows[i] <= entryPrice*(1-tpPct)) customExit = true; }
+    } else if(mode === 'trailing'){
+      const a = (atrArr && atrArr[i] != null) ? atrArr[i] : 0;
+      if(posType === 'long'){
+        const candidate = closes[i] - param*a;
+        trailStop = trailStop == null ? candidate : Math.max(trailStop, candidate);
+        if(closes[i] < trailStop) customExit = true;
+      } else {
+        const candidate = closes[i] + param*a;
+        trailStop = trailStop == null ? candidate : Math.min(trailStop, candidate);
+        if(closes[i] > trailStop) customExit = true;
+      }
+    } else if(mode === 'time'){
+      if(i - entryIdx >= param) customExit = true;
+    } else if(mode === 'structure'){
+      const a = (atrArr && atrArr[i] != null) ? atrArr[i] : null;
+      if(posType === 'long'){
+        let stopLevel = lastSwingLow;
+        if(structureAtrSafetyMult > 0 && a != null){
+          const atrStop = closes[i] - structureAtrSafetyMult*a;
+          if(stopLevel == null || atrStop > stopLevel) stopLevel = atrStop; // engerer (höherer) der beiden Stops gilt
+        }
+        if(stopLevel != null && closes[i] < stopLevel) customExit = true;
+      } else {
+        let stopLevel = lastSwingHigh;
+        if(structureAtrSafetyMult > 0 && a != null){
+          const atrStop = closes[i] + structureAtrSafetyMult*a;
+          if(stopLevel == null || atrStop < stopLevel) stopLevel = atrStop; // engerer (niedrigerer) der beiden Stops gilt
+        }
+        if(stopLevel != null && closes[i] > stopLevel) customExit = true;
+      }
+    }
+
+    if(reversal){
+      exits.push({i, type: posType});
+      posType = null; entryPrice = null; entryIdx = null; trailStop = null;
+      position[i] = 0;
+      // Echte Signalumkehr darf sofort wieder einsteigen (das ist ja gerade ein frisches, starkes Signal).
+      if(sig === 1) openTrade(i, 'long');
+      else if(sig === -1) openTrade(i, 'short');
+    } else if(customExit){
+      exits.push({i, type: posType});
+      posType = null; entryPrice = null; entryIdx = null; trailStop = null;
+      position[i] = 0;
+      cooldownUntil = i + cooldown;
+    } else {
+      position[i] = posType === 'long' ? 1 : -1;
+    }
+  }
+  return {trades, exits, position};
+}
+function equityStatsFromPosition(position, closes){
+  const n = closes.length;
+  const equity = new Array(n).fill(1);
+  let peak = 1, maxDD = 0;
+  for(let i=1;i<n;i++){
+    const ret = (closes[i]-closes[i-1])/closes[i-1];
+    const prevPos = position[i-1];
+    const activeRet = prevPos===1 ? ret : (prevPos===-1 ? -ret : 0);
+    equity[i] = equity[i-1]*(1+activeRet);
+    peak = Math.max(peak, equity[i]);
+    maxDD = Math.min(maxDD, (equity[i]-peak)/peak);
+  }
+  return {equity, maxDD};
+}
+function finalizeStrategy(signal, highs, lows, closes, exitCtx){
+  if(exitMode === 'reversal'){
+    return positionToResult(signal, closes); // unverändertes Standardverhalten: Exit = nächstes Gegensignal
+  }
+  const sim = simulateExits(signal, highs, lows, closes, exitCtx, exitMode, exitParam, entryConfirmBars);
+  const {equity, maxDD} = equityStatsFromPosition(sim.position, closes);
+  const n = closes.length;
+  const totalReturn = equity[n-1]-1;
+  const buyHold = closes[n-1]/closes[0]-1;
+  let wins=0, total=0;
+  for(let t=0;t<sim.trades.length;t++){
+    const entry = sim.trades[t];
+    const ex = sim.exits[t]; // exits[t] schließt trades[t] (per Konstruktion 1:1 in chronologischer Reihenfolge)
+    const exitIdx = ex ? ex.i : n-1;
+    const entryPrice = closes[entry.i], exitPrice = closes[exitIdx];
+    const pnl = entry.type==='long' ? (exitPrice-entryPrice) : (entryPrice-exitPrice);
+    total++;
+    if(pnl>0) wins++;
+  }
+  return { position: sim.position, equity, trades: sim.trades, exits: sim.exits, totalReturn, buyHold, maxDD, winRate: total ? wins/total : null };
+}
+
+// Löscht den Strategie-Cache für ein coin/interval-Paar in BEIDEN Profilen (Analyse + Automatik) -- genutzt an
+// allen Stellen, die nur "irgendwas hat sich an den Rohdaten geändert" wissen, aber nicht, welches der beiden
+// Profile davon gerade betroffen ist (z.B. nach dem Nachladen neuer Kerzen). Günstiger als ein kompletter
+// strategyCache={}-Reset, weil andere Coins/Intervalle unangetastet bleiben.
+function invalidateStrategyCacheFor(coin, interval){
+  delete strategyCache[coin+'::'+interval+'::analyse'];
+  delete strategyCache[coin+'::'+interval+'::auto'];
+}
+// profile='analyse' (Standard) nutzt die Analyse-Tab-Filter/Exit-Variablen (exitMode, entryConfirmBars, ...) wie
+// gehabt. profile='auto' schaltet für die Dauer der Berechnung auf die unabhängigen Automatik-Varianten
+// (autoExitMode, autoEntryConfirmBars, ...) um und stellt danach exakt die vorherigen Werte wieder her -- so
+// müssen applyEntryFilters/computeHigherTFTrend/simulateExits/finalizeStrategy selbst nicht angefasst werden,
+// die lesen unverändert dieselben globalen Variablennamen, nur eben kurzzeitig mit anderem Inhalt befüllt.
+function buildStrategies(coin, interval, profile='analyse'){
+  const key = coin+'::'+interval+'::'+profile;
+  if(strategyCache[key]) return strategyCache[key];
+  if(profile === 'auto'){
+    const saved = { exitMode, exitParam, entryConfirmBars, volumeFilterMult, swingBreakoutBars, mtfFilterOn, structureAtrSafetyMult };
+    exitMode = autoExitMode; exitParam = autoExitParam; entryConfirmBars = autoEntryConfirmBars;
+    volumeFilterMult = autoVolumeFilterMult; swingBreakoutBars = autoSwingBreakoutBars; mtfFilterOn = autoMtfFilterOn;
+    structureAtrSafetyMult = autoStructureAtrSafetyMult;
+    try{
+      return buildStrategiesCore(coin, interval, key);
+    } finally {
+      exitMode = saved.exitMode; exitParam = saved.exitParam; entryConfirmBars = saved.entryConfirmBars;
+      volumeFilterMult = saved.volumeFilterMult; swingBreakoutBars = saved.swingBreakoutBars; mtfFilterOn = saved.mtfFilterOn;
+      structureAtrSafetyMult = saved.structureAtrSafetyMult;
+    }
+  }
+  return buildStrategiesCore(coin, interval, key);
+}
+function buildStrategiesCore(coin, interval, key){
+  const {times, opens, highs, lows, closes, volumes} = ohlcCache[coin+'::'+interval];
+  const n = closes.length;
+  const strategies = {};
+  const needsAtr = exitMode === 'trailing' || (exitMode === 'structure' && structureAtrSafetyMult > 0);
+  const atrForExit = needsAtr ? atr(highs, lows, closes, 14) : null;
+  const swingForExit = exitMode === 'structure' ? findSwingPoints(highs, lows, Math.max(1, Math.round(exitParam || 3))) : null;
+  const exitCtx = { atrArr: atrForExit, swingHighAt: swingForExit && swingForExit.swingHighAt, swingLowAt: swingForExit && swingForExit.swingLowAt };
+  const entryCtx = { times, highs, lows, closes, volumes, higherTF: computeHigherTFTrend(coin, interval) };
+
+  // 1. SMA Crossover
+  {
+    const s = sma(closes,10), l = sma(closes,30);
+    const position = new Array(n).fill(0);
+    for(let i=1;i<n;i++){
+      if(s[i]!=null && l[i]!=null) position[i] = s[i]>l[i] ? 1 : -1;
+      else position[i] = position[i-1];
+    }
+    strategies.sma = finalizeStrategy(applyEntryFilters(position, entryCtx), highs, lows, closes, exitCtx);
+  }
+  // 2. RSI Mean-Reversion
+  {
+    const r = rsi(closes,14);
+    const position = new Array(n).fill(0);
+    for(let i=1;i<n;i++){
+      if(r[i]!=null){
+        if(r[i]<30) position[i]=1;
+        else if(r[i]>70) position[i]=-1;
+        else position[i]=position[i-1];
+      } else position[i]=position[i-1];
+    }
+    strategies.rsi = finalizeStrategy(applyEntryFilters(position, entryCtx), highs, lows, closes, exitCtx);
+  }
+  // 3. Bollinger Breakout
+  {
+    const mid = sma(closes,20), sd = stdev(closes,20);
+    const position = new Array(n).fill(0);
+    for(let i=1;i<n;i++){
+      if(mid[i]!=null && sd[i]!=null){
+        const upper = mid[i]+2*sd[i], lower = mid[i]-2*sd[i];
+        if(closes[i]>upper) position[i]=1;
+        else if(closes[i]<lower) position[i]=-1;
+        else position[i]=position[i-1];
+      } else position[i]=position[i-1];
+    }
+    strategies.boll = finalizeStrategy(applyEntryFilters(position, entryCtx), highs, lows, closes, exitCtx);
+  }
+  // 4. Momentum
+  {
+    const lookback = Math.max(2, Math.min(24, Math.floor(n/4)));
+    const position = new Array(n).fill(0);
+    for(let i=lookback;i<n;i++) position[i] = closes[i]>closes[i-lookback] ? 1 : -1;
+    strategies.mom = finalizeStrategy(applyEntryFilters(position, entryCtx), highs, lows, closes, exitCtx);
+  }
+  // 5. MACD Crossover
+  {
+    const e12 = ema(closes,12), e26 = ema(closes,26);
+    const macd = closes.map((_,i)=> (e12[i]!=null && e26[i]!=null) ? e12[i]-e26[i] : null);
+    const macdFilled = macd.map(v=>v==null?0:v);
+    const signal = ema(macdFilled,9);
+    const position = new Array(n).fill(0);
+    for(let i=1;i<n;i++){
+      if(macd[i]!=null && signal[i]!=null) position[i] = macd[i]>signal[i] ? 1 : -1;
+      else position[i] = position[i-1];
+    }
+    strategies.macd = finalizeStrategy(applyEntryFilters(position, entryCtx), highs, lows, closes, exitCtx);
+  }
+  // 6. Stochastic Oscillator
+  {
+    const k = stochasticK(highs, lows, closes, 14);
+    const position = new Array(n).fill(0);
+    for(let i=1;i<n;i++){
+      if(k[i]!=null){
+        if(k[i]<20) position[i]=1;
+        else if(k[i]>80) position[i]=-1;
+        else position[i]=position[i-1];
+      } else position[i]=position[i-1];
+    }
+    strategies.stoch = finalizeStrategy(applyEntryFilters(position, entryCtx), highs, lows, closes, exitCtx);
+  }
+  // 7. Donchian Breakout
+  {
+    const period = Math.min(20, Math.max(3, Math.floor(n/3)));
+    const position = new Array(n).fill(0);
+    for(let i=period;i<n;i++){
+      let hh=-Infinity, ll=Infinity;
+      for(let j=i-period;j<i;j++){ if(highs[j]>hh) hh=highs[j]; if(lows[j]<ll) ll=lows[j]; }
+      if(closes[i] > hh) position[i] = 1;
+      else if(closes[i] < ll) position[i] = -1;
+      else position[i] = position[i-1];
+    }
+    strategies.donchian = finalizeStrategy(applyEntryFilters(position, entryCtx), highs, lows, closes, exitCtx);
+  }
+  // 8. Supertrend
+  {
+    const period=10, mult=3;
+    const atrArr = atr(highs, lows, closes, period);
+    const finalUpper = new Array(n).fill(null);
+    const finalLower = new Array(n).fill(null);
+    const st = new Array(n).fill(null);
+    const position = new Array(n).fill(0);
+    for(let i=0;i<n;i++){
+      if(atrArr[i]==null){ position[i] = position[i-1] || 0; continue; }
+      const basicUpper = (highs[i]+lows[i])/2 + mult*atrArr[i];
+      const basicLower = (highs[i]+lows[i])/2 - mult*atrArr[i];
+      const prevFU = finalUpper[i-1], prevFL = finalLower[i-1], prevClose = closes[i-1];
+      finalUpper[i] = (prevFU==null || basicUpper<prevFU || (prevClose!=null && prevClose>prevFU)) ? basicUpper : prevFU;
+      finalLower[i] = (prevFL==null || basicLower>prevFL || (prevClose!=null && prevClose<prevFL)) ? basicLower : prevFL;
+      const prevST = st[i-1];
+      if(prevST==null){
+        st[i] = closes[i] <= finalUpper[i] ? finalUpper[i] : finalLower[i];
+      } else if(prevST===prevFU){
+        st[i] = closes[i] <= finalUpper[i] ? finalUpper[i] : finalLower[i];
+      } else {
+        st[i] = closes[i] >= finalLower[i] ? finalLower[i] : finalUpper[i];
+      }
+      position[i] = closes[i] > st[i] ? 1 : -1;
+    }
+    strategies.supertrend = finalizeStrategy(applyEntryFilters(position, entryCtx), highs, lows, closes, exitCtx);
+  }
+
+  strategyCache[key] = strategies;
+  return strategies;
+}
+
+// ---------- Fair Value Gaps: nur offene (nicht gefüllte) Gaps ab Mindestgröße, letzte 500 Kerzen ----------
+function detectFVGs(highs, lows, closes, maxLookback=500){
+  const n = highs.length;
+  const start = Math.max(2, n-maxLookback);
+  const minGapSize = (closes[n-1] || 1) * 0.001; // 0.1% des aktuellen Kurses
+  const zones = [];
+  for(let i=start;i<n;i++){
+    if(highs[i-2] < lows[i] && (lows[i]-highs[i-2]) >= minGapSize){
+      let filled = false;
+      for(let j=i+1;j<n;j++){ if(lows[j] <= highs[i-2]){ filled = true; break; } }
+      if(!filled) zones.push({type:'bullish', start:i-2, end:n-1, top:lows[i], bottom:highs[i-2]});
+    }
+    if(lows[i-2] > highs[i] && (lows[i-2]-highs[i]) >= minGapSize){
+      let filled = false;
+      for(let j=i+1;j<n;j++){ if(highs[j] >= lows[i-2]){ filled = true; break; } }
+      if(!filled) zones.push({type:'bearish', start:i-2, end:n-1, top:lows[i-2], bottom:highs[i]});
+    }
+  }
+  return zones;
+}
+
+// ---------- Ichimoku Kinko Hyo ----------
+// Vereinfachte Darstellung: Senkou Span A/B werden inhaltlich "displacement" Kerzen in die Zukunft verschoben,
+// aber unsere Zeitachse hat keine Kerzen-Slots über die letzte echte Kerze hinaus -> die Wolke endet dadurch
+// "displacement" Kerzen vor dem aktuellen Rand (kein Blick in eine nicht existierende Zukunft), statt wie in
+// klassischen Ichimoku-Charts über den rechten Rand hinauszuragen.
+function ichimoku(highs, lows, closes, conversionPeriod=9, basePeriod=26, spanBPeriod=52, displacement=26){
+  const n = closes.length;
+  function highLowMid(period, i){
+    if(i < period-1) return null;
+    let hh=-Infinity, ll=Infinity;
+    for(let j=i-period+1;j<=i;j++){ if(highs[j]>hh) hh=highs[j]; if(lows[j]<ll) ll=lows[j]; }
+    return (hh+ll)/2;
+  }
+  const tenkan = new Array(n).fill(null);
+  const kijun = new Array(n).fill(null);
+  const spanA = new Array(n).fill(null);
+  const spanB = new Array(n).fill(null);
+  const chikou = new Array(n).fill(null);
+  for(let i=0;i<n;i++){
+    tenkan[i] = highLowMid(conversionPeriod, i);
+    kijun[i] = highLowMid(basePeriod, i);
+  }
+  for(let i=0;i<n;i++){
+    const targetIdx = i + displacement;
+    if(targetIdx < n){
+      if(tenkan[i]!=null && kijun[i]!=null) spanA[targetIdx] = (tenkan[i]+kijun[i])/2;
+      const sb = highLowMid(spanBPeriod, i);
+      if(sb!=null) spanB[targetIdx] = sb;
+    }
+    if(i - displacement >= 0) chikou[i-displacement] = closes[i];
+  }
+  return {tenkan, kijun, spanA, spanB, chikou};
+}
+
+// ---------- Swing-Meta: letzte bestätigte Struktur-Referenz für Anzeige/Markierung ----------
+function computeSwingMeta(highs, lows, bars){
+  const {swingHighAt, swingLowAt} = findSwingPoints(highs, lows, bars);
+  let lastSwingLow = null, lastSwingHigh = null;
+  const confirmBoundary = highs.length - 1 - bars;
+  for(let i=confirmBoundary; i>=0; i--){
+    if(lastSwingLow==null && swingLowAt[i]) lastSwingLow = lows[i];
+    if(lastSwingHigh==null && swingHighAt[i]) lastSwingHigh = highs[i];
+    if(lastSwingLow!=null && lastSwingHigh!=null) break;
+  }
+  return {swingHighAt, swingLowAt, lastSwingLow, lastSwingHigh, bars};
+}
+
+// ---------- Support/Widerstand: Swing-Pivots mit ähnlichem Preis zu Zonen clustern ----------
+function detectSRZones(highs, lows, bars=5, tolerancePct=0.006, maxZones=4){
+  const {swingHighAt, swingLowAt} = findSwingPoints(highs, lows, bars);
+  const highPivots = [], lowPivots = [];
+  for(let i=0;i<highs.length;i++){
+    if(swingHighAt[i]) highPivots.push({i, price:highs[i]});
+    if(swingLowAt[i]) lowPivots.push({i, price:lows[i]});
+  }
+  function cluster(pivots){
+    const zones = [];
+    pivots.forEach(p=>{
+      const zone = zones.find(z => Math.abs(z.price - p.price)/p.price <= tolerancePct);
+      if(zone){
+        zone.price = (zone.price*zone.count + p.price)/(zone.count+1);
+        zone.count++;
+        zone.lastIdx = Math.max(zone.lastIdx, p.i);
+      } else {
+        zones.push({price:p.price, count:1, lastIdx:p.i});
+      }
+    });
+    return zones.sort((a,b)=> b.count-a.count || b.lastIdx-a.lastIdx).slice(0, maxZones);
+  }
+  return { resistance: cluster(highPivots), support: cluster(lowPivots) };
+}
+
+// ---------- Chart: reines Canvas-Rendering (viewState-Fensteransatz statt Chart.js) ----------
+// Nach mehreren Anläufen, das rechtsbündige Auto-Scrollen über eine Chart.js-Kategorie-Achse + eigene Plugins
+// nachzurüsten (siehe Git-/Verlaufskommentare), gab es immer wieder neue Rundungs-/Sichtbarkeits-Randfälle an der
+// Fensterkante. Stattdessen jetzt derselbe Ansatz wie im bewährten "crypto bias scanner"-Tool: das sichtbare
+// Fenster ist ein simples {start,end}-Indexpaar in die vollen Kerzen-Arrays, und JEDE Pixel-Position ergibt sich
+// direkt und exakt aus diesem Indexpaar -- keine Bibliotheks-Skala, kein Rundungsspielraum an der Kante. Die
+// letzte sichtbare Kerze landet dadurch immer GENAU auf dem rechten Rand, per Konstruktion, nicht per Sonderfall.
+
+let chartCanvasEl = null;
+let chartCtx = null;
+let chartListenersAttached = false;
+
+// ---- reine, ohne DOM testbare Geometrie-/Zustandsfunktionen ----
+function computeXStep(plotW, start, end){
+  const N = Math.max(1, end - start);
+  return plotW / N;
+}
+function idxToPixel(i, start, plotLeft, xStep){
+  return plotLeft + (i - start) * xStep;
+}
+function pixelToIdx(px, start, plotLeft, xStep){
+  return start + (px - plotLeft) / xStep;
+}
+function computeZoomRange(n, curStart, curEnd, factor){
+  const curRange = Math.max(5, curEnd - curStart);
+  const newRange = Math.max(5, Math.min(n - 1, Math.round(curRange * factor)));
+  const newStart = Math.max(0, (n - 1) - newRange);
+  return { start: newStart, end: n - 1 };
+}
+function clampViewState(viewState, n){
+  if(n <= 1) return { start: 0, end: Math.max(0, n - 1) };
+  const end = Math.max(1, Math.min(viewState.end, n - 1));
+  const start = Math.max(0, Math.min(viewState.start, end - 1));
+  return { start, end };
+}
+function computeFollowLiveFlag(viewState, n){
+  return viewState.end >= n - 2;
+}
+// Nach dem Eintreffen neuer Kerzen: das Fenster wird NUR verschoben, wenn die Ansicht als "live mitlaufend"
+// markiert ist (followLive) -- schaut der Nutzer gerade in der Historie, bleibt die Ansicht unangetastet stehen.
+function advanceViewOnNewData(viewState, oldN, newN, followLive){
+  const delta = newN - oldN;
+  if(delta <= 0 || !followLive) return viewState;
+  return { start: viewState.start + delta, end: viewState.end + delta };
+}
+// Rechnet eine horizontale Ziehbewegung (Maus/Touch) in eine neue, geclampte Fensterposition um; Fensterbreite
+// bleibt erhalten. Nach rechts ziehen (dx>0) blättert weiter zurück in die Vergangenheit (fallende Indizes).
+function computePanViewState(baseState, dxPixels, xStep, n){
+  const deltaIdx = Math.round(dxPixels / xStep);
+  const width = baseState.end - baseState.start;
+  let start = baseState.start - deltaIdx;
+  let end = baseState.end - deltaIdx;
+  if(start < 0){ start = 0; end = width; }
+  if(end > n - 1){ end = n - 1; start = Math.max(0, end - width); }
+  return clampViewState({ start, end }, n);
+}
+
+// ---------- Hover-Info-Overlay (fest positioniert oben rechts im Chart, feste Größe) ----------
+function updateHoverBanner(idx){
+  if(!chart || !chart.$data || idx==null) return;
+  const o = chart.$data;
+  const label = o.labels[idx] ?? '—';
+  let signal = '–';
+  const m = chart.$markers;
+  if(m){
+    const namesFor = (arr) => (arr && arr[idx] && arr[idx].length) ? ' — '+arr[idx].join(', ') : '';
+    if(m.longMarker[idx]!=null) signal = 'Long-Einstieg'+namesFor(m.longLabelsAt);
+    else if(m.shortMarker[idx]!=null) signal = 'Short-Einstieg'+namesFor(m.shortLabelsAt);
+    else if(m.exitLongMarker[idx]!=null) signal = 'Long-Ausstieg'+namesFor(m.exitLongLabelsAt);
+    else if(m.exitShortMarker[idx]!=null) signal = 'Short-Ausstieg'+namesFor(m.exitShortLabelsAt);
+  }
+  document.getElementById('hoverTime').textContent = label;
+  document.getElementById('hoverOpen').textContent = fmtEUR(o.opens[idx]);
+  document.getElementById('hoverHigh').textContent = fmtEUR(o.highs[idx]);
+  document.getElementById('hoverLow').textContent = fmtEUR(o.lows[idx]);
+  document.getElementById('hoverClose').textContent = fmtEUR(o.closes[idx]);
+  document.getElementById('hoverSignal').textContent = signal;
+}
+function resetHoverBanner(){
+  ['hoverTime','hoverOpen','hoverHigh','hoverLow','hoverClose','hoverSignal'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.textContent = '—';
+  });
+}
+
+// ---------- Zeichenfunktionen (arbeiten alle mit globalen Kerzen-Indizes + den scaleX/scaleY-Funktionen des
+// aktuellen Layouts -- KEINE eigene "ist Kerze X sichtbar"-Logik mehr; iFrom/iTo grenzen aus Performance-Gründen
+// leicht über das Fenster hinaus ein, sind aber nie die Quelle einer Sichtbarkeits-Entscheidung selbst). ----------
+function getPlotLayout(wCSS, hCSS){
+  const padLeft = 58, padRight = 92, padTop = 30, padBottom = 22;
+  return {
+    padLeft, padRight, padTop, padBottom,
+    plotLeft: padLeft, plotRight: wCSS - padRight, plotTop: padTop, plotBottom: hCSS - padBottom,
+    plotW: Math.max(10, wCSS - padLeft - padRight), plotH: Math.max(10, hCSS - padTop - padBottom)
+  };
+}
+function drawTriangleUp(ctx, x, y, r){ ctx.beginPath(); ctx.moveTo(x,y-r); ctx.lineTo(x-r,y+r*0.75); ctx.lineTo(x+r,y+r*0.75); ctx.closePath(); }
+function drawTriangleDown(ctx, x, y, r){ ctx.beginPath(); ctx.moveTo(x,y+r); ctx.lineTo(x-r,y-r*0.75); ctx.lineTo(x+r,y-r*0.75); ctx.closePath(); }
+
+function drawGrid(ctx, layout, lo, hi, scaleY, d, view, scaleX){
+  const { plotLeft, plotRight, plotTop, plotBottom } = layout;
+  ctx.save();
+  // Deutlich sichtbares Koordinatensystem: halbtransparentes Weiß statt eines fast unsichtbaren dunklen Grautons
+  // (der alte Grid-Ton lag farblich so nah am Chart-Hintergrund, dass er kaum wahrnehmbar war). Auf ganze Pixel
+  // gerundete Linien (+0.5) bleiben scharf statt zu verwaschenen 2px-Linien zu verschwimmen.
+  ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+  ctx.fillStyle = '#8b949e';
+  ctx.font = '10px sans-serif';
+  ctx.lineWidth = 1;
+  const yTicks = 5;
+  for(let t=0; t<=yTicks; t++){
+    const v = lo + (hi-lo)*t/yTicks;
+    const y = Math.round(scaleY(v)) + 0.5;
+    ctx.beginPath(); ctx.moveTo(plotLeft, y); ctx.lineTo(plotRight, y); ctx.stroke();
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillText(fmtEUR(v), plotLeft - 6, y);
+  }
+  const xTicks = 7;
+  const span = Math.max(1, view.end - view.start);
+  const step = Math.max(1, Math.round(span / xTicks));
+  for(let i = view.start; i <= view.end; i += step){
+    const x = Math.round(scaleX(i)) + 0.5;
+    ctx.beginPath(); ctx.moveTo(x, plotTop); ctx.lineTo(x, plotBottom); ctx.stroke();
+  }
+  ctx.fillStyle = '#8b949e';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  for(let i = view.start; i <= view.end; i += step){
+    ctx.fillText(d.labels[i] ?? '', scaleX(i), plotBottom + 5);
+  }
+  ctx.restore();
+}
+function drawSRZones(ctx, layout, srZones, scaleY, lastClose){
+  const { plotLeft, plotRight } = layout;
+  const bandHalf = (lastClose || 1) * 0.0015;
+  ctx.save();
+  ctx.font = '9px sans-serif';
+  const drawZones = (zones, color, textColor, label) => {
+    zones.forEach(z=>{
+      const yTop = scaleY(z.price+bandHalf);
+      const yBottom = scaleY(z.price-bandHalf);
+      ctx.fillStyle = color;
+      ctx.fillRect(plotLeft, yTop, plotRight-plotLeft, Math.max(1, yBottom-yTop));
+      ctx.fillStyle = textColor;
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(`${label} · ${z.count}× · ${fmtEUR(z.price)}`, plotLeft+4, yTop-2);
+    });
+  };
+  drawZones(srZones.resistance, 'rgba(248,81,73,0.14)', '#f85149', 'Widerstand');
+  drawZones(srZones.support, 'rgba(63,185,80,0.14)', '#3fb950', 'Support');
+  ctx.restore();
+}
+function drawIchimoku(ctx, ichi, iFrom, iTo, scaleX, scaleY){
+  const { tenkan, kijun, spanA, spanB, chikou } = ichi;
+  ctx.save();
+  for(let i=iFrom; i<iTo; i++){
+    const a0=spanA[i], b0=spanB[i], a1=spanA[i+1], b1=spanB[i+1];
+    if(a0==null || b0==null || a1==null || b1==null) continue;
+    const x0=scaleX(i), x1=scaleX(i+1);
+    const yA0=scaleY(a0), yB0=scaleY(b0), yA1=scaleY(a1), yB1=scaleY(b1);
+    ctx.fillStyle = a0>=b0 ? 'rgba(63,185,80,0.16)' : 'rgba(248,81,73,0.16)';
+    ctx.beginPath();
+    ctx.moveTo(x0,yA0); ctx.lineTo(x1,yA1); ctx.lineTo(x1,yB1); ctx.lineTo(x0,yB0); ctx.closePath();
+    ctx.fill();
+  }
+  const drawLine = (arr, color, dash) => {
+    ctx.strokeStyle = color; ctx.lineWidth = 1;
+    ctx.setLineDash(dash || []);
+    ctx.beginPath();
+    let started = false;
+    for(let i=iFrom; i<=iTo; i++){
+      if(arr[i]==null){ started=false; continue; }
+      const x=scaleX(i), y=scaleY(arr[i]);
+      if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+  };
+  drawLine(tenkan, '#38bdf8');
+  drawLine(kijun, '#fb923c');
+  drawLine(chikou, 'rgba(230,237,243,0.55)', [3,3]);
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+function drawFVGs(ctx, fvgZones, iFrom, iTo, scaleX, scaleY){
+  ctx.save();
+  fvgZones.forEach(z=>{
+    if(z.end < iFrom || z.start > iTo) return;
+    const x1=scaleX(z.start), x2=scaleX(z.end);
+    const yTop=scaleY(z.top), yBottom=scaleY(z.bottom);
+    ctx.fillStyle = z.type==='bullish' ? 'rgba(63,185,80,0.15)' : 'rgba(248,81,73,0.15)';
+    ctx.strokeStyle = z.type==='bullish' ? 'rgba(63,185,80,0.5)' : 'rgba(248,81,73,0.5)';
+    ctx.lineWidth = 1;
+    ctx.fillRect(x1, yTop, x2-x1, yBottom-yTop);
+    ctx.strokeRect(x1, yTop, x2-x1, yBottom-yTop);
+  });
+  ctx.restore();
+}
+function drawFib(ctx, layout, rawLo, rawHi, scaleY){
+  const { plotLeft, plotRight } = layout;
+  if(!isFinite(rawLo) || !isFinite(rawHi) || rawHi<=rawLo) return;
+  const levels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
+  ctx.save();
+  ctx.font = '9px sans-serif';
+  levels.forEach(l=>{
+    const price = rawHi - (rawHi-rawLo)*l;
+    const y = scaleY(price);
+    ctx.strokeStyle = 'rgba(210,153,34,0.55)';
+    ctx.setLineDash([2,3]);
+    ctx.beginPath(); ctx.moveTo(plotLeft, y); ctx.lineTo(plotRight, y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#d29922';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(`${(l*100).toFixed(1)}% · ${fmtEUR(price)}`, plotLeft+4, y-2);
+  });
+  ctx.restore();
+}
+function drawCandles(ctx, d, iFrom, iTo, scaleX, scaleY, xStep, layout){
+  const bodyWidth = Math.max(1.2, xStep*0.6);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(layout.plotLeft - xStep, layout.plotTop, (layout.plotRight-layout.plotLeft) + xStep*2, layout.plotBottom-layout.plotTop);
+  ctx.clip();
+  for(let i=iFrom; i<=iTo; i++){
+    const x = scaleX(i);
+    const yO = scaleY(d.opens[i]), yH = scaleY(d.highs[i]), yL = scaleY(d.lows[i]), yC = scaleY(d.closes[i]);
+    const up = d.closes[i] >= d.opens[i];
+    const color = up ? '#3fb950' : '#f85149';
+    ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 1.15;
+    ctx.beginPath(); ctx.moveTo(x, yH); ctx.lineTo(x, yL); ctx.stroke();
+    const top = Math.min(yO, yC);
+    const h = Math.max(1, Math.abs(yC-yO));
+    ctx.fillRect(x - bodyWidth/2, top, bodyWidth, h);
+  }
+  ctx.restore();
+}
+function drawEMALines(ctx, emaSeries, iFrom, iTo, scaleX, scaleY){
+  ctx.save();
+  emaSeries.forEach((series, idx)=>{
+    const cfg = EMA_CONFIGS[idx];
+    ctx.strokeStyle = cfg.color; ctx.lineWidth = 1;
+    ctx.beginPath();
+    let started = false;
+    for(let i=iFrom; i<=iTo; i++){
+      const v = series[i];
+      if(v==null){ started=false; continue; }
+      const x=scaleX(i), y=scaleY(v);
+      if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+  });
+  ctx.restore();
+}
+function drawSwings(ctx, swings, d, iFrom, iTo, scaleX, scaleY, layout){
+  const { swingHighAt, swingLowAt, lastSwingLow, lastSwingHigh } = swings;
+  ctx.save();
+  for(let i=iFrom; i<=iTo; i++){
+    if(swingHighAt[i]){
+      const x=scaleX(i), y=scaleY(d.highs[i]);
+      ctx.fillStyle = '#fb923c';
+      ctx.beginPath(); ctx.moveTo(x,y-9); ctx.lineTo(x-4,y-3); ctx.lineTo(x+4,y-3); ctx.closePath(); ctx.fill();
+    }
+    if(swingLowAt[i]){
+      const x=scaleX(i), y=scaleY(d.lows[i]);
+      ctx.fillStyle = '#38bdf8';
+      ctx.beginPath(); ctx.moveTo(x,y+9); ctx.lineTo(x-4,y+3); ctx.lineTo(x+4,y+3); ctx.closePath(); ctx.fill();
+    }
+  }
+  if(exitMode === 'structure'){
+    ctx.setLineDash([5,4]);
+    if(lastSwingLow!=null){
+      const y = scaleY(lastSwingLow);
+      ctx.strokeStyle = '#38bdf8'; ctx.beginPath(); ctx.moveTo(layout.plotLeft,y); ctx.lineTo(layout.plotRight,y); ctx.stroke();
+    }
+    if(lastSwingHigh!=null){
+      const y = scaleY(lastSwingHigh);
+      ctx.strokeStyle = '#fb923c'; ctx.beginPath(); ctx.moveTo(layout.plotLeft,y); ctx.lineTo(layout.plotRight,y); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+  }
+  ctx.restore();
+}
+function drawSignalMarkers(ctx, d, iFrom, iTo, scaleX, scaleY){
+  ctx.save();
+  for(let i=iFrom; i<=iTo; i++){
+    if(d.longMarker[i]!=null){
+      const x=scaleX(i), y=scaleY(d.longMarker[i]);
+      drawTriangleUp(ctx, x, y, 6);
+      ctx.fillStyle = '#38bdf8'; ctx.fill();
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1; ctx.stroke();
+    }
+    if(d.shortMarker[i]!=null){
+      const x=scaleX(i), y=scaleY(d.shortMarker[i]);
+      drawTriangleDown(ctx, x, y, 6);
+      ctx.fillStyle = '#fb923c'; ctx.fill();
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1; ctx.stroke();
+    }
+    if(d.exitLongMarker[i]!=null){
+      const x=scaleX(i), y=scaleY(d.exitLongMarker[i]);
+      ctx.beginPath(); ctx.arc(x,y,5,0,Math.PI*2);
+      ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2; ctx.stroke();
+    }
+    if(d.exitShortMarker[i]!=null){
+      const x=scaleX(i), y=scaleY(d.exitShortMarker[i]);
+      ctx.beginPath(); ctx.arc(x,y,5,0,Math.PI*2);
+      ctx.strokeStyle = '#fb923c'; ctx.lineWidth = 2; ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+function drawLegend(ctx, layout){
+  ctx.save();
+  ctx.font = '10px sans-serif';
+  ctx.textBaseline = 'middle';
+  let x = layout.plotLeft;
+  const y = 12;
+  const items = [
+    {label:'Long-Einstieg', color:'#38bdf8', shape:'tri-up'},
+    {label:'Short-Einstieg', color:'#fb923c', shape:'tri-down'},
+    {label:'Long-Ausstieg', color:'#38bdf8', shape:'circle'},
+    {label:'Short-Ausstieg', color:'#fb923c', shape:'circle'}
+  ];
+  if(showEMAs){ EMA_CONFIGS.forEach(cfg=> items.push({label:cfg.label, color:cfg.color, shape:'line'})); }
+  items.forEach(it=>{
+    if(it.shape==='tri-up'){ drawTriangleUp(ctx, x+5, y, 4); ctx.fillStyle=it.color; ctx.fill(); }
+    else if(it.shape==='tri-down'){ drawTriangleDown(ctx, x+5, y, 4); ctx.fillStyle=it.color; ctx.fill(); }
+    else if(it.shape==='circle'){ ctx.beginPath(); ctx.arc(x+5,y,4,0,Math.PI*2); ctx.strokeStyle=it.color; ctx.lineWidth=2; ctx.stroke(); }
+    else { ctx.strokeStyle=it.color; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+10,y); ctx.stroke(); }
+    ctx.fillStyle = '#8b949e';
+    ctx.textAlign = 'left';
+    ctx.fillText(it.label, x+13, y);
+    x += ctx.measureText(it.label).width + 30;
+  });
+  ctx.restore();
+}
+function drawCrosshair(ctx, layout, px, d, lo, hi){
+  const { plotLeft, plotRight, plotTop, plotBottom } = layout;
+  if(!px) return;
+  const {x: crossX, y: crossY, idx} = px;
+  if(crossX < plotLeft || crossX > plotRight || crossY < plotTop || crossY > plotBottom) return;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(139,148,158,0.6)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4,4]);
+  ctx.beginPath(); ctx.moveTo(crossX, plotTop); ctx.lineTo(crossX, plotBottom); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(plotLeft, crossY); ctx.lineTo(plotRight, crossY); ctx.stroke();
+  ctx.setLineDash([]);
+
+  const label = d.labels[idx] ?? '';
+  ctx.font = '10px sans-serif';
+  const textW = ctx.measureText(label).width;
+  const boxW = textW+12, boxH=17;
+  let boxX = crossX - boxW/2;
+  boxX = Math.max(plotLeft, Math.min(plotRight-boxW, boxX));
+  const boxY = 6;
+  ctx.fillStyle = '#1f2530'; ctx.strokeStyle = '#2a3038';
+  ctx.fillRect(boxX, boxY, boxW, boxH); ctx.strokeRect(boxX, boxY, boxW, boxH);
+  ctx.fillStyle = '#e6edf3'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(label, boxX+boxW/2, boxY+boxH/2);
+
+  const priceVal = lo + (plotBottom-crossY)/(plotBottom-plotTop)*(hi-lo);
+  const priceLabel = fmtEUR(priceVal);
+  const pTextW = ctx.measureText(priceLabel).width;
+  const pBoxW = pTextW+12, pBoxH=17;
+  ctx.fillStyle = '#1f2530';
+  ctx.fillRect(plotRight+3, crossY-pBoxH/2, pBoxW, pBoxH);
+  ctx.strokeRect(plotRight+3, crossY-pBoxH/2, pBoxW, pBoxH);
+  ctx.fillStyle = '#e6edf3'; ctx.textAlign='left'; ctx.textBaseline='middle';
+  ctx.fillText(priceLabel, plotRight+9, crossY);
+  ctx.restore();
+}
+
+function drawChart(){
+  if(!chart || !chartCtx || !chartCanvasEl) return;
+  const d = chart.$data;
+  if(!d || d.closes.length===0) return;
+  const n = d.closes.length;
+  chart.n = n;
+
+  const dpr = (typeof window!=='undefined' && window.devicePixelRatio) || 1;
+  const wCSS = chartCanvasEl.clientWidth, hCSS = chartCanvasEl.clientHeight;
+  if(!wCSS || !hCSS) return;
+  const wantW = Math.round(wCSS*dpr), wantH = Math.round(hCSS*dpr);
+  if(chartCanvasEl.width !== wantW || chartCanvasEl.height !== wantH){
+    chartCanvasEl.width = wantW; chartCanvasEl.height = wantH;
+  }
+  const ctx = chartCtx;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, wCSS, hCSS);
+
+  let view = chart.fullView ? { start: 0, end: Math.max(0, n-1) } : clampViewState(chart.viewState, n);
+  if(!chart.fullView) chart.viewState = view;
+
+  const layout = getPlotLayout(wCSS, hCSS);
+  const { plotLeft, plotRight, plotTop, plotBottom, plotW, plotH } = layout;
+  const xStep = computeXStep(plotW, view.start, view.end);
+  const scaleX = (i) => idxToPixel(i, view.start, plotLeft, xStep);
+
+  const iFrom = Math.max(0, view.start - 2);
+  const iTo = Math.min(n - 1, view.end + 2);
+
+  // Preisbereich (Y-Achse) NUR aus dem sichtbaren Fenster ableiten -- beim Reinzoomen skaliert die Y-Achse mit.
+  let lo = Infinity, hi = -Infinity;
+  for(let i=view.start; i<=view.end; i++){
+    if(d.lows[i] < lo) lo = d.lows[i];
+    if(d.highs[i] > hi) hi = d.highs[i];
+  }
+  if(showEMAs){
+    d.emaSeries.forEach(series=>{
+      for(let i=view.start; i<=view.end; i++){
+        const v = series[i];
+        if(v!=null){ if(v<lo) lo=v; if(v>hi) hi=v; }
+      }
+    });
+  }
+  if(!isFinite(lo) || !isFinite(hi) || hi<=lo){ const mid = isFinite(lo)?lo:(isFinite(hi)?hi:1); lo = mid-1; hi = mid+1; }
+  const rawLo = lo, rawHi = hi;
+  const yPad = (hi - lo) * 0.08 || Math.max(1, hi*0.01) || 1;
+  lo -= yPad; hi += yPad;
+  const scaleY = (v) => plotBottom - (v - lo) / (hi - lo) * plotH;
+
+  chart.$layout = { plotLeft, plotRight, plotTop, plotBottom, plotW, plotH, xStep, view, lo, hi, rawLo, rawHi };
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, wCSS, hCSS);
+  ctx.clip();
+
+  drawGrid(ctx, layout, lo, hi, scaleY, d, view, scaleX);
+  if(showSR && chart.$srZones) drawSRZones(ctx, layout, chart.$srZones, scaleY, d.closes[n-1]);
+  if(showIchimoku && chart.$ichi) drawIchimoku(ctx, chart.$ichi, iFrom, iTo, scaleX, scaleY);
+  if(showFVG && chart.$fvg) drawFVGs(ctx, chart.$fvg, iFrom, iTo, scaleX, scaleY);
+  if(showFib) drawFib(ctx, layout, rawLo, rawHi, scaleY);
+
+  drawCandles(ctx, d, iFrom, iTo, scaleX, scaleY, xStep, layout);
+  if(showEMAs) drawEMALines(ctx, d.emaSeries, iFrom, iTo, scaleX, scaleY);
+  if(showSwings && chart.$swings) drawSwings(ctx, chart.$swings, d, iFrom, iTo, scaleX, scaleY, layout);
+  drawSignalMarkers(ctx, d, iFrom, iTo, scaleX, scaleY);
+
+  drawLegend(ctx, layout);
+
+  if(chart.crosshairIdx != null && chart.crosshairPx){
+    drawCrosshair(ctx, layout, {...chart.crosshairPx, idx: chart.crosshairIdx}, d, lo, hi);
+  }
+  ctx.restore();
+}
+
+// Gemeinsame Zoom-Logik: hält die neueste Kerze immer am rechten Rand fest (statt am Mauszeiger/Zentrum zu zoomen)
+function zoomByFactor(factor){
+  if(!chart || !chart.$data) return;
+  const n = chart.$data.closes.length;
+  const cur = chart.fullView ? { start:0, end:n-1 } : chart.viewState;
+  chart.fullView = false;
+  chart.viewState = computeZoomRange(n, cur.start, cur.end, factor);
+  chart.followLive = true; // Zoom ist immer rechtsbündig an der neuesten Kerze verankert
+  drawChart();
+  maybeAutoLoadMore();
+}
+
+function attachChartInteraction(canvas){
+  if(chartListenersAttached) return;
+  chartListenersAttached = true;
+
+  function localXY(clientX, clientY){
+    const rect = canvas.getBoundingClientRect();
+    return { x: clientX - rect.left, y: clientY - rect.top };
+  }
+  function handleHover(clientX, clientY){
+    if(!chart || !chart.$layout) return;
+    const {x, y} = localXY(clientX, clientY);
+    const { view, plotLeft, xStep } = chart.$layout;
+    const idx = Math.max(view.start, Math.min(view.end, Math.round(pixelToIdx(x, view.start, plotLeft, xStep))));
+    chart.crosshairIdx = idx;
+    chart.crosshairPx = { x, y };
+    updateHoverBanner(idx);
+    drawChart();
+  }
+  function clearHover(){
+    if(chart){ chart.crosshairIdx = null; chart.crosshairPx = null; }
+    resetHoverBanner();
+    drawChart();
+  }
+
+  canvas.addEventListener('wheel', (e)=>{
+    if(!chart) return;
+    e.preventDefault();
+    zoomByFactor(e.deltaY < 0 ? 0.85 : (1/0.85));
+  }, {passive:false});
+
+  canvas.addEventListener('mousedown', (e)=>{
+    if(!chart || !chart.$layout) return;
+    chart.dragging = { startX: e.clientX, startState: {...chart.$layout.view} };
+    canvas.style.cursor = 'grabbing';
+  });
+  window.addEventListener('mousemove', (e)=>{
+    if(chart && chart.dragging){
+      const dx = e.clientX - chart.dragging.startX;
+      chart.fullView = false;
+      chart.viewState = computePanViewState(chart.dragging.startState, dx, chart.$layout.xStep, chart.n);
+      drawChart();
+    } else if(chart){
+      const rect = canvas.getBoundingClientRect();
+      if(e.clientX>=rect.left && e.clientX<=rect.right && e.clientY>=rect.top && e.clientY<=rect.bottom){
+        handleHover(e.clientX, e.clientY);
+      } else if(chart.crosshairIdx != null){
+        clearHover();
+      }
+    }
+  });
+  window.addEventListener('mouseup', ()=>{
+    if(chart && chart.dragging){
+      chart.dragging = null;
+      canvas.style.cursor = 'crosshair';
+      chart.followLive = computeFollowLiveFlag(chart.viewState, chart.n);
+      drawChart();
+      maybeAutoLoadMore();
+    }
+  });
+  canvas.addEventListener('mouseleave', ()=>{
+    if(!chart || !chart.dragging) clearHover();
+  });
+
+  // Touch: 1 Finger = Schieben, 2 Finger = Pinch-Zoom
+  let touchState = null;
+  canvas.addEventListener('touchstart', (e)=>{
+    if(!chart || !chart.$layout) return;
+    if(e.touches.length===1){
+      touchState = { mode:'pan', startX: e.touches[0].clientX, startState: {...chart.$layout.view} };
+    } else if(e.touches.length===2){
+      const dx = e.touches[0].clientX - e.touches[1].clientX, dy = e.touches[0].clientY - e.touches[1].clientY;
+      touchState = { mode:'pinch', startDist: Math.hypot(dx,dy) || 1, startState: {...chart.$layout.view} };
+    }
+  }, {passive:true});
+  canvas.addEventListener('touchmove', (e)=>{
+    if(!chart || !touchState) return;
+    if(touchState.mode==='pan' && e.touches.length===1){
+      const dx = e.touches[0].clientX - touchState.startX;
+      chart.fullView = false;
+      chart.viewState = computePanViewState(touchState.startState, dx, chart.$layout.xStep, chart.n);
+      drawChart();
+    } else if(touchState.mode==='pinch' && e.touches.length===2){
+      const dx = e.touches[0].clientX - e.touches[1].clientX, dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.hypot(dx,dy) || 1;
+      const factor = touchState.startDist / dist;
+      chart.fullView = false;
+      chart.viewState = computeZoomRange(chart.n, touchState.startState.start, touchState.startState.end, factor);
+      drawChart();
+    }
+    e.preventDefault();
+  }, {passive:false});
+  canvas.addEventListener('touchend', ()=>{
+    if(touchState && chart){
+      chart.followLive = computeFollowLiveFlag(chart.viewState, chart.n);
+      maybeAutoLoadMore();
+    }
+    touchState = null;
+  });
+
+  window.addEventListener('resize', ()=>{ if(chart) drawChart(); });
+}
+
+// ---------- Chart rendering ----------
+function computeOverlayData(){
+  const key = activeCoin+'::'+activeInterval;
+  const {times, opens, highs, lows, closes} = ohlcCache[key];
+  const stratKey = document.getElementById('stratSelect').value;
+  const allStrategies = buildStrategies(activeCoin, activeInterval);
+  const n = closes.length;
+
+  // "all" = Sammelanzeige: Signale ALLER 8 Strategien werden gemeinsam eingezeichnet, statt nur der einen
+  // im Dropdown gewählten. Pro Kerze wird zusätzlich gemerkt, welche Strategie(n) dort ausgelöst haben, damit
+  // das Hover-Banner das transparent macht.
+  const keysToShow = stratKey === 'all' ? Object.keys(allStrategies) : stratKey === 'none' ? [] : [stratKey];
+  const longLabelsAt = Array.from({length:n}, ()=>[]);
+  const shortLabelsAt = Array.from({length:n}, ()=>[]);
+  const exitLongLabelsAt = Array.from({length:n}, ()=>[]);
+  const exitShortLabelsAt = Array.from({length:n}, ()=>[]);
+  keysToShow.forEach(k=>{
+    const r = allStrategies[k];
+    if(!r) return;
+    r.trades.forEach(t=>{ (t.type==='long' ? longLabelsAt : shortLabelsAt)[t.i].push(STRAT_LABELS[k]); });
+    r.exits.forEach(t=>{ (t.type==='long' ? exitLongLabelsAt : exitShortLabelsAt)[t.i].push(STRAT_LABELS[k]); });
+  });
+
+  const fineGrain = !['1d','3d','1w','1M'].includes(activeInterval);
+  const labels = times.map(t => fineGrain
+    ? new Date(t).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})
+    : new Date(t).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'2-digit'}));
+
+  const range = Math.max(...highs) - Math.min(...lows) || 1;
+  const offset = range*0.012;
+
+  const longMarker  = closes.map((_,i)=> longLabelsAt[i].length  ? lows[i]-offset  : null);
+  const shortMarker = closes.map((_,i)=> shortLabelsAt[i].length ? highs[i]+offset : null);
+  const longRadius  = closes.map((_,i)=> longLabelsAt[i].length?6:0);
+  const shortRadius = closes.map((_,i)=> shortLabelsAt[i].length?6:0);
+
+  const exitLongMarker  = closes.map((_,i)=> exitLongLabelsAt[i].length  ? closes[i] : null);
+  const exitShortMarker = closes.map((_,i)=> exitShortLabelsAt[i].length ? closes[i] : null);
+  const exitLongRadius  = closes.map((_,i)=> exitLongLabelsAt[i].length?5:0);
+  const exitShortRadius = closes.map((_,i)=> exitShortLabelsAt[i].length?5:0);
+
+  // Immer echte EMA-Werte berechnen (unabhängig von showEMAs) -- so kann das Ein-/Ausblenden-Toggle einfach nur
+  // neu zeichnen (drawChart), ohne die gesamte Datenberechnung erneut anzustoßen, und es gibt keinen veralteten
+  // Null-Array-Cache mehr, der beim Umschalten kurzzeitig "leer" wäre.
+  const emaSeries = EMA_CONFIGS.map(cfg => ema(closes, cfg.period));
+
+  return {labels, opens, highs, lows, closes,
+    longMarker, longRadius, shortMarker, shortRadius,
+    exitLongMarker, exitLongRadius, exitShortMarker, exitShortRadius,
+    longLabelsAt, shortLabelsAt, exitLongLabelsAt, exitShortLabelsAt,
+    emaSeries};
+}
+
+// Alle Overlay-Metadaten werden jetzt IMMER berechnet (unabhängig von showFVG/showIchimoku/showSwings/showSR) --
+// so kann jedes Ein-/Ausblenden-Toggle einfach nur neu zeichnen (drawChart), ohne Datenberechnung, und es gibt
+// keinen veralteten "war beim letzten Berechnen aus" Cache mehr, der beim Umschalten kurz leer bliebe.
+function computeChartMeta(d){
+  const fvg = detectFVGs(d.highs, d.lows, d.closes);
+  const markers = {
+    longMarker:d.longMarker, shortMarker:d.shortMarker, exitLongMarker:d.exitLongMarker, exitShortMarker:d.exitShortMarker,
+    longLabelsAt:d.longLabelsAt, shortLabelsAt:d.shortLabelsAt, exitLongLabelsAt:d.exitLongLabelsAt, exitShortLabelsAt:d.exitShortLabelsAt
+  };
+  const ichi = ichimoku(d.highs, d.lows, d.closes);
+  // Pivot-Fenster für Swings/S-R: greift den Marktstruktur-Exit-Parameter auf, wenn der aktiv ist, sonst Standard 5.
+  const structBars = exitMode === 'structure' ? Math.max(1, Math.round(exitParam || 3)) : 5;
+  const swings = computeSwingMeta(d.highs, d.lows, structBars);
+  const srZones = detectSRZones(d.highs, d.lows, structBars);
+  return { fvg, markers, ichi, swings, srZones };
+}
+
+function renderChart(){
+  const d = computeOverlayData();
+  const meta = computeChartMeta(d);
+  if(!chartCanvasEl){
+    chartCanvasEl = document.getElementById('priceChart');
+    chartCtx = chartCanvasEl.getContext('2d');
+  }
+  chart = {
+    fullView: true,               // true = immer [0, n-1] zeigen (entspricht dem alten x.min/max=undefined Auto-Fit)
+    viewState: { start: 0, end: Math.max(0, d.closes.length-1) }, // erst relevant, sobald fullView=false wird
+    followLive: true,             // nur relevant wenn fullView=false: Fenster bei neuen Kerzen automatisch mitschieben?
+    n: d.closes.length,
+    $data: d,
+    $fvg: meta.fvg,
+    $markers: meta.markers,
+    $ichi: meta.ichi,
+    $swings: meta.swings,
+    $srZones: meta.srZones,
+    dragging: null,
+    crosshairIdx: null,
+    crosshairPx: null,
+    $layout: null
+  };
+  attachChartInteraction(chartCanvasEl);
+  drawChart();
+}
+
+// Aktualisiert nur Datensätze/Meta-Infos aus computeOverlayData(), OHNE die Fensterposition selbst anzufassen --
+// die Aufrufer (30s-Refresh, Nachladen älterer Historie) kümmern sich jeweils um den passenden Fenster-Shift.
+function refreshChartDatasets(){
+  const d = computeOverlayData();
+  const meta = computeChartMeta(d);
+  chart.$data = d;
+  chart.$fvg = meta.fvg;
+  chart.$markers = meta.markers;
+  chart.$ichi = meta.ichi;
+  chart.$swings = meta.swings;
+  chart.$srZones = meta.srZones;
+  return d;
+}
+
+// Leichtgewichtiges Update ohne den Chart-Zustand neu aufzubauen -> Zoom/Pan bleibt erhalten (für 30s-Refresh,
+// Strategie- & EMA-Wechsel). Das Fenster wird nur verschoben, wenn followLive aktiv ist (siehe advanceViewOnNewData);
+// im "volle Ansicht"-Modus (fullView) zeigt drawChart() ohnehin immer automatisch [0, n-1] frisch an.
+function updateChartInPlace(){
+  if(!chart){ renderChart(); return; }
+  const oldN = chart.n;
+  const d = refreshChartDatasets();
+  const newN = d.closes.length;
+  chart.n = newN;
+  if(!chart.fullView){
+    chart.viewState = advanceViewOnNewData(chart.viewState, oldN, newN, chart.followLive);
+    chart.viewState = clampViewState(chart.viewState, newN);
+  }
+  drawChart();
+}
+
+function renderTable(){
+  const coin = activeCoin, interval = activeInterval;
+  const iv = INTERVALS.find(t=>t.value===interval);
+  const key = coin+'::'+interval;
+  const count = ohlcCache[key] ? ohlcCache[key].closes.length : 0;
+  document.getElementById('compTitle').textContent = `${COINS[coin].label} — ${iv.label}-Kerzen (${count} geladen)`;
+  const strategies = buildStrategies(coin, interval);
+  const tbody = document.querySelector('#compTable tbody');
+  tbody.innerHTML = '';
+  let best = null;
+  Object.entries(strategies).forEach(([k,r])=>{ if(best===null || r.totalReturn>strategies[best].totalReturn) best=k; });
+  Object.entries(strategies).forEach(([k,r])=>{
+    const tr = document.createElement('tr');
+    if(k===best) tr.className='best';
+    tr.innerHTML = `
+      <td>${STRAT_LABELS_FULL[k]}${k===best?'<span class="badge">BESTE</span>':''}</td>
+      <td>${fmtPct(r.totalReturn)}</td>
+      <td>${fmtPct(r.totalReturn - r.buyHold)}</td>
+      <td>${fmtPct(r.maxDD)}</td>
+      <td>${r.trades.length}</td>
+      <td>${r.winRate!=null ? (r.winRate*100).toFixed(0)+'%' : '—'}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// ---------- Alarm-Blöcke: 3 Coins nebeneinander, Signale der letzten 30 Min, neu->alt, mit Uhrzeit ----------
+function updateAlertBanner(){
+  Object.keys(COINS).forEach(coin=>{
+    const bodyEl = document.getElementById('alertBody-'+coin);
+    const blockEl = document.getElementById('alertBlock-'+coin);
+    const key = coin+'::'+activeInterval;
+    const data = ohlcCache[key];
+    if(!bodyEl || !blockEl) return;
+    if(!data || data.closes.length===0){
+      bodyEl.innerHTML = '<span class="status">Lade…</span>';
+      blockEl.classList.remove('active');
+      return;
+    }
+    const strategies = buildStrategies(coin, activeInterval);
+    const now = Date.now();
+    const items = [];
+    const intervalMs = INTERVAL_MS[activeInterval] || 60000;
+    const useCandleWindow = intervalMs > 30*60*1000; // ab >30-Min-Kerzen: kerzenbasiertes statt zeitbasiertes Fenster
+    const lastIdx = data.closes.length - 1;
+    Object.entries(strategies).forEach(([k,r])=>{
+      const lastTrade = r.trades[r.trades.length-1];
+      if(!lastTrade) return;
+      const entryTime = data.times[lastTrade.i];
+      let within;
+      if(useCandleWindow){
+        within = (lastIdx - lastTrade.i) <= ALERT_WINDOW_CANDLES;
+      } else {
+        const ageMs = now - entryTime;
+        within = ageMs <= ALERT_WINDOW_MS && ageMs >= -60000;
+      }
+      if(within){
+        items.push({ label:STRAT_LABELS[k], type:lastTrade.type, time:entryTime, key:k });
+      }
+    });
+    items.sort((a,b)=> b.time - a.time);
+    if(items.length===0){
+      bodyEl.innerHTML = `<span class="status">Keine aktiven Signale (${useCandleWindow ? 'letzte '+ALERT_WINDOW_CANDLES+' Kerzen' : '30 Min'})</span>`;
+      blockEl.classList.remove('active');
+    } else {
+      blockEl.classList.add('active');
+      bodyEl.innerHTML = items.map(it =>
+        `<div class="alert-item ${it.type}"><span>${it.label} ${it.type==='long'?'LONG':'SHORT'}</span><span class="alert-time">${fmtClock(it.time)}</span></div>`
+      ).join('');
+    }
+  });
+}
+
+async function loadAndRender(){
+  document.getElementById('status').textContent = 'Lade Kerzendaten für BTC/ETH/SOL…';
+  try{
+    await ensureAllCoinsData(activeInterval);
+    Object.keys(COINS).forEach(c => buildStrategies(c, activeInterval));
+    const key = activeCoin+'::'+activeInterval;
+    const data = ohlcCache[key];
+    document.getElementById('status').textContent = `${data.closes.length} Kerzen geladen (zurück bis ${new Date(data.times[0]).toLocaleDateString('de-DE')}) · aktualisiert ${new Date().toLocaleTimeString('de-DE')}`;
+    renderChart();
+    renderTable();
+    updateAlertBanner();
+  }catch(e){
+    document.getElementById('status').textContent = 'Fehler beim Laden: ' + e.message + ' (Binance evtl. in deiner Region eingeschränkt oder kurz nicht erreichbar)';
+  }
+}
+
+function updateLoadMoreButtonState(){
+  const btn = document.getElementById('loadMoreBtn');
+  const key = activeCoin+'::'+activeInterval;
+  if(historyExhausted[key]){
+    btn.textContent = 'Beginn der Handelshistorie erreicht';
+    btn.disabled = true;
+  } else {
+    btn.textContent = '+ 1000 ältere Kerzen laden';
+    btn.disabled = false;
+  }
+}
+
+// ---------- "Mehr Historie laden" (unbegrenzte Rückwärts-Pagination, nur aktiver Coin) ----------
+// Wird sowohl vom Button als auch automatisch beim Zurückscrollen/-zoomen ausgelöst (maybeAutoLoadMore).
+// Aktualisiert den Chart in-place und verschiebt die aktuelle Zoom-Fensterposition um genau die Anzahl neu
+// eingefügter (älterer) Kerzen mit -> die Ansicht springt dadurch nicht mehr zurück auf die volle Historie.
+async function loadMoreHistory(){
+  const key = activeCoin+'::'+activeInterval;
+  const data = ohlcCache[key];
+  if(!data || data.times.length===0 || isLoadingMoreHistory || historyExhausted[key]) return;
+  isLoadingMoreHistory = true;
+  const btn = document.getElementById('loadMoreBtn');
+  btn.disabled = true;
+  btn.textContent = 'Lade ältere Kerzen…';
+  try{
+    const earliest = data.times[0];
+    const older = await fetchKlines(COINS[activeCoin].symbol, activeInterval, {limit:1000, endTime: earliest-1});
+    if(older.length===0){
+      historyExhausted[key] = true;
+      if(activeCoin+'::'+activeInterval === key) updateLoadMoreButtonState();
+      return;
+    }
+    const addedCount = older.length;
+    data.times  = older.map(c=>c.time).concat(data.times);
+    data.opens  = older.map(c=>c.open).concat(data.opens);
+    data.highs  = older.map(c=>c.high).concat(data.highs);
+    data.lows   = older.map(c=>c.low).concat(data.lows);
+    data.closes = older.map(c=>c.close).concat(data.closes);
+    data.volumes = older.map(c=>c.volume).concat(data.volumes);
+    invalidateStrategyCacheFor(activeCoin, activeInterval);
+    buildStrategies(activeCoin, activeInterval, 'analyse');
+    // Nur den Chart/die Anzeige aktualisieren, wenn währenddessen nicht auf einen anderen Coin/Zeitrahmen
+    // gewechselt wurde (sonst würde man den Zoom-Shift auf den falschen, inzwischen aktiven Chart anwenden).
+    if(activeCoin+'::'+activeInterval === key){
+      document.getElementById('status').textContent = `${data.closes.length} Kerzen geladen (zurück bis ${new Date(data.times[0]).toLocaleDateString('de-DE')}) · aktualisiert ${new Date().toLocaleTimeString('de-DE')}`;
+      if(chart){
+        refreshChartDatasets();
+        chart.n = chart.$data.closes.length;
+        // Ältere Kerzen wurden VORNE eingefügt -> alle bisherigen globalen Indizes verschieben sich um addedCount,
+        // das Fenster muss exakt mitverschoben werden, damit weiterhin dieselben Kerzen sichtbar bleiben.
+        if(!chart.fullView){
+          chart.viewState = { start: chart.viewState.start + addedCount, end: chart.viewState.end + addedCount };
+          chart.viewState = clampViewState(chart.viewState, chart.n);
+        }
+        drawChart();
+      }
+      renderTable();
+      updateAlertBanner();
+      updateLoadMoreButtonState();
+    }
+  }catch(e){
+    if(activeCoin+'::'+activeInterval === key){ btn.textContent = 'Fehler — erneut versuchen'; btn.disabled = false; }
+  } finally {
+    isLoadingMoreHistory = false;
+  }
+}
+
+// Wird nach jedem Pan/Zoom-Gesten-Ende aufgerufen: sobald der sichtbare Bereich nahe an Kerze 0 heranreicht,
+// im Hintergrund automatisch mehr Historie nachladen, ganz ohne den "+1000 Kerzen laden"-Button.
+function maybeAutoLoadMore(){
+  if(!chart || chart.fullView) return; // volle Ansicht -> schon alles geladen sichtbar, kein Nachladen nötig
+  const key = activeCoin+'::'+activeInterval;
+  if(isLoadingMoreHistory || historyExhausted[key]) return;
+  if(chart.viewState.start <= 40) loadMoreHistory();
+}
+
+// ---------- Live-Preis: Binance-WebSocket (Trade-Stream) für Echtzeit-Push + Polling als Fallback ----------
+function updateTickerDisplay(price){
+  const el = document.getElementById('liveTickerValue');
+  if(lastPriceValue != null){
+    if(price > lastPriceValue) el.style.color = 'var(--green)';
+    else if(price < lastPriceValue) el.style.color = 'var(--red)';
+  }
+  lastPriceValue = price;
+  el.textContent = fmtEUR(price);
+  lastTickerOkAt = Date.now();
+  const statusEl = document.getElementById('liveTickerStatus');
+  statusEl.textContent = '';
+  statusEl.classList.remove('warn');
+}
+function connectPriceSocket(coin){
+  if(priceSocket){ try{ priceSocket.close(); }catch(e){} priceSocket = null; }
+  lastPriceValue = null;
+  document.getElementById('liveTickerValue').style.color = '';
+  try{
+    const symbol = COINS[coin].symbol.toLowerCase();
+    priceSocket = new WebSocket(`wss://stream.binance.com:9443/ws/${symbol}@trade`);
+    priceSocket.onmessage = (ev)=>{
+      try{
+        const msg = JSON.parse(ev.data);
+        const price = parseFloat(msg.p);
+        if(!isNaN(price)) updateTickerDisplay(price);
+      }catch(e){}
+    };
+    priceSocket.onerror = ()=>{ /* Polling-Fallback (tickPrice-Intervall) bleibt aktiv */ };
+  }catch(e){ /* WebSocket evtl. nicht verfügbar -> Polling-Fallback greift */ }
+}
+async function tickPrice(){
+  const staleSecs = lastTickerOkAt ? (Date.now()-lastTickerOkAt)/1000 : 999;
+  if(staleSecs < 3) return; // WebSocket liefert bereits aktuell, Polling überspringen
+  try{
+    const price = await fetchLivePrice(activeCoin);
+    if(price!=null) updateTickerDisplay(price);
+  }catch(e){ /* fällt durch zur Staleness-Anzeige unten */ }
+  if(lastTickerOkAt){
+    const secs = Math.round((Date.now()-lastTickerOkAt)/1000);
+    if(secs>3){
+      const statusEl = document.getElementById('liveTickerStatus');
+      statusEl.textContent = `letzter Wert vor ${secs}s`;
+      statusEl.classList.add('warn');
+    }
+  } else {
+    document.getElementById('liveTickerStatus').textContent = 'noch kein Live-Wert erhalten…';
+  }
+}
+function startTicker(){
+  if(tickerTimer) clearInterval(tickerTimer);
+  lastTickerOkAt = null;
+  document.getElementById('liveTickerValue').textContent = '—';
+  document.getElementById('liveTickerValue').style.color = '';
+  connectPriceSocket(activeCoin);
+  tickPrice();
+  tickerTimer = setInterval(tickPrice, 1000);
+}
+
+// ---------- Chart/Alarm auto-refresh (30s) — alle 3 Coins für den Alarm, Chart nur für aktiven Coin, Zoom bleibt erhalten ----------
+function startChartAutoRefresh(){
+  if(chartRefreshTimer) clearInterval(chartRefreshTimer);
+  chartRefreshTimer = setInterval(refreshAllCoinsLatestCandles, 30000);
+}
+// Browser drosseln setInterval in Hintergrund-Tabs oft massiv (teils über Stunden) -> statt darauf zu warten,
+// bei Rückkehr in den Tab sofort nachziehen. refreshLatestCandlesForCoin() erkennt die entstandene Lücke selbst
+// und lädt gezielt die fehlenden Kerzen nach (siehe dort), nicht nur die letzten zwei.
+if(typeof document !== 'undefined' && typeof document.addEventListener === 'function'){
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.visibilityState === 'visible'){
+      refreshAllCoinsLatestCandles();
+      tickPrice();
+    }
+  });
+}
+async function refreshLatestCandlesForCoin(coin, interval=activeInterval){
+  const key = coin+'::'+interval;
+  const data = ohlcCache[key];
+  if(!data || data.times.length===0) return;
+  try{
+    const intervalMs = INTERVAL_MS[interval] || 60000;
+    const lastKnown = data.times[data.times.length-1];
+    const gapMs = Date.now() - lastKnown;
+    let fresh;
+    if(gapMs > intervalMs*3){
+      // Tab war vermutlich lange im Hintergrund/gedrosselt (Browser pausieren setInterval bei inaktiven Tabs
+      // oft über Stunden) -> es reicht nicht, nur die letzten 2 Kerzen zu holen, das würde eine Lücke zwischen
+      // der letzten bekannten und der aktuellen Kerze hinterlassen. Stattdessen gezielt ab der letzten bekannten
+      // Kerze nachladen (max. 1000 pro Anfrage, Binance-Limit).
+      const missing = Math.min(1000, Math.ceil(gapMs/intervalMs) + 2);
+      const backfill = await fetchKlines(COINS[coin].symbol, interval, {startTime: lastKnown+1, limit: missing});
+      const latest = await fetchKlines(COINS[coin].symbol, interval, {limit:1});
+      fresh = backfill.concat(latest);
+    } else {
+      fresh = await fetchKlines(COINS[coin].symbol, interval, {limit:2});
+    }
+    fresh.forEach(c=>{
+      const idx = data.times.indexOf(c.time);
+      if(idx>=0){
+        data.opens[idx]=c.open; data.highs[idx]=c.high; data.lows[idx]=c.low; data.closes[idx]=c.close; data.volumes[idx]=c.volume;
+      } else if(c.time > data.times[data.times.length-1]){
+        data.times.push(c.time); data.opens.push(c.open); data.highs.push(c.high); data.lows.push(c.low); data.closes.push(c.close); data.volumes.push(c.volume);
+      }
+    });
+    // Nur invalidieren, nicht eager neu berechnen: refreshLatestCandlesForCoin() wird sowohl für den Analyse- als
+    // auch den (ggf. abweichenden) Automatik-Zeitrahmen aufgerufen und weiß hier nicht, welches der beiden Profile
+    // ('analyse'/'auto') gleich als Nächstes gebraucht wird -- das übernehmen die jeweiligen Aufrufer
+    // (updateChartInPlace/renderTable/updateAlertBanner bzw. runAutoTrade) mit dem für sie richtigen Profil selbst.
+    invalidateStrategyCacheFor(coin, interval);
+  }catch(e){ /* leise fehlschlagen, alten Stand behalten */ }
+}
+async function refreshAllCoinsLatestCandles(){
+  await Promise.all(Object.keys(COINS).map(c => refreshLatestCandlesForCoin(c)));
+  if(autoTradeEnabled && autoTradeInterval !== activeInterval){
+    // Automatik läuft auf einem eigenen, vom Analyse-Chart unabhängigen Zeitrahmen -> dessen Kerzen zusätzlich
+    // im selben 30s-Zyklus nachziehen (nutzt dieselbe Lücken-Erkennung/-Backfill wie oben).
+    await Promise.all(Object.keys(COINS).map(c => refreshLatestCandlesForCoin(c, autoTradeInterval)));
+  }
+  const key = activeCoin+'::'+activeInterval;
+  if(ohlcCache[key]){
+    document.getElementById('status').textContent = `${ohlcCache[key].closes.length} Kerzen geladen · aktualisiert ${new Date().toLocaleTimeString('de-DE')}`;
+  }
+  updateChartInPlace();
+  renderTable();
+  updateAlertBanner();
+  if(autoTradeEnabled) runAutoTrade();
+}
+
+// ---------- Automatik-Trading: Entscheidungs-Loop + Paper-Positionen/-Log ----------
+// Wichtig: eine bereits offene Position wird mit DER Strategie/DEM Zeitrahmen weiter bewertet, mit der sie
+// eröffnet wurde (pos.stratKey/pos.interval) -- ein späterer Wechsel der Auswahl im Automatik-Tab betrifft nur
+// NEUE Einstiege (die dann die aktuell gewählte autoTradeStratKey/autoTradeInterval bekommen). Exit-Strategie
+// und die vier Entry-Filter nutzen ihr EIGENES Profil ('auto': autoExitMode, autoEntryConfirmBars, ...) -- ein
+// Test im Analyse-Tab (auch der dortige Kombinations-Optimierer) wirkt sich NICHT mehr auf die laufende
+// Automatik aus, seit die beiden Tabs entkoppelt wurden.
+function runAutoTrade(){
+  if(!autoTradeEnabled) return;
+  let anyChange = false;
+  Object.keys(COINS).forEach(coin=>{
+    if(autoCoinPaused[coin]) return; // Automatik für diesen Coin manuell angehalten -> nichts anfassen
+    const changed = autoTradeMode === 'dynamic' ? runAutoTradeDynamicForCoin(coin) : runAutoTradeFixedForCoin(coin);
+    if(changed) anyChange = true;
+  });
+  if(anyChange) saveAutoTradeState();
+  renderAutoTradeUI();
+}
+// Modus "Feste Strategie": unverändertes Verhalten wie bisher -- eine Position bleibt bei der Strategie/dem
+// Zeitrahmen, mit der/dem sie eröffnet wurde, bis zu deren eigenem Exit; neue Einstiege nutzen die aktuell
+// gewählte autoTradeStratKey/autoTradeInterval.
+function runAutoTradeFixedForCoin(coin){
+  const pos = autoOpenPositions[coin];
+  // Fallback auf die aktuell gewählte Strategie/Zeitrahmen, falls eine Position aus einer älteren Version
+  // dieses Tools ohne eingefrorenes stratKey/interval geladen wurde (Abwärtskompatibilität für localStorage).
+  const stratKey = (pos && pos.stratKey) ? pos.stratKey : autoTradeStratKey;
+  const interval = (pos && pos.interval) ? pos.interval : autoTradeInterval;
+  const key = coin+'::'+interval;
+  const data = ohlcCache[key];
+  if(!data || data.closes.length < 5) return false;
+  const strategies = buildStrategies(coin, interval, 'auto');
+  const r = strategies[stratKey];
+  if(!r || !r.position || !r.position.length) return false;
+  const lastIdx = r.position.length - 1;
+  const desired = r.position[lastIdx];
+  const price = data.closes[lastIdx];
+  const time = data.times[lastIdx];
+  const desiredDir = desired===1 ? 'long' : (desired===-1 ? 'short' : null);
+
+  if(!pos){
+    if(desiredDir){ openAutoPosition(coin, desiredDir, price, time, autoTradeStratKey, autoTradeInterval, lastIdx); return true; }
+    return false;
+  }
+  if(pos.direction === desiredDir) return false; // Position weiterhin gültig, kein Handlungsbedarf
+
+  closeAutoPosition(coin, price, time, desiredDir ? 'Signalumkehr' : 'Signal neutral / Exit');
+  // Neueinstieg nach einem Flip nutzt bewusst die AKTUELL gewählte Strategie/Zeitrahmen (kann sich seit
+  // Eröffnung der geschlossenen Position geändert haben), nicht mehr die der soeben geschlossenen Position.
+  if(desiredDir) openAutoPosition(coin, desiredDir, price, time, autoTradeStratKey, autoTradeInterval, lastIdx);
+  return true;
+}
+// Ermittelt die Strategie mit der besten rollierenden Rendite über "windowSize" Kerzen (scoreWindow(), dieselbe
+// Metrik wie beim Kombinations-Optimierer). Reine Vergangenheitsbetrachtung ohne Lookahead (scoreWindow nutzt
+// nur bereits bekannte Kerzen), aber KEINE Garantie, dass die jüngste Outperformance anhält -- siehe UI-Hinweis.
+function pickBestStrategyByScore(coin, interval, windowSize){
+  const data = ohlcCache[coin+'::'+interval];
+  if(!data || data.closes.length < 10) return null;
+  const strategies = buildStrategies(coin, interval, 'auto'); // ausschließlich von der Automatik genutzt
+  let best = null;
+  Object.keys(strategies).forEach(stratKey=>{
+    const r = strategies[stratKey];
+    if(!r || !r.position || !r.position.length) return;
+    const score = scoreWindow(r.position, data.closes, windowSize);
+    if(!best || score.totalReturn > best.score.totalReturn){
+      best = { stratKey, score, r };
+    }
+  });
+  return best;
+}
+// Modus "Dynamisch": rotiert eine offene Position nur, wenn (a) die GEHALTENE Strategie nicht selbst schon
+// einen normalen Exit will (hat immer Vorrang) und (b) eine andere Strategie über das Vergleichsfenster
+// mindestens autoDynamicMinEdgePct Prozentpunkte besser abschneidet UND die Position schon mindestens
+// autoDynamicMinHoldBars Kerzen offen ist (Bremse gegen Whipsaw/Übertrading bei jedem kleinen Rauschen).
+function runAutoTradeDynamicForCoin(coin){
+  const interval = autoTradeInterval;
+  const data = ohlcCache[coin+'::'+interval];
+  if(!data || data.closes.length < Math.max(10, Math.floor(autoDynamicWindow/2))) return false;
+  const strategies = buildStrategies(coin, interval, 'auto');
+  const best = pickBestStrategyByScore(coin, interval, autoDynamicWindow);
+  if(!best) return false;
+  const lastIdx = best.r.position.length - 1;
+  const price = data.closes[lastIdx];
+  const time = data.times[lastIdx];
+  const pos = autoOpenPositions[coin];
+  const bestDesired = best.r.position[lastIdx];
+  const bestDesiredDir = bestDesired===1 ? 'long' : (bestDesired===-1 ? 'short' : null);
+
+  if(!pos){
+    if(bestDesiredDir){ openAutoPosition(coin, bestDesiredDir, price, time, best.stratKey, interval, lastIdx); return true; }
+    return false;
+  }
+
+  // 1) Vorrang: eigener Exit der GEHALTENEN Strategie (eigenes Gegensignal oder Flach) -- unabhängig von der
+  //    Mindesthaltezeit, das ist kein Rotations-Wechsel, sondern der ganz normale Ausstieg dieser Strategie.
+  const heldR = strategies[pos.stratKey];
+  if(!heldR || !heldR.position || !heldR.position.length) return false;
+  const heldDesired = heldR.position[heldR.position.length-1];
+  const heldDesiredDir = heldDesired===1 ? 'long' : (heldDesired===-1 ? 'short' : null);
+  if(heldDesiredDir !== pos.direction){
+    closeAutoPosition(coin, price, time, heldDesiredDir ? 'Signalumkehr (gehaltene Strategie)' : 'Signal neutral / Exit (gehaltene Strategie)');
+    if(bestDesiredDir) openAutoPosition(coin, bestDesiredDir, price, time, best.stratKey, interval, lastIdx);
+    return true;
+  }
+
+  // 2) Rotation: eine ANDERE Strategie mit eigenem aktiven Signal performt über das Vergleichsfenster deutlich
+  //    besser -- nur bei erreichter Mindesthaltezeit und ausreichendem Vorsprung.
+  if(best.stratKey !== pos.stratKey && bestDesiredDir){
+    const barsHeld = lastIdx - (pos.entryIdx != null ? pos.entryIdx : lastIdx);
+    if(barsHeld >= autoDynamicMinHoldBars){
+      const heldScore = scoreWindow(heldR.position, data.closes, autoDynamicWindow);
+      const edgePct = (best.score.totalReturn - heldScore.totalReturn) * 100;
+      if(edgePct >= autoDynamicMinEdgePct){
+        closeAutoPosition(coin, price, time, `Strategie-Rotation (${STRAT_LABELS[best.stratKey]} statt ${STRAT_LABELS[pos.stratKey]}, +${edgePct.toFixed(1)}pp/${autoDynamicWindow}K)`);
+        openAutoPosition(coin, bestDesiredDir, price, time, best.stratKey, interval, lastIdx);
+        return true;
+      }
+    }
+  }
+  return false;
+}
+function openAutoPosition(coin, direction, price, time, stratKey, interval, entryIdx){
+  autoOpenPositions[coin] = { direction, entryPrice: price, entryTime: time, stratKey, interval, entryIdx };
+}
+function closeAutoPosition(coin, price, time, reason){
+  const pos = autoOpenPositions[coin];
+  if(!pos) return;
+  const pnlPct = pos.direction==='long' ? (price-pos.entryPrice)/pos.entryPrice*100 : (pos.entryPrice-price)/pos.entryPrice*100;
+  autoTradeLog.push({
+    coin, direction: pos.direction, entryPrice: pos.entryPrice, exitPrice: price,
+    entryTime: pos.entryTime, exitTime: time, pnlPct, result: pnlPct>=0 ? 'win' : 'loss',
+    reason, stratKey: pos.stratKey || autoTradeStratKey, exitModeKey: autoExitMode, interval: pos.interval || autoTradeInterval
+  });
+  if(autoTradeLog.length > 300) autoTradeLog = autoTradeLog.slice(-300);
+  delete autoOpenPositions[coin];
+}
+// ---------- Automatik-Trading: manuelle Eingriffe pro Coin ----------
+// Manuelles Schließen/Eröffnen pausiert die Automatik für diesen Coin automatisch mit (sonst würde der nächste
+// 30s-Tick die manuelle Aktion sofort wieder rückgängig machen, wenn das Rohsignal weiterhin abweicht).
+async function manualCloseAuto(coin){
+  const pos = autoOpenPositions[coin];
+  if(!pos) return;
+  const interval = pos.interval || autoTradeInterval;
+  await ensureData(coin, interval);
+  const data = ohlcCache[coin+'::'+interval];
+  if(!data || !data.closes.length) return;
+  const price = data.closes[data.closes.length-1];
+  const time = data.times[data.times.length-1];
+  closeAutoPosition(coin, price, time, 'Manueller Exit');
+  autoCoinPaused[coin] = true;
+  saveAutoTradeState();
+  renderAutoTradeUI();
+}
+async function manualOpenAuto(coin, direction){
+  if(autoOpenPositions[coin]) return; // erst schließen, bevor neu eröffnet wird
+  await ensureData(coin, autoTradeInterval);
+  const data = ohlcCache[coin+'::'+autoTradeInterval];
+  if(!data || !data.closes.length) return;
+  const price = data.closes[data.closes.length-1];
+  const time = data.times[data.times.length-1];
+  const entryIdx = data.closes.length-1;
+  // Im dynamischen Modus wird die Position mit der GERADE aktuell besten Strategie "beschriftet" (für spätere
+  // Rotationsvergleiche), im festen Modus mit der gewählten autoTradeStratKey.
+  let stratKey = autoTradeStratKey;
+  if(autoTradeMode === 'dynamic'){
+    const best = pickBestStrategyByScore(coin, autoTradeInterval, autoDynamicWindow);
+    if(best) stratKey = best.stratKey;
+  }
+  openAutoPosition(coin, direction, price, time, stratKey, autoTradeInterval, entryIdx);
+  autoCoinPaused[coin] = true;
+  saveAutoTradeState();
+  renderAutoTradeUI();
+}
+function toggleCoinPause(coin){
+  autoCoinPaused[coin] = !autoCoinPaused[coin];
+  saveAutoTradeState();
+  renderAutoTradeUI();
+}
+function saveAutoTradeState(){
+  if(typeof localStorage === 'undefined') return;
+  try{
+    localStorage.setItem(AUTO_TRADE_LS_KEYS.enabled, JSON.stringify(autoTradeEnabled));
+    localStorage.setItem(AUTO_TRADE_LS_KEYS.interval, autoTradeInterval);
+    localStorage.setItem(AUTO_TRADE_LS_KEYS.stratKey, autoTradeStratKey);
+    localStorage.setItem(AUTO_TRADE_LS_KEYS.positions, JSON.stringify(autoOpenPositions));
+    localStorage.setItem(AUTO_TRADE_LS_KEYS.log, JSON.stringify(autoTradeLog.slice(-300)));
+    localStorage.setItem(AUTO_TRADE_LS_KEYS.paused, JSON.stringify(autoCoinPaused));
+    localStorage.setItem(AUTO_TRADE_LS_KEYS.mode, autoTradeMode);
+    localStorage.setItem(AUTO_TRADE_LS_KEYS.dynWindow, JSON.stringify(autoDynamicWindow));
+    localStorage.setItem(AUTO_TRADE_LS_KEYS.dynMinEdge, JSON.stringify(autoDynamicMinEdgePct));
+    localStorage.setItem(AUTO_TRADE_LS_KEYS.dynMinHold, JSON.stringify(autoDynamicMinHoldBars));
+    localStorage.setItem(AUTO_TRADE_LS_KEYS.exitMode, autoExitMode);
+    localStorage.setItem(AUTO_TRADE_LS_KEYS.exitParam, JSON.stringify(autoExitParam));
+    localStorage.setItem(AUTO_TRADE_LS_KEYS.atrSafety, JSON.stringify(autoStructureAtrSafetyMult));
+    localStorage.setItem(AUTO_TRADE_LS_KEYS.entryConfirmBars, JSON.stringify(autoEntryConfirmBars));
+    localStorage.setItem(AUTO_TRADE_LS_KEYS.volumeFilter, JSON.stringify(autoVolumeFilterMult));
+    localStorage.setItem(AUTO_TRADE_LS_KEYS.swingBreakout, JSON.stringify(autoSwingBreakoutBars));
+    localStorage.setItem(AUTO_TRADE_LS_KEYS.mtfFilter, JSON.stringify(autoMtfFilterOn));
+  }catch(e){ /* localStorage evtl. nicht verfügbar -> Feature funktioniert trotzdem, nur ohne Persistenz */ }
+}
+function loadAutoTradeState(){
+  if(typeof localStorage === 'undefined') return;
+  try{
+    const en = localStorage.getItem(AUTO_TRADE_LS_KEYS.enabled);
+    if(en!=null) autoTradeEnabled = JSON.parse(en);
+    const iv = localStorage.getItem(AUTO_TRADE_LS_KEYS.interval);
+    if(iv) autoTradeInterval = iv;
+    const sk = localStorage.getItem(AUTO_TRADE_LS_KEYS.stratKey);
+    if(sk && STRAT_LABELS_FULL[sk]) autoTradeStratKey = sk;
+    const pos = localStorage.getItem(AUTO_TRADE_LS_KEYS.positions);
+    if(pos) autoOpenPositions = JSON.parse(pos) || {};
+    const log = localStorage.getItem(AUTO_TRADE_LS_KEYS.log);
+    if(log) autoTradeLog = JSON.parse(log) || [];
+    const paused = localStorage.getItem(AUTO_TRADE_LS_KEYS.paused);
+    if(paused) autoCoinPaused = JSON.parse(paused) || {};
+    const mode = localStorage.getItem(AUTO_TRADE_LS_KEYS.mode);
+    if(mode === 'fixed' || mode === 'dynamic') autoTradeMode = mode;
+    const dw = localStorage.getItem(AUTO_TRADE_LS_KEYS.dynWindow);
+    if(dw!=null){ const v = JSON.parse(dw); if(typeof v === 'number' && v >= 10) autoDynamicWindow = v; }
+    const de = localStorage.getItem(AUTO_TRADE_LS_KEYS.dynMinEdge);
+    if(de!=null){ const v = JSON.parse(de); if(typeof v === 'number' && v >= 0) autoDynamicMinEdgePct = v; }
+    const dh = localStorage.getItem(AUTO_TRADE_LS_KEYS.dynMinHold);
+    if(dh!=null){ const v = JSON.parse(dh); if(typeof v === 'number' && v >= 0) autoDynamicMinHoldBars = v; }
+    const aem = localStorage.getItem(AUTO_TRADE_LS_KEYS.exitMode);
+    if(aem && EXIT_MODES[aem]) autoExitMode = aem;
+    const aep = localStorage.getItem(AUTO_TRADE_LS_KEYS.exitParam);
+    if(aep!=null){ const v = JSON.parse(aep); if(typeof v === 'number') autoExitParam = v; }
+    const aas = localStorage.getItem(AUTO_TRADE_LS_KEYS.atrSafety);
+    if(aas!=null){ const v = JSON.parse(aas); if(typeof v === 'number') autoStructureAtrSafetyMult = v; }
+    const aecb = localStorage.getItem(AUTO_TRADE_LS_KEYS.entryConfirmBars);
+    if(aecb!=null){ const v = JSON.parse(aecb); if(typeof v === 'number') autoEntryConfirmBars = v; }
+    const avf = localStorage.getItem(AUTO_TRADE_LS_KEYS.volumeFilter);
+    if(avf!=null){ const v = JSON.parse(avf); if(typeof v === 'number') autoVolumeFilterMult = v; }
+    const asb = localStorage.getItem(AUTO_TRADE_LS_KEYS.swingBreakout);
+    if(asb!=null){ const v = JSON.parse(asb); if(typeof v === 'number') autoSwingBreakoutBars = v; }
+    const amtf = localStorage.getItem(AUTO_TRADE_LS_KEYS.mtfFilter);
+    if(amtf!=null) autoMtfFilterOn = JSON.parse(amtf) === true;
+  }catch(e){ /* korrupte/fehlende Daten -> mit Defaults starten */ }
+}
+
+// ---------- Coin / interval / strategy / tool selection ----------
+async function selectCoin(coin){
+  activeCoin = coin;
+  document.querySelectorAll('#coinTabs .tab').forEach(b=>b.classList.toggle('active', b.dataset.coin===coin));
+  updateLoadMoreButtonState();
+  if(!ohlcCache[coin+'::'+activeInterval]){
+    await loadAndRender();
+  } else {
+    renderChart();
+    renderTable();
+    updateAlertBanner();
+  }
+  startTicker();
+}
+
+function populateControls(){
+  const tabsEl = document.getElementById('coinTabs');
+  Object.entries(COINS).forEach(([coin, c], idx)=>{
+    const btn = document.createElement('button');
+    btn.className = 'tab' + (idx===0 ? ' active' : '');
+    btn.dataset.coin = coin;
+    btn.textContent = c.label;
+    btn.addEventListener('click', ()=> selectCoin(coin));
+    tabsEl.appendChild(btn);
+  });
+
+  const ivEl = document.getElementById('intervalSelect');
+  INTERVALS.forEach(iv=>{
+    const opt = document.createElement('option');
+    opt.value = iv.value; opt.textContent = iv.label;
+    if(iv.value===activeInterval) opt.selected = true;
+    ivEl.appendChild(opt);
+  });
+  ivEl.addEventListener('change', e=>{
+    activeInterval = e.target.value;
+    updateLoadMoreButtonState();
+    refreshHigherTFSelect(document.getElementById('mtfHigherTfSelect'), document.getElementById('mtfHigherTfLabel'), activeInterval);
+    loadAndRender();
+  });
+
+  const stratEl = document.getElementById('stratSelect');
+  const allOpt = document.createElement('option');
+  allOpt.value = 'all'; allOpt.textContent = 'Alle Strategien (Sammelanzeige)'; allOpt.selected = true;
+  stratEl.appendChild(allOpt);
+  const noneOpt = document.createElement('option');
+  noneOpt.value = 'none'; noneOpt.textContent = 'Kein Signalfilter (keine Marker)';
+  stratEl.appendChild(noneOpt);
+  Object.entries(STRAT_LABELS_FULL).forEach(([key,label])=>{
+    const opt = document.createElement('option');
+    opt.value = key; opt.textContent = label;
+    stratEl.appendChild(opt);
+  });
+  stratEl.addEventListener('change', ()=> updateChartInPlace());
+
+  document.getElementById('loadMoreBtn').addEventListener('click', loadMoreHistory);
+  document.getElementById('zoomInBtn').addEventListener('click', ()=> zoomByFactor(0.7));
+  document.getElementById('zoomOutBtn').addEventListener('click', ()=> zoomByFactor(1/0.7));
+  document.getElementById('resetZoomBtn').addEventListener('click', ()=>{
+    if(chart){
+      chart.fullView = true;
+      chart.followLive = true;
+      drawChart();
+    }
+  });
+
+  // Alle Overlay-Metadaten werden jetzt immer (unabhängig vom show*-Flag) mitberechnet -- jedes Toggle muss daher
+  // nur neu zeichnen, nicht mehr die komplette Datenberechnung erneut anstoßen.
+  document.getElementById('toggleEmaBtn').addEventListener('click', (e)=>{
+    showEMAs = !showEMAs;
+    e.currentTarget.classList.toggle('active', showEMAs);
+    if(chart) drawChart();
+  });
+  document.getElementById('toggleFvgBtn').addEventListener('click', (e)=>{
+    showFVG = !showFVG;
+    e.currentTarget.classList.toggle('active', showFVG);
+    if(chart) drawChart();
+  });
+  document.getElementById('toggleFibBtn').addEventListener('click', (e)=>{
+    showFib = !showFib;
+    e.currentTarget.classList.toggle('active', showFib);
+    if(chart) drawChart();
+  });
+  document.getElementById('toggleIchimokuBtn').addEventListener('click', (e)=>{
+    showIchimoku = !showIchimoku;
+    e.currentTarget.classList.toggle('active', showIchimoku);
+    if(chart) drawChart();
+  });
+  document.getElementById('toggleSwingBtn').addEventListener('click', (e)=>{
+    showSwings = !showSwings;
+    e.currentTarget.classList.toggle('active', showSwings);
+    if(chart) drawChart();
+  });
+  document.getElementById('toggleSRBtn').addEventListener('click', (e)=>{
+    showSR = !showSR;
+    e.currentTarget.classList.toggle('active', showSR);
+    if(chart) drawChart();
+  });
+}
+
+// ---------- Exit-Strategie-Auswahl (global für alle 8 Strategien) ----------
+function applyExitModeChange(){
+  strategyCache = {}; // Backtest ist exit-abhängig -> für alle Coins/Intervalle neu berechnen
+  Object.keys(COINS).forEach(c=>{
+    const key = c+'::'+activeInterval;
+    if(ohlcCache[key]) buildStrategies(c, activeInterval);
+  });
+  // updateChartInPlace() statt renderChart(): Kerzenzahl ändert sich hier nicht (nur die Backtest-Logik), daher
+  // bleibt der aktuelle Zoom/Pan-Ausschnitt unverändert erhalten, statt bei jeder Filter-/Exit-Änderung zurückzuspringen.
+  if(chart){ updateChartInPlace(); } else { renderChart(); }
+  renderTable();
+  updateAlertBanner();
+}
+function refreshExitParamUI(){
+  const cfg = EXIT_MODES[exitMode];
+  const wrap = document.getElementById('exitParamWrap');
+  document.getElementById('exitModeDesc').textContent = cfg.desc;
+  if(cfg.paramLabel){
+    wrap.style.display = '';
+    document.getElementById('exitParamLabel').textContent = cfg.paramLabel;
+    const input = document.getElementById('exitParamInput');
+    input.min = cfg.min; input.max = cfg.max; input.step = cfg.step;
+    input.value = exitParam!=null ? exitParam : cfg.paramDefault;
+  } else {
+    wrap.style.display = 'none';
+  }
+}
+// ---------- Kombinations-Optimizer: alle Entry×Exit-Kombinationen über ein Kerzenfenster vergleichen ----------
+// Nutzt die vollen geladenen Daten für die Indikator-Berechnung (kein Warmup-Verlust), wertet aber nur die
+// letzten "windowSize" Kerzen für Rendite/Drawdown -> "über die letzten X Kerzen" ohne die Strategie künstlich
+// zu verstümmeln.
+// Bewertet eine Position über einen EXPLIZITEN Kerzen-Indexbereich [start, end) -- die allgemeine Grundlage für
+// scoreWindow() (die letzten N Kerzen) UND für die Walk-Forward-Validierung (ein beliebiger älterer/neuerer
+// Ausschnitt, z.B. "nur die In-Sample-Hälfte" oder "nur die Out-of-Sample-Hälfte").
+function scoreRange(position, closes, start, end){
+  start = Math.max(1, start);
+  end = Math.min(closes.length, end);
+  let equity = 1, peak = 1, maxDD = 0, trades = 0;
+  for(let i=start;i<end;i++){
+    const ret = (closes[i]-closes[i-1])/closes[i-1];
+    const prevPos = position[i-1];
+    const activeRet = prevPos===1 ? ret : (prevPos===-1 ? -ret : 0);
+    equity *= (1+activeRet);
+    peak = Math.max(peak, equity);
+    maxDD = Math.min(maxDD, (equity-peak)/peak);
+    if(position[i]===1 && position[i-1]!==1) trades++;
+    if(position[i]===-1 && position[i-1]!==-1) trades++;
+  }
+  const totalReturn = equity - 1;
+  const buyHold = end>start ? closes[end-1]/closes[start-1] - 1 : 0;
+  return { totalReturn, maxDD, trades, buyHold, windowSize: Math.max(0, end-start) };
+}
+// "Über die letzten windowSize Kerzen" -- Spezialfall von scoreRange() mit start = n-windowSize, end = n.
+function scoreWindow(position, closes, windowSize){
+  const n = closes.length;
+  return scoreRange(position, closes, n - windowSize, n);
+}
+
+// Stufe 2 (optional, per Checkbox): verfeinert NUR die bereits gefundene beste Entry+Exit-Kombination über alle
+// vier Entry-Filter-Dimensionen (Signalfilter/Fakeout-Kerzen, Volumen, Swing-Breakout, Multi-Timeframe). Das ist
+// bewusst KEINE vollständige gemeinsame Suche über Entry×Exit×Filter (9×4×4×2×8×5 ≈ 11.500 Kombinationen wäre im
+// Browser spürbar langsam) — stattdessen ein zweistufiges "erst Entry+Exit, dann Filter"-Verfahren (288 zusätzliche
+// Kombinationen für den einen Gewinner). Das findet eine sehr gute, aber nicht garantiert global optimale Lösung;
+// das wird im Ergebnistext auch so benannt, keine falsche Präzision.
+// scoreBounds (optional): {start,end} -- wenn gesetzt (Walk-Forward aktiv), wird NUR innerhalb dieses (In-Sample-)
+// Bereichs optimiert, statt über das komplette windowSize-Fenster. Sonst (kein Walk-Forward) unverändertes
+// Verhalten wie bisher: die letzten windowSize Kerzen zählen für die Filterauswahl.
+async function refineFiltersForBest(stratKey, data, windowSize, scoreBounds){
+  const higherInterval = NEXT_HIGHER_TF[activeInterval];
+  if(higherInterval){ try{ await ensureData(activeCoin, higherInterval); }catch(e){ /* MTF bleibt dann bei diesem Durchlauf wirkungslos */ } }
+  let bestFilter = null;
+  let iter = 0;
+  for(const ecb of ENTRY_FILTER_OPTIONS){
+    for(const vf of VOLUME_FILTER_OPTIONS){
+      for(const sb of SWING_BREAKOUT_OPTIONS){
+        for(const mtf of [false, true]){
+          entryConfirmBars = ecb; volumeFilterMult = vf; swingBreakoutBars = sb; mtfFilterOn = mtf;
+          strategyCache = {};
+          const r = buildStrategies(activeCoin, activeInterval)[stratKey];
+          const score = scoreBounds
+            ? scoreRange(r.position, data.closes, scoreBounds.start, scoreBounds.end)
+            : scoreWindow(r.position, data.closes, windowSize);
+          if(!bestFilter || score.totalReturn > bestFilter.totalReturn){
+            bestFilter = { entryConfirmBars:ecb, volumeFilterMult:vf, swingBreakoutBars:sb, mtfFilterOn:mtf, ...score };
+          }
+          iter++;
+          if(iter % 24 === 0) await new Promise(res=>setTimeout(res,0)); // UI-Thread zwischendurch atmen lassen
+        }
+      }
+    }
+  }
+  entryConfirmBars = bestFilter.entryConfirmBars;
+  volumeFilterMult = bestFilter.volumeFilterMult;
+  swingBreakoutBars = bestFilter.swingBreakoutBars;
+  mtfFilterOn = bestFilter.mtfFilterOn;
+  document.getElementById('entryFilterSelect').value = String(entryConfirmBars);
+  document.getElementById('volumeFilterSelect').value = String(volumeFilterMult);
+  document.getElementById('swingBreakoutSelect').value = String(swingBreakoutBars);
+  document.getElementById('mtfFilterSelect').value = mtfFilterOn ? 'on' : 'off';
+  return bestFilter;
+}
+
+async function runComboOptimizer(){
+  const key = activeCoin+'::'+activeInterval;
+  const data = ohlcCache[key];
+  const resultEl = document.getElementById('optimizerResult');
+  const btn = document.getElementById('optimizerBtn');
+  if(!data || data.closes.length < 30){
+    resultEl.textContent = 'Noch zu wenig Kerzendaten geladen für diesen Coin/Zeitrahmen.';
+    return;
+  }
+  const windowInput = document.getElementById('optimizerWindowInput');
+  const windowSize = Math.max(20, Math.min(data.closes.length-1, parseInt(windowInput.value,10) || 300));
+  const refineFilters = document.getElementById('optimizerRefineFilters').checked;
+  const walkForwardOn = document.getElementById('optimizerWalkForward').checked;
+  btn.disabled = true;
+  resultEl.textContent = `Teste alle Entry×Exit-Kombinationen für ${COINS[activeCoin].label} / ${INTERVALS.find(t=>t.value===activeInterval).label}…`;
+  await new Promise(r=>setTimeout(r, 20)); // UI kurz atmen lassen, bevor die Rechenschleife den Thread blockiert
+  const savedExitMode = exitMode, savedExitParam = exitParam;
+  const savedFilters = { entryConfirmBars, volumeFilterMult, swingBreakoutBars, mtfFilterOn };
+  try{
+    const n = data.closes.length;
+    const winStart = Math.max(1, n - windowSize);
+    // Walk-Forward: das Fenster wird in einen ÄLTEREN In-Sample-Teil (für die Suche) und einen NEUEREN
+    // Out-of-Sample-Teil (nur zur Kontrolle, fließt nirgends in die Auswahl ein) gesplittet. Ohne Walk-Forward
+    // ist isEnd = n, also identisch zum bisherigen Verhalten (das komplette Fenster zählt für die Suche).
+    let isEnd = n, oosOn = false;
+    if(walkForwardOn){
+      const oosFraction = (parseInt(document.getElementById('optimizerOosSelect').value,10) || 30) / 100;
+      const candidateIsEnd = Math.min(n, winStart + Math.round((n-winStart) * (1-oosFraction)));
+      // Beide Teile brauchen eine sinnvolle Mindestlänge, sonst ist die Out-of-Sample-Zahl reines Rauschen.
+      if(candidateIsEnd - winStart >= 20 && n - candidateIsEnd >= 15){ isEnd = candidateIsEnd; oosOn = true; }
+    }
+    const scoreBounds = { start: winStart, end: isEnd };
+
+    const results = [];
+    Object.entries(EXIT_MODES).forEach(([modeKey, cfg])=>{
+      exitMode = modeKey;
+      exitParam = cfg.paramDefault;
+      strategyCache = {}; // exit-abhängig -> muss pro Exit-Modus neu berechnet werden
+      const strategies = buildStrategies(activeCoin, activeInterval);
+      Object.entries(strategies).forEach(([stratKey, r])=>{
+        const score = scoreRange(r.position, data.closes, scoreBounds.start, scoreBounds.end);
+        results.push({ exitModeKey: modeKey, exitParam: cfg.paramDefault, stratKey, ...score });
+      });
+    });
+    results.sort((a,b)=> b.totalReturn - a.totalReturn);
+    const best = results[0];
+
+    exitMode = best.exitModeKey;
+    exitParam = best.exitParam;
+    document.getElementById('exitModeSelect').value = best.exitModeKey;
+    refreshExitParamUI();
+    document.getElementById('stratSelect').value = best.stratKey;
+
+    let filterLine = '';
+    if(refineFilters){
+      resultEl.textContent = `Beste Entry/Exit-Kombi gefunden (${STRAT_LABELS[best.stratKey]} + ${EXIT_MODES[best.exitModeKey].label}) — verfeinere jetzt die Filtereinstellungen…`;
+      await new Promise(r=>setTimeout(r, 20));
+      const bestFilter = await refineFiltersForBest(best.stratKey, data, windowSize, oosOn ? scoreBounds : null);
+      filterLine = `<br>Beste Filter dafür: Signalfilter ${bestFilter.entryConfirmBars===0?'aus':bestFilter.entryConfirmBars+' Kerzen'},
+        Volumen ${bestFilter.volumeFilterMult===0?'aus':'≥'+String(bestFilter.volumeFilterMult).replace('.',',')+'× Ø'},
+        Swing-Breakout ${bestFilter.swingBreakoutBars===0?'aus':bestFilter.swingBreakoutBars+' Kerzen'},
+        Multi-Timeframe ${bestFilter.mtfFilterOn?'an':'aus'} — Rendite mit diesen Filtern: ${fmtPct(bestFilter.totalReturn)}
+        (zweistufige Suche: erst Entry+Exit, dann Filter für den Gewinner — keine vollständige Joint-Suche über alles zugleich).`;
+    } else {
+      strategyCache = {};
+    }
+
+    // Walk-Forward-Kontrolle: die FERTIGE Gewinner-Kombination (Entry+Exit+ggf. verfeinerte Filter, alles bereits
+    // in den globalen Einstellungen aktiv) auf dem Out-of-Sample-Teil bewerten -- diese Kerzen ist beim Suchen nie
+    // gesehen worden. Erst danach applyExitModeChange(), damit diese Kontroll-Berechnung nicht selbst nochmal den
+    // Cache verändert, bevor sie fertig ist.
+    let walkForwardLine = '';
+    if(oosOn){
+      const finalR = buildStrategies(activeCoin, activeInterval)[best.stratKey];
+      const oosScore = scoreRange(finalR.position, data.closes, isEnd, n);
+      const isScore = scoreRange(finalR.position, data.closes, winStart, isEnd);
+      const weakened = oosScore.totalReturn < isScore.totalReturn * 0.5 || (isScore.totalReturn > 0 && oosScore.totalReturn <= 0);
+      walkForwardLine = `<br><strong>Walk-Forward-Check:</strong> In-Sample (${isScore.windowSize} Kerzen, für die Suche genutzt): ${fmtPct(isScore.totalReturn)}
+        → Out-of-Sample (${oosScore.windowSize} neuere Kerzen, NIE fürs Optimieren gesehen): ${fmtPct(oosScore.totalReturn)}.
+        ${weakened ? '⚠️ Deutlich schwächer als im Optimierungsfenster — Vorsicht, das riecht nach Überanpassung statt einer robusten Kombination.' : 'Hält sich in etwa auch außerhalb des Optimierungsfensters — spricht für eine robustere Kombination.'}`;
+    }
+
+    applyExitModeChange();
+
+    const rankLine = results.slice(0,3).map((r,idx)=>
+      `${idx+1}. ${STRAT_LABELS[r.stratKey]} + ${EXIT_MODES[r.exitModeKey].label}: ${fmtPct(r.totalReturn)}`
+    ).join(' · ');
+    resultEl.innerHTML = `<strong>Beste Kombination aktiviert:</strong> ${STRAT_LABELS_FULL[best.stratKey]} + ${EXIT_MODES[best.exitModeKey].label} —
+      Rendite (${best.windowSize} ${oosOn?'In-Sample-':''}Kerzen): ${fmtPct(best.totalReturn)}, vs. Buy&amp;Hold: ${fmtPct(best.totalReturn-best.buyHold)},
+      Max DD: ${fmtPct(best.maxDD)}, Trades: ${best.trades}.<br>Top 3 Entry+Exit: ${rankLine}${filterLine}${walkForwardLine}`;
+  } catch(e){
+    exitMode = savedExitMode; exitParam = savedExitParam;
+    entryConfirmBars = savedFilters.entryConfirmBars;
+    volumeFilterMult = savedFilters.volumeFilterMult;
+    swingBreakoutBars = savedFilters.swingBreakoutBars;
+    mtfFilterOn = savedFilters.mtfFilterOn;
+    strategyCache = {};
+    resultEl.textContent = 'Fehler beim Testen der Kombinationen: ' + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function populateExitBanner(){
+  const sel = document.getElementById('exitModeSelect');
+  Object.entries(EXIT_MODES).forEach(([key,cfg])=>{
+    const opt = document.createElement('option');
+    opt.value = key; opt.textContent = cfg.label;
+    if(key===exitMode) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  exitParam = EXIT_MODES[exitMode].paramDefault;
+  refreshExitParamUI();
+  sel.addEventListener('change', ()=>{
+    exitMode = sel.value;
+    exitParam = EXIT_MODES[exitMode].paramDefault;
+    refreshExitParamUI();
+    applyExitModeChange();
+  });
+  document.getElementById('exitParamInput').addEventListener('change', (e)=>{
+    const v = parseFloat(e.target.value);
+    if(!isNaN(v) && v>0){ exitParam = v; applyExitModeChange(); }
+  });
+}
+
+const WALK_FORWARD_OOS_OPTIONS = [20, 30, 40];
+function populateOptimizerWalkForwardUI(){
+  const checkbox = document.getElementById('optimizerWalkForward');
+  const wrap = document.getElementById('optimizerOosWrap');
+  const sel = document.getElementById('optimizerOosSelect');
+  WALK_FORWARD_OOS_OPTIONS.forEach(pct=>{
+    const opt = document.createElement('option');
+    opt.value = pct; opt.textContent = `${pct}% der neuesten Kerzen`;
+    if(pct === 30) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  checkbox.addEventListener('change', ()=>{ wrap.style.display = checkbox.checked ? '' : 'none'; });
+}
+
+const ENTRY_FILTER_OPTIONS = [0,1,2,3,4,5,6,8,10];
+function populateEntryFilterUI(){
+  const sel = document.getElementById('entryFilterSelect');
+  ENTRY_FILTER_OPTIONS.forEach(bars=>{
+    const opt = document.createElement('option');
+    opt.value = bars;
+    opt.textContent = bars===0 ? 'Kein Signalfilter' : `${bars} Bestätigungskerzen`;
+    if(bars === entryConfirmBars) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  sel.addEventListener('change', ()=>{
+    entryConfirmBars = parseInt(sel.value, 10) || 0;
+    applyExitModeChange(); // gleiche Pipeline: Cache leeren, alle Coins neu berechnen, neu rendern
+  });
+}
+
+const ATR_SAFETY_OPTIONS = [0, 2, 2.5, 3];
+function populateAtrSafetyUI(){
+  const sel = document.getElementById('atrSafetySelect');
+  ATR_SAFETY_OPTIONS.forEach(mult=>{
+    const opt = document.createElement('option');
+    opt.value = mult;
+    opt.textContent = mult===0 ? 'Aus' : `An (${String(mult).replace('.',',')}× ATR)`;
+    if(mult === structureAtrSafetyMult) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  sel.addEventListener('change', ()=>{
+    structureAtrSafetyMult = parseFloat(sel.value) || 0;
+    applyExitModeChange();
+  });
+}
+
+const VOLUME_FILTER_OPTIONS = [0, 1, 1.5, 2];
+function populateVolumeFilterUI(){
+  const sel = document.getElementById('volumeFilterSelect');
+  VOLUME_FILTER_OPTIONS.forEach(mult=>{
+    const opt = document.createElement('option');
+    opt.value = mult;
+    opt.textContent = mult===0 ? 'Aus' : `≥ ${String(mult).replace('.',',')}× Ø Volumen (20)`;
+    if(mult === volumeFilterMult) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  sel.addEventListener('change', ()=>{
+    volumeFilterMult = parseFloat(sel.value) || 0;
+    applyExitModeChange();
+  });
+}
+
+function populateMtfFilterUI(){
+  const sel = document.getElementById('mtfFilterSelect');
+  [ {v:'off', label:'Aus'}, {v:'on', label:'An (nächsthöherer Zeitrahmen)'} ].forEach(o=>{
+    const opt = document.createElement('option');
+    opt.value = o.v; opt.textContent = o.label;
+    if((o.v==='on') === mtfFilterOn) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  sel.addEventListener('change', ()=>{
+    mtfFilterOn = sel.value === 'on';
+    applyExitModeChange();
+  });
+}
+
+// ---------- Übergeordneter Zeitrahmen für den MTF-Filter: wählbar statt fest, je Basis-Intervall ----------
+// Befüllt/aktualisiert einen Select mit allen Intervallen, die "höher" als das gegebene Basis-Intervall sind,
+// inkl. einer "Standard (X)"-Option -- wird sowohl initial als auch bei jedem Intervall-Wechsel (Analyse-Chart
+// bzw. Automatik-Zeitrahmen) neu aufgerufen, weil die gültigen Optionen und der aktuelle Override vom jeweiligen
+// Basis-Intervall abhängen.
+function refreshHigherTFSelect(selectEl, labelEl, interval){
+  if(!selectEl) return;
+  selectEl.innerHTML = '';
+  const ivLabel = (INTERVALS.find(i=>i.value===interval) || {}).label || interval;
+  if(labelEl) labelEl.textContent = `Höherer Zeitrahmen (für ${ivLabel})`;
+  const opts = higherTFOptionsFor(interval);
+  const defaultVal = DEFAULT_NEXT_HIGHER_TF[interval];
+  if(opts.length === 0 || !defaultVal){
+    const opt = document.createElement('option');
+    opt.value = ''; opt.textContent = 'Kein höherer Zeitrahmen verfügbar';
+    selectEl.appendChild(opt);
+    selectEl.disabled = true;
+    return;
+  }
+  selectEl.disabled = false;
+  const defaultLabel = (INTERVALS.find(i=>i.value===defaultVal) || {}).label || defaultVal;
+  const stdOpt = document.createElement('option');
+  stdOpt.value = defaultVal; stdOpt.textContent = `Standard (${defaultLabel})`;
+  selectEl.appendChild(stdOpt);
+  opts.forEach(iv=>{
+    if(iv.value === defaultVal) return; // bereits oben als "Standard" gelistet
+    const opt = document.createElement('option');
+    opt.value = iv.value; opt.textContent = iv.label;
+    selectEl.appendChild(opt);
+  });
+  selectEl.value = NEXT_HIGHER_TF[interval] || defaultVal;
+}
+function populateMtfHigherTfUI(){
+  const sel = document.getElementById('mtfHigherTfSelect');
+  const label = document.getElementById('mtfHigherTfLabel');
+  refreshHigherTFSelect(sel, label, activeInterval);
+  sel.addEventListener('change', ()=>{
+    setHigherTFOverride(activeInterval, sel.value);
+  });
+}
+function populateAutoMtfHigherTfUI(){
+  const sel = document.getElementById('autoMtfHigherTfSelect');
+  const label = document.getElementById('autoMtfHigherTfLabel');
+  refreshHigherTFSelect(sel, label, autoTradeInterval);
+  sel.addEventListener('change', ()=>{
+    setHigherTFOverride(autoTradeInterval, sel.value);
+  });
+}
+
+const SWING_BREAKOUT_OPTIONS = [0, 2, 3, 5];
+function populateSwingBreakoutUI(){
+  const sel = document.getElementById('swingBreakoutSelect');
+  SWING_BREAKOUT_OPTIONS.forEach(bars=>{
+    const opt = document.createElement('option');
+    opt.value = bars;
+    opt.textContent = bars===0 ? 'Aus' : `${bars} Kerzen Pivot-Fenster`;
+    if(bars === swingBreakoutBars) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  sel.addEventListener('change', ()=>{
+    swingBreakoutBars = parseInt(sel.value, 10) || 0;
+    applyExitModeChange();
+  });
+}
+
+// ---------- Automatik-eigene Exit-Strategie & Entry-Filter (unabhängig vom Analyse-Tab) ----------
+// Spiegelt exakt dieselben sechs Selects/Populate-Funktionen wie oben im Analyse-Tab, aber verdrahtet auf die
+// auto*-Variablen statt der geteilten Analyse-Variablen, und ruft applyAutoFilterChange() statt
+// applyExitModeChange() auf (invalidiert nur das 'auto'-Profil im Cache, rührt Analyse-Chart/-Tabelle nicht an,
+// stößt stattdessen runAutoTrade()/renderAutoTradeUI() an).
+function applyAutoFilterChange(){
+  Object.keys(strategyCache).forEach(k=>{ if(k.endsWith('::auto')) delete strategyCache[k]; });
+  saveAutoTradeState();
+  if(autoTradeEnabled) runAutoTrade(); else renderAutoTradeUI();
+}
+function refreshAutoExitParamUI(){
+  const cfg = EXIT_MODES[autoExitMode];
+  const wrap = document.getElementById('autoExitParamWrap');
+  document.getElementById('autoExitModeDesc').textContent = cfg.desc;
+  if(cfg.paramLabel){
+    wrap.style.display = '';
+    document.getElementById('autoExitParamLabel').textContent = cfg.paramLabel;
+    const input = document.getElementById('autoExitParamInput');
+    input.min = cfg.min; input.max = cfg.max; input.step = cfg.step;
+    input.value = autoExitParam!=null ? autoExitParam : cfg.paramDefault;
+  } else {
+    wrap.style.display = 'none';
+  }
+}
+function populateAutoExitBanner(){
+  const sel = document.getElementById('autoExitModeSelect');
+  Object.entries(EXIT_MODES).forEach(([key,cfg])=>{
+    const opt = document.createElement('option');
+    opt.value = key; opt.textContent = cfg.label;
+    if(key===autoExitMode) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  if(autoExitParam == null) autoExitParam = EXIT_MODES[autoExitMode].paramDefault; // aus localStorage geladener Wert bleibt erhalten
+  refreshAutoExitParamUI();
+  sel.addEventListener('change', ()=>{
+    autoExitMode = sel.value;
+    autoExitParam = EXIT_MODES[autoExitMode].paramDefault;
+    refreshAutoExitParamUI();
+    applyAutoFilterChange();
+  });
+  document.getElementById('autoExitParamInput').addEventListener('change', (e)=>{
+    const v = parseFloat(e.target.value);
+    if(!isNaN(v) && v>0){ autoExitParam = v; applyAutoFilterChange(); }
+  });
+}
+function populateAutoEntryFilterUI(){
+  const sel = document.getElementById('autoEntryFilterSelect');
+  ENTRY_FILTER_OPTIONS.forEach(bars=>{
+    const opt = document.createElement('option');
+    opt.value = bars;
+    opt.textContent = bars===0 ? 'Kein Signalfilter' : `${bars} Bestätigungskerzen`;
+    if(bars === autoEntryConfirmBars) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  sel.addEventListener('change', ()=>{
+    autoEntryConfirmBars = parseInt(sel.value, 10) || 0;
+    applyAutoFilterChange();
+  });
+}
+function populateAutoAtrSafetyUI(){
+  const sel = document.getElementById('autoAtrSafetySelect');
+  ATR_SAFETY_OPTIONS.forEach(mult=>{
+    const opt = document.createElement('option');
+    opt.value = mult;
+    opt.textContent = mult===0 ? 'Aus' : `An (${String(mult).replace('.',',')}× ATR)`;
+    if(mult === autoStructureAtrSafetyMult) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  sel.addEventListener('change', ()=>{
+    autoStructureAtrSafetyMult = parseFloat(sel.value) || 0;
+    applyAutoFilterChange();
+  });
+}
+function populateAutoVolumeFilterUI(){
+  const sel = document.getElementById('autoVolumeFilterSelect');
+  VOLUME_FILTER_OPTIONS.forEach(mult=>{
+    const opt = document.createElement('option');
+    opt.value = mult;
+    opt.textContent = mult===0 ? 'Aus' : `≥ ${String(mult).replace('.',',')}× Ø Volumen (20)`;
+    if(mult === autoVolumeFilterMult) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  sel.addEventListener('change', ()=>{
+    autoVolumeFilterMult = parseFloat(sel.value) || 0;
+    applyAutoFilterChange();
+  });
+}
+function populateAutoMtfFilterUI(){
+  const sel = document.getElementById('autoMtfFilterSelect');
+  [ {v:'off', label:'Aus'}, {v:'on', label:'An (nächsthöherer Zeitrahmen)'} ].forEach(o=>{
+    const opt = document.createElement('option');
+    opt.value = o.v; opt.textContent = o.label;
+    if((o.v==='on') === autoMtfFilterOn) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  sel.addEventListener('change', ()=>{
+    autoMtfFilterOn = sel.value === 'on';
+    applyAutoFilterChange();
+  });
+}
+function populateAutoSwingBreakoutUI(){
+  const sel = document.getElementById('autoSwingBreakoutSelect');
+  SWING_BREAKOUT_OPTIONS.forEach(bars=>{
+    const opt = document.createElement('option');
+    opt.value = bars;
+    opt.textContent = bars===0 ? 'Aus' : `${bars} Kerzen Pivot-Fenster`;
+    if(bars === autoSwingBreakoutBars) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  sel.addEventListener('change', ()=>{
+    autoSwingBreakoutBars = parseInt(sel.value, 10) || 0;
+    applyAutoFilterChange();
+  });
+}
+
+// ---------- Automatik-Trading: UI-Verkabelung & Rendering ----------
+function switchView(view){
+  document.getElementById('analysisView').style.display = view==='analysis' ? '' : 'none';
+  document.getElementById('autoTradeView').style.display = view==='auto' ? '' : 'none';
+  document.getElementById('viewTabAnalysis').classList.toggle('active', view==='analysis');
+  document.getElementById('viewTabAuto').classList.toggle('active', view==='auto');
+  if(view==='auto') renderAutoTradeUI();
+}
+function populateAutoTradeUI(){
+  const ivEl = document.getElementById('autoIntervalSelect');
+  INTERVALS.forEach(iv=>{
+    const opt = document.createElement('option');
+    opt.value = iv.value; opt.textContent = iv.label;
+    if(iv.value===autoTradeInterval) opt.selected = true;
+    ivEl.appendChild(opt);
+  });
+  ivEl.addEventListener('change', async ()=>{
+    autoTradeInterval = ivEl.value;
+    saveAutoTradeState();
+    refreshHigherTFSelect(document.getElementById('autoMtfHigherTfSelect'), document.getElementById('autoMtfHigherTfLabel'), autoTradeInterval);
+    if(autoTradeEnabled){
+      document.getElementById('autoStatus').textContent = 'Lade Daten für neuen Automatik-Zeitrahmen…';
+      await Promise.all(Object.keys(COINS).map(c => ensureData(c, autoTradeInterval)));
+      runAutoTrade();
+    } else {
+      renderAutoTradeUI();
+    }
+  });
+
+  const stratEl = document.getElementById('autoStratSelect');
+  Object.entries(STRAT_LABELS_FULL).forEach(([key,label])=>{
+    const opt = document.createElement('option');
+    opt.value = key; opt.textContent = label;
+    if(key===autoTradeStratKey) opt.selected = true;
+    stratEl.appendChild(opt);
+  });
+  stratEl.addEventListener('change', ()=>{
+    autoTradeStratKey = stratEl.value;
+    saveAutoTradeState();
+    if(autoTradeEnabled) runAutoTrade(); else renderAutoTradeUI();
+  });
+
+  updateAutoToggleBtn();
+  document.getElementById('autoToggleBtn').addEventListener('click', async ()=>{
+    autoTradeEnabled = !autoTradeEnabled;
+    updateAutoToggleBtn();
+    saveAutoTradeState();
+    if(autoTradeEnabled){
+      document.getElementById('autoStatus').textContent = 'Lade Daten für Automatik-Zeitrahmen…';
+      await Promise.all(Object.keys(COINS).map(c => ensureData(c, autoTradeInterval)));
+      runAutoTrade();
+    } else {
+      renderAutoTradeUI();
+    }
+  });
+
+  document.getElementById('autoResetPositionsBtn').addEventListener('click', ()=>{
+    if(!confirm('Alle offenen Papier-Positionen wirklich zurücksetzen (ohne Log-Eintrag)?')) return;
+    autoOpenPositions = {};
+    saveAutoTradeState();
+    renderAutoTradeUI();
+  });
+  document.getElementById('autoClearLogBtn').addEventListener('click', ()=>{
+    if(!confirm('Das komplette Paper-Trading-Log wirklich löschen?')) return;
+    autoTradeLog = [];
+    saveAutoTradeState();
+    renderAutoTradeUI();
+  });
+
+  document.getElementById('viewTabAnalysis').addEventListener('click', ()=> switchView('analysis'));
+  document.getElementById('viewTabAuto').addEventListener('click', ()=> switchView('auto'));
+}
+function updateAutoToggleBtn(){
+  const btn = document.getElementById('autoToggleBtn');
+  if(!btn) return;
+  btn.textContent = autoTradeEnabled ? 'Automatik stoppen' : 'Automatik starten';
+  btn.style.background = autoTradeEnabled ? 'var(--green)' : '';
+}
+// ---------- Automatik-Modus (Feste Strategie vs. Dynamische Rotation) ----------
+function populateAutoModeUI(){
+  const sel = document.getElementById('autoModeSelect');
+  [
+    {v:'fixed', label:'Feste Strategie'},
+    {v:'dynamic', label:'Dynamisch: beste Strategie der letzten N Kerzen'}
+  ].forEach(o=>{
+    const opt = document.createElement('option');
+    opt.value = o.v; opt.textContent = o.label;
+    if(o.v === autoTradeMode) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  sel.addEventListener('change', ()=>{
+    autoTradeMode = sel.value;
+    saveAutoTradeState();
+    refreshAutoModeUI();
+    if(autoTradeEnabled) runAutoTrade(); else renderAutoTradeUI();
+  });
+
+  const winInput = document.getElementById('autoDynamicWindowInput');
+  winInput.value = autoDynamicWindow;
+  winInput.addEventListener('change', (e)=>{
+    const v = parseInt(e.target.value, 10);
+    if(!isNaN(v) && v >= 10){ autoDynamicWindow = v; saveAutoTradeState(); if(autoTradeEnabled) runAutoTrade(); else renderAutoTradeUI(); }
+  });
+  const edgeInput = document.getElementById('autoDynamicMinEdgeInput');
+  edgeInput.value = autoDynamicMinEdgePct;
+  edgeInput.addEventListener('change', (e)=>{
+    const v = parseFloat(e.target.value);
+    if(!isNaN(v) && v >= 0){ autoDynamicMinEdgePct = v; saveAutoTradeState(); if(autoTradeEnabled) runAutoTrade(); else renderAutoTradeUI(); }
+  });
+  const holdInput = document.getElementById('autoDynamicMinHoldInput');
+  holdInput.value = autoDynamicMinHoldBars;
+  holdInput.addEventListener('change', (e)=>{
+    const v = parseInt(e.target.value, 10);
+    if(!isNaN(v) && v >= 0){ autoDynamicMinHoldBars = v; saveAutoTradeState(); if(autoTradeEnabled) runAutoTrade(); else renderAutoTradeUI(); }
+  });
+
+  refreshAutoModeUI();
+}
+function refreshAutoModeUI(){
+  const isDynamic = autoTradeMode === 'dynamic';
+  const stratSel = document.getElementById('autoStratSelect');
+  if(stratSel) stratSel.disabled = isDynamic;
+  const wrap = document.getElementById('autoDynamicParamsWrap');
+  if(wrap) wrap.style.display = isDynamic ? '' : 'none';
+}
+function computeAutoTradeStats(){
+  const trades = autoTradeLog;
+  const total = trades.length;
+  if(total===0) return {total:0};
+  const wins = trades.filter(t=>t.pnlPct>=0);
+  const losses = trades.filter(t=>t.pnlPct<0);
+  const winRate = wins.length/total;
+  const avgPnl = trades.reduce((s,t)=>s+t.pnlPct,0)/total;
+  const avgWin = wins.length ? wins.reduce((s,t)=>s+t.pnlPct,0)/wins.length : 0;
+  const avgLoss = losses.length ? losses.reduce((s,t)=>s+t.pnlPct,0)/losses.length : 0;
+  const grossWin = wins.reduce((s,t)=>s+t.pnlPct,0);
+  const grossLoss = Math.abs(losses.reduce((s,t)=>s+t.pnlPct,0));
+  const profitFactor = grossLoss>0 ? grossWin/grossLoss : (grossWin>0 ? Infinity : null);
+  return {total, winRate, avgPnl, avgWin, avgLoss, profitFactor};
+}
+function renderAutoStatsRow(){
+  const el = document.getElementById('autoStatsRow');
+  if(!el) return;
+  const s = computeAutoTradeStats();
+  if(s.total===0){
+    el.innerHTML = `<div class="percoin-empty">Noch keine geschlossenen Trades — Statistik erscheint nach dem ersten Ausstieg.</div>`;
+    return;
+  }
+  const pfText = s.profitFactor==null ? '—' : (s.profitFactor===Infinity ? '∞' : s.profitFactor.toFixed(2));
+  el.innerHTML = `
+    <div class="stat-box"><div class="stat-label">Trades</div><div class="stat-value">${s.total}</div></div>
+    <div class="stat-box"><div class="stat-label">Trefferquote</div><div class="stat-value">${(s.winRate*100).toFixed(0)}%</div></div>
+    <div class="stat-box"><div class="stat-label">Ø PnL / Trade</div><div class="stat-value">${fmtPct(s.avgPnl/100)}</div></div>
+    <div class="stat-box"><div class="stat-label">Ø Gewinn</div><div class="stat-value">${fmtPct(s.avgWin/100)}</div></div>
+    <div class="stat-box"><div class="stat-label">Ø Verlust</div><div class="stat-value">${fmtPct(s.avgLoss/100)}</div></div>
+    <div class="stat-box"><div class="stat-label">Profit-Faktor</div><div class="stat-value">${pfText}</div></div>
+  `;
+}
+function renderAutoPerCoinGrid(){
+  const el = document.getElementById('autoPerCoinGrid');
+  if(!el) return;
+  el.innerHTML = Object.entries(COINS).map(([coin,c])=>{
+    const pos = autoOpenPositions[coin];
+    const paused = !!autoCoinPaused[coin];
+    // Rohsignal-Zeile: nutzt bei offener Position deren eingefrorene Strategie/Zeitrahmen (das, was die
+    // Position wirklich gerade steuert), sonst die aktuell im Automatik-Tab gewählte Strategie/Zeitrahmen
+    // (das, womit ein neuer Einstieg entscheiden würde) — genau zur Transparenz, seit wann/auf welcher Basis
+    // ein Signal besteht, unabhängig vom Alarm-Banner-Zeitfenster im Analyse-Tab.
+    // Im dynamischen Modus zeigt die Rohsignal-Zeile die STRATEGIE, die die Position tatsächlich steuert (bei
+    // offener Position deren eingefrorenes stratKey), sonst die aktuell beste laut Rendite-Vergleichsfenster --
+    // plus eine zweite Zeile mit der aktuell besten ALTERNATIVE und deren Vorsprung, damit nachvollziehbar ist,
+    // wie nah eine Rotation ist.
+    const isDynamic = autoTradeMode === 'dynamic';
+    let sigStratKey, sigInterval;
+    if(pos){
+      sigStratKey = pos.stratKey; sigInterval = pos.interval;
+    } else if(isDynamic){
+      const best = pickBestStrategyByScore(coin, autoTradeInterval, autoDynamicWindow);
+      sigStratKey = best ? best.stratKey : autoTradeStratKey;
+      sigInterval = autoTradeInterval;
+    } else {
+      sigStratKey = autoTradeStratKey; sigInterval = autoTradeInterval;
+    }
+    const sigData = ohlcCache[coin+'::'+sigInterval];
+    let signalHtml = '<div class="percoin-signal percoin-empty">Noch keine Daten für diesen Zeitrahmen geladen</div>';
+    let rotationHtml = '';
+    if(sigData && sigData.closes.length >= 5){
+      const strategies = buildStrategies(coin, sigInterval, 'auto');
+      const r = strategies[sigStratKey];
+      if(r && r.position && r.position.length){
+        const lastPos = r.position[r.position.length-1];
+        const dirLabel = lastPos===1 ? 'LONG' : lastPos===-1 ? 'SHORT' : 'FLACH';
+        const dirClass = lastPos===1 ? 'pos' : (lastPos===-1 ? 'neg' : '');
+        const lastTrade = r.trades[r.trades.length-1];
+        const sinceText = lastTrade ? ('aktiv seit ' + fmtClock(sigData.times[lastTrade.i])) : 'noch kein Signalwechsel in der geladenen Historie';
+        signalHtml = `<div class="percoin-signal">Rohsignal (${STRAT_LABELS[sigStratKey]}, ${sigInterval}): <strong class="${dirClass}">${dirLabel}</strong> · ${sinceText}</div>`;
+      }
+      if(isDynamic && pos){
+        const best = pickBestStrategyByScore(coin, sigInterval, autoDynamicWindow);
+        if(best && best.stratKey !== pos.stratKey){
+          const heldR = strategies[pos.stratKey];
+          const heldScore = heldR ? scoreWindow(heldR.position, sigData.closes, autoDynamicWindow) : null;
+          const edgePct = heldScore ? (best.score.totalReturn - heldScore.totalReturn) * 100 : null;
+          const lastIdx = r.position.length - 1;
+          const barsHeld = lastIdx - (pos.entryIdx != null ? pos.entryIdx : lastIdx);
+          const holdOk = barsHeld >= autoDynamicMinHoldBars;
+          rotationHtml = `<div class="percoin-signal">Beste Alternative: ${STRAT_LABELS[best.stratKey]}, ${edgePct!=null ? (edgePct>=0?'+':'')+edgePct.toFixed(1)+'pp' : '—'}
+            (Schwelle ${autoDynamicMinEdgePct}pp) · gehalten seit ${barsHeld} Kerzen${holdOk ? '' : ' (Mindesthaltezeit '+autoDynamicMinHoldBars+' noch nicht erreicht)'}</div>`;
+        }
+      }
+    }
+
+    const liveData = ohlcCache[coin+'::'+sigInterval];
+    const lastPrice = liveData && liveData.closes.length ? liveData.closes[liveData.closes.length-1] : null;
+    let liveHtml;
+    if(pos && lastPrice!=null){
+      const pnlPct = pos.direction==='long' ? (lastPrice-pos.entryPrice)/pos.entryPrice*100 : (pos.entryPrice-lastPrice)/pos.entryPrice*100;
+      liveHtml = `<div class="percoin-live">Offen: <strong class="${pos.direction==='long'?'pos':'neg'}">${pos.direction==='long'?'LONG':'SHORT'}</strong>
+        seit ${fmtClock(pos.entryTime)} · Entry ${fmtEUR(pos.entryPrice)} · aktuell ${fmtPct(pnlPct/100)}</div>`;
+    } else {
+      liveHtml = `<div class="percoin-live percoin-empty">Keine offene Position</div>`;
+    }
+    const coinTrades = autoTradeLog.filter(t=>t.coin===coin);
+    const lastTrades = coinTrades.slice(-3).reverse();
+    const tradesHtml = lastTrades.length
+      ? lastTrades.map(t=>`<div class="percoin-trade-row"><span>${t.direction==='long'?'Long':'Short'} · ${fmtClock(t.exitTime)}</span><span class="${t.pnlPct>=0?'pos':'neg'}">${fmtPct(t.pnlPct/100)}</span></div>`).join('')
+      : `<div class="percoin-empty">Noch keine Trades</div>`;
+    const coinWins = coinTrades.filter(t=>t.pnlPct>=0).length;
+    const summary = coinTrades.length ? `${coinTrades.length} Trades · ${(coinWins/coinTrades.length*100).toFixed(0)}% Trefferquote` : '';
+
+    const controlsHtml = `<div class="percoin-controls">
+      ${pos
+        ? `<button class="secondary small" onclick="manualCloseAuto('${coin}')">Position schließen</button>`
+        : `<button class="secondary small" onclick="manualOpenAuto('${coin}','long')">Manuell Long</button>
+           <button class="secondary small" onclick="manualOpenAuto('${coin}','short')">Manuell Short</button>`}
+      <button class="secondary small" onclick="toggleCoinPause('${coin}')">${paused ? 'Automatik fortsetzen' : 'Automatik pausieren'}</button>
+    </div>`;
+
+    return `<div class="percoin-card">
+      <h3>${c.short}${paused ? '<span class="badge">PAUSIERT</span>' : ''}</h3>
+      ${signalHtml}
+      ${rotationHtml}
+      ${liveHtml}
+      ${tradesHtml}
+      ${summary ? `<div class="percoin-summary">${summary}</div>` : ''}
+      ${controlsHtml}
+    </div>`;
+  }).join('');
+}
+function renderAutoLogTable(){
+  const tbody = document.querySelector('#autoLogTable tbody');
+  const emptyEl = document.getElementById('autoLogEmpty');
+  if(!tbody) return;
+  const rows = autoTradeLog.slice().reverse();
+  if(emptyEl) emptyEl.style.display = rows.length ? 'none' : '';
+  tbody.innerHTML = rows.map(t=>`
+    <tr>
+      <td>${COINS[t.coin] ? COINS[t.coin].short : t.coin}</td>
+      <td class="${t.direction==='long'?'pos':'neg'}">${t.direction==='long'?'Long':'Short'}</td>
+      <td>${fmtEUR(t.entryPrice)}</td>
+      <td>${fmtEUR(t.exitPrice)}</td>
+      <td class="${t.pnlPct>=0?'pos':'neg'}">${fmtPct(t.pnlPct/100)}</td>
+      <td>${t.reason}</td>
+      <td>${new Date(t.entryTime).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</td>
+      <td>${new Date(t.exitTime).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</td>
+    </tr>`).join('');
+}
+function renderAutoTradeUI(){
+  renderAutoStatsRow();
+  drawEquityChart();
+  renderAutoPerCoinGrid();
+  renderAutoLogTable();
+  const dot = document.getElementById('autoLiveDot');
+  if(dot) dot.style.display = autoTradeEnabled ? '' : 'none';
+  const statusEl = document.getElementById('autoStatus');
+  if(statusEl){
+    const ivLabel = (INTERVALS.find(i=>i.value===autoTradeInterval) || {}).label || autoTradeInterval;
+    statusEl.textContent = autoTradeEnabled
+      ? `Automatik läuft · ${STRAT_LABELS_FULL[autoTradeStratKey]} · ${ivLabel}`
+      : 'Automatik ist aus.';
+  }
+}
+
+// ---------- Eigenkapitalkurve (Automatik) ----------
+// Pro Coin: kumulierte Rendite aus den geschlossenen Trades in autoTradeLog (chronologisch, compoundend ab 1.0),
+// plus -- falls gerade eine Position offen ist -- ein zusätzlicher Punkt "jetzt" mit deren unrealisierter
+// Rendite zum letzten bekannten Kurs (mark-to-market), damit die Kurve nicht tagelang "stehenbleibt", nur weil
+// gerade kein Trade geschlossen wurde.
+function computeAutoEquityCurves(){
+  const perCoin = {};
+  Object.keys(COINS).forEach(coin=>{
+    const trades = autoTradeLog.filter(t=>t.coin===coin).slice().sort((a,b)=>a.exitTime-b.exitTime);
+    const points = [];
+    const startT = trades.length ? trades[0].entryTime : (autoOpenPositions[coin] ? autoOpenPositions[coin].entryTime : null);
+    if(startT != null) points.push({ t: startT, equity: 1 });
+    let equity = 1;
+    trades.forEach(tr=>{
+      equity *= (1 + tr.pnlPct/100);
+      points.push({ t: tr.exitTime, equity });
+    });
+    const pos = autoOpenPositions[coin];
+    if(pos){
+      const data = ohlcCache[coin+'::'+(pos.interval||autoTradeInterval)];
+      const lastPrice = data && data.closes.length ? data.closes[data.closes.length-1] : null;
+      if(lastPrice != null){
+        const unrealizedPct = pos.direction==='long'
+          ? (lastPrice-pos.entryPrice)/pos.entryPrice*100
+          : (pos.entryPrice-lastPrice)/pos.entryPrice*100;
+        points.push({ t: Date.now(), equity: equity*(1+unrealizedPct/100) });
+      }
+    }
+    perCoin[coin] = points;
+  });
+  return perCoin;
+}
+// Gleichgewichtete (1/3 je Coin) Durchschnittskurve über eine gemeinsame, aus allen drei Einzelkurven gemergte
+// Zeitachse -- zwischen den eigenen Updates eines Coins gilt dessen zuletzt bekannter Wert als konstant fort
+// (kein Trade = kein Kapitalfluss für diesen Coin in diesem Moment). Bewusst vereinfachend: unterstellt gleich
+// große Kapitalanteile je Coin, keine echte Portfolio-Positionsgrößen-Modellierung.
+function computeCombinedEquityCurve(perCoin){
+  const coins = Object.keys(perCoin);
+  const withData = coins.filter(c=> perCoin[c].length>0);
+  if(withData.length===0) return [];
+  const allTimes = Array.from(new Set(coins.flatMap(c=>perCoin[c].map(p=>p.t)))).sort((a,b)=>a-b);
+  const lastVal = {}; coins.forEach(c=> lastVal[c]=1);
+  const ptr = {}; coins.forEach(c=> ptr[c]=0);
+  return allTimes.map(t=>{
+    coins.forEach(c=>{
+      const pts = perCoin[c];
+      while(ptr[c] < pts.length && pts[ptr[c]].t <= t){ lastVal[c] = pts[ptr[c]].equity; ptr[c]++; }
+    });
+    const avg = coins.reduce((s,c)=> s+lastVal[c], 0) / coins.length;
+    return { t, equity: avg };
+  });
+}
+let equityChartListenerAttached = false;
+function drawEquityChart(){
+  const canvas = document.getElementById('autoEquityCanvas');
+  if(!canvas || typeof canvas.getContext !== 'function') return;
+  const ctx = canvas.getContext('2d');
+  if(!ctx) return;
+  if(!equityChartListenerAttached && typeof window !== 'undefined' && typeof window.addEventListener === 'function'){
+    equityChartListenerAttached = true;
+    window.addEventListener('resize', ()=> drawEquityChart());
+  }
+  const dpr = (typeof window!=='undefined' && window.devicePixelRatio) || 1;
+  const wCSS = canvas.clientWidth, hCSS = canvas.clientHeight;
+  if(!wCSS || !hCSS) return;
+  const wantW = Math.round(wCSS*dpr), wantH = Math.round(hCSS*dpr);
+  if(canvas.width !== wantW || canvas.height !== wantH){ canvas.width = wantW; canvas.height = wantH; }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, wCSS, hCSS);
+
+  if(autoTradeLog.length === 0 && Object.keys(autoOpenPositions).length === 0){
+    ctx.fillStyle = '#8b949e'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('Noch keine Trades für eine Eigenkapitalkurve.', wCSS/2, hCSS/2);
+    return;
+  }
+
+  const perCoin = computeAutoEquityCurves();
+  const combined = computeCombinedEquityCurve(perCoin);
+  const series = [
+    { label:'BTC', color:'#f7931a', points: perCoin.bitcoin || [] },
+    { label:'ETH', color:'#8b9dc3', points: perCoin.ethereum || [] },
+    { label:'SOL', color:'#9945ff', points: perCoin.solana || [] },
+    { label:'Kombiniert (Ø)', color:'#3fb950', points: combined, bold:true },
+  ];
+
+  const padL=48, padR=10, padT=18, padB=20;
+  const plotL=padL, plotR=wCSS-padR, plotT=padT, plotB=hCSS-padB;
+  const plotW=Math.max(10,plotR-plotL), plotH=Math.max(10,plotB-plotT);
+
+  let tMin=Infinity, tMax=-Infinity, eMin=Infinity, eMax=-Infinity;
+  series.forEach(s=> s.points.forEach(p=>{
+    if(p.t<tMin) tMin=p.t; if(p.t>tMax) tMax=p.t;
+    if(p.equity<eMin) eMin=p.equity; if(p.equity>eMax) eMax=p.equity;
+  }));
+  if(!isFinite(tMin) || tMin===tMax){ tMin=(tMin===Infinity?Date.now()-1:tMin)-1; tMax=isFinite(tMax)?tMax:Date.now(); }
+  if(!isFinite(eMin) || eMin===eMax){ const mid=isFinite(eMin)?eMin:1; eMin=mid-0.05; eMax=mid+0.05; }
+  const ePad = (eMax-eMin)*0.12 || 0.05; eMin-=ePad; eMax+=ePad;
+
+  const scaleX = t => plotL + (t-tMin)/(tMax-tMin||1)*plotW;
+  const scaleY = e => plotB - (e-eMin)/(eMax-eMin||1)*plotH;
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.07)'; ctx.lineWidth = 1;
+  for(let i=0;i<=4;i++){ const y=Math.round(plotT+i/4*plotH)+0.5; ctx.beginPath(); ctx.moveTo(plotL,y); ctx.lineTo(plotR,y); ctx.stroke(); }
+  if(eMin<1 && eMax>1){
+    const y100 = Math.round(scaleY(1))+0.5;
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(plotL,y100); ctx.lineTo(plotR,y100); ctx.stroke(); ctx.setLineDash([]);
+  }
+  ctx.fillStyle = '#8b949e'; ctx.font = '9px sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for(let i=0;i<=4;i++){ const e = eMin+(eMax-eMin)*(1-i/4); const y = plotT+i/4*plotH; ctx.fillText(((e-1)*100).toFixed(0)+'%', plotL-5, y); }
+
+  series.forEach(s=>{
+    if(s.points.length < 2) return;
+    ctx.strokeStyle = s.color; ctx.lineWidth = s.bold ? 2 : 1.2;
+    ctx.beginPath();
+    s.points.forEach((p,i)=>{ const x=scaleX(p.t), y=scaleY(p.equity); if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); });
+    ctx.stroke();
+  });
+
+  ctx.font = '9px sans-serif'; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  let lx = plotL;
+  series.forEach(s=>{
+    ctx.strokeStyle = s.color; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(lx, 8); ctx.lineTo(lx+10, 8); ctx.stroke();
+    ctx.fillStyle = '#8b949e';
+    ctx.fillText(s.label, lx+13, 8);
+    lx += ctx.measureText(s.label).width + 26;
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  if(INSTANCE_ID){
+    document.title = 'Strategie Reverse-Engineering — ' + INSTANCE_ID;
+    const badge = document.getElementById('instanceBadge');
+    if(badge){ badge.textContent = 'Instanz: ' + INSTANCE_ID; badge.style.display = ''; }
+  }
+  populateControls();
+  populateExitBanner();
+  populateEntryFilterUI();
+  populateAtrSafetyUI();
+  populateVolumeFilterUI();
+  populateMtfFilterUI();
+  populateMtfHigherTfUI();
+  populateSwingBreakoutUI();
+  populateOptimizerWalkForwardUI();
+  document.getElementById('optimizerBtn').addEventListener('click', runComboOptimizer);
+
+  loadAutoTradeState();
+  populateAutoTradeUI();
+  populateAutoMtfHigherTfUI();
+  populateAutoModeUI();
+  populateAutoExitBanner();
+  populateAutoEntryFilterUI();
+  populateAutoAtrSafetyUI();
+  populateAutoVolumeFilterUI();
+  populateAutoMtfFilterUI();
+  populateAutoSwingBreakoutUI();
+  renderAutoTradeUI();
+  if(autoTradeEnabled){
+    // Automatik war beim letzten Besuch aktiv (aus localStorage wiederhergestellt) -> Daten für den
+    // Automatik-Zeitrahmen laden und sofort weiterlaufen lassen, statt bis zum nächsten 30s-Tick zu warten.
+    Promise.all(Object.keys(COINS).map(c => ensureData(c, autoTradeInterval))).then(()=> runAutoTrade());
+  }
+
+  selectCoin('bitcoin');
+  startChartAutoRefresh();
+});
+</script>
+</body>
+</html>
