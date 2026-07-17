@@ -2,6 +2,11 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
+<!-- Ohne dieses Viewport-Meta rendern mobile Browser (Chrome/Safari auf dem Handy) die Seite in einem virtuellen
+     Desktop-Viewport (~980px) und zoomen dann alles verkleinert rein -- das lässt z.B. den Simple-Mode-Tab auf
+     einem echten Handy nur etwa halb so breit wie den tatsächlichen Bildschirm erscheinen. Mit width=device-width
+     entspricht 1 CSS-Pixel der echten Bildschirmbreite, Simple-Mode nutzt dann die volle Displaybreite. -->
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Strategie Reverse-Engineering Dashboard — BTC / ETH / SOL</title>
 <style>
   :root{
@@ -92,7 +97,7 @@
   button.small{padding:3px 7px;font-size:10.5px}
 
   /* ---------- Simple-Mode: schmale, für Handydisplays ausgelegte Einzelspalte ---------- */
-  #simpleModeView{max-width:480px;margin:0 auto}
+  #simpleModeView{max-width:900px;margin:0 auto}
   #simpleModeView .row{flex-direction:column;align-items:stretch}
   #simpleModeView select, #simpleModeView button, #simpleModeView input{width:100%;font-size:14px;padding:10px}
   #simpleModeView label{font-size:11px}
