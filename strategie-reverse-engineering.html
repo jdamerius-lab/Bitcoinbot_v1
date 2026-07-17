@@ -52,9 +52,15 @@
   .best{background:rgba(63,185,80,.12)}
   code{background:#0d1117;padding:1px 5px;border-radius:4px;font-size:11px}
   .footnote{color:var(--muted);font-size:10.5px;margin-top:6px}
-  /* Kleine Live-Kurs-Box: kompaktes Overlay direkt IM Chart (oben rechts), wie ursprünglich. */
+  /* Kleine Live-Kurs-Box: kompaktes Overlay direkt IM Chart (oben rechts), wie ursprünglich. Bewusst mit "bottom"
+     statt "top" verankert: wenn der Status-Text (z.B. "letzter Wert vor Xs" o.ä.) länger wird und in eine zweite
+     Zeile umbricht, wächst die Box dadurch in der Höhe -- mit fester "top"-Verankerung würde sie dann nach UNTEN
+     wachsen und zunehmend Kerzen verdecken (fühlte sich wie ein "Zittern" des Charts an). Mit fixierter
+     Unterkante wächst sie stattdessen bei Bedarf nach OBEN in den bislang leeren Platz, ohne den Chart darunter
+     zusätzlich zu verdecken. Zusätzlich auf Wunsch um weitere ca. 1cm (~38px bei 96px/Zoll) höher gesetzt
+     (46px Basis-Abstand + 38px = 84px). */
   .ticker{
-    position:absolute; top:10px; right:10px; z-index:45;
+    position:absolute; bottom:calc(100% - 84px); right:10px; z-index:45;
     display:flex; align-items:baseline; gap:6px; flex-wrap:wrap; max-width:calc(100% - 20px);
     background:rgba(13,17,23,0.9); border:1px solid var(--border); border-radius:7px;
     padding:6px 10px; box-shadow:0 4px 14px rgba(0,0,0,0.4);
@@ -92,7 +98,13 @@
   .hover-row .hover-label{flex-shrink:0}
   .hover-label{color:var(--muted)}
   .hover-value{font-weight:700;text-align:right}
-  #hoverSignal{white-space:normal;line-height:1.35}
+  /* Signal-Feld ist das einzige Feld in der Box, dessen Textlänge variiert (bei mehreren gleichzeitig
+     ausgelösten Strategien). Bewusst FESTE Höhe (nicht nur max-height!) auf exakt 2 Zeilen: mit max-height allein
+     war das Feld bei kurzem Text (1 Zeile) niedriger als bei langem Text (2 Zeilen) -- dieser Wechsel zwischen 1
+     und 2 Zeilen war selbst schon das Zittern. Mit fester height ist das Feld IMMER exakt 2 Zeilen hoch, egal ob
+     der Text kurz oder lang ist; kürzerer Text lässt einfach Leerraum, längerer Text scrollt intern. Box-Höhe
+     bleibt dadurch in jedem Zustand identisch. */
+  #hoverSignal{white-space:normal;line-height:1.35;display:block;height:2.7em;overflow-y:auto}
   .bottom-note{color:var(--muted);font-size:10.5px;margin-top:16px;line-height:1.6;max-width:900px}
   .exit-banner{background:#12161c;border:1px solid var(--border);border-radius:7px;padding:8px 10px;margin-top:8px}
   .exit-banner-row{display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap}
@@ -149,15 +161,16 @@
   /* Nur im Analyse-Modus (Selektor greift nur, wenn hoverInfoBanner tatsächlich in analyseControlsWrap steckt --
      im Simple-Mode ist das Element in simpleHoverSlot umgehängt und daher hiervon nicht betroffen): Box um ziemlich
      genau die Hälfte ihrer eigenen Breite (230px -> 115px) nach links versetzen, plus zusätzlich 0,5cm nach oben
-     und 0,5cm nach rechts (bei üblichen 96px/Zoll ≈ 19px pro 0,5cm -- also -115px+19px = -96px auf der X-Achse,
-     -19px auf der Y-Achse). Bewusst transform statt margin-left/top: die linke Nachbarspalte hat flex:1
-     (flex-grow) -- ein negativer margin-left hätte nur dazu geführt, dass diese Spalte automatisch um genau den
-     freiwerdenden Betrag mitwächst und den Versatz dadurch wieder auffrisst (visuell keine Bewegung). transform
-     greift dagegen NACH dem Flex-Layout rein optisch, ohne dass Geschwister-Elemente reagieren. Nur oberhalb der
-     700px-Grenze aktiv, weil die Box darunter (siehe Media-Query weiter unten) auf 100% Breite umschaltet, wo ein
-     fester Versatz nicht mehr passen würde. */
+     und 0,5cm nach rechts (bei üblichen 96px/Zoll ≈ 19px pro 0,5cm -- also -115px+19px = -96px auf der X-Achse),
+     sowie danach nochmal 1cm weiter nach oben (~38px) auf Wunsch -- macht -19px-38px = -57px auf der Y-Achse.
+     Bewusst transform statt margin-left/top: die linke Nachbarspalte hat flex:1 (flex-grow) -- ein negativer
+     margin-left hätte nur dazu geführt, dass diese Spalte automatisch um genau den freiwerdenden Betrag mitwächst
+     und den Versatz dadurch wieder auffrisst (visuell keine Bewegung). transform greift dagegen NACH dem
+     Flex-Layout rein optisch, ohne dass Geschwister-Elemente reagieren. Nur oberhalb der 700px-Grenze aktiv, weil
+     die Box darunter (siehe Media-Query weiter unten) auf 100% Breite umschaltet, wo ein fester Versatz nicht
+     mehr passen würde. */
   @media (min-width:701px){
-    #analyseControlsWrap #hoverInfoBanner{transform:translate(-96px, -19px)}
+    #analyseControlsWrap #hoverInfoBanner{transform:translate(-96px, -57px)}
   }
 
   /* ---------- Schmale Bildschirme allgemein (Analyse/Backtest/Automatik/Wallet, NICHT Simple-Mode -- das hat
