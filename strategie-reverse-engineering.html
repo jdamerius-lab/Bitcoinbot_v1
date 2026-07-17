@@ -90,6 +90,20 @@
   .percoin-signal{font-size:10.5px;color:var(--muted);margin-bottom:7px}
   .percoin-controls{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
   button.small{padding:3px 7px;font-size:10.5px}
+
+  /* ---------- Simple-Mode: schmale, für Handydisplays ausgelegte Einzelspalte ---------- */
+  #simpleModeView{max-width:480px;margin:0 auto}
+  #simpleModeView .row{flex-direction:column;align-items:stretch}
+  #simpleModeView select, #simpleModeView button, #simpleModeView input{width:100%;font-size:14px;padding:10px}
+  #simpleModeView label{font-size:11px}
+  #simpleModeView .toolgroup{display:block}
+  #simpleModeView .chart-wrap{margin:0;height:320px}
+  #simpleModeView .stats-row{gap:8px}
+  #simpleModeView .stat-box{flex:1 1 45%;min-width:0}
+  #simpleModeView #marketIndicatorsCard .row{flex-direction:column}
+  #simpleModeView #marketIndicatorsCard .equity-wrap{height:170px}
+  #simpleModeView #exitFilterCard .exit-banner-row{flex-direction:column;align-items:stretch;gap:10px}
+  #simpleModeView .exit-banner-row input[type=number]{width:100%}
 </style>
 </head>
 <body>
@@ -101,28 +115,41 @@
   <button class="view-tab" id="viewTabBacktest">Backtest</button>
   <button class="view-tab" id="viewTabAuto">Automatik-Trading<span class="auto-live-dot" id="autoLiveDot" style="display:none"></span></button>
   <button class="view-tab" id="viewTabWallet">Wallet Copy-Trading</button>
+  <button class="view-tab" id="viewTabSimple">Simple-Mode</button>
 </div>
 
 <div id="analysisView">
 
 <div class="card">
+  <div class="row" style="margin-bottom:8px;align-items:flex-end">
+    <div>
+      <label>4. Coin (frei wählbar, zusätzlich zu BTC/ETH/SOL)</label>
+      <select id="extraCoinSelect"></select>
+    </div>
+    <div id="extraCoinStatus" class="status" style="align-self:center"></div>
+  </div>
+
   <div class="tabs" id="coinTabs"></div>
 
-  <div class="ticker">
+  <div class="ticker" id="tickerRow">
     <span class="pulse-dot"></span>
     <span class="ticker-value" id="liveTickerValue">—</span>
     <span class="status" id="liveTickerStatus">lade…</span>
   </div>
 
   <div class="row" style="margin-bottom:8px">
-    <div>
+    <div id="intervalSelectWrap">
       <label>Kerzen-Intervall</label>
       <select id="intervalSelect"></select>
     </div>
-    <div>
+    <div id="stratSelectWrap">
       <label>Chart-Overlay: Strategiesignale</label>
       <select id="stratSelect"></select>
     </div>
+    <div id="status" class="status">Lade Kerzendaten…</div>
+  </div>
+
+  <div class="row" id="chartToolsRow" style="margin-bottom:8px">
     <div class="toolgroup">
       <button class="secondary" id="zoomInBtn">Zoom +</button>
       <button class="secondary" id="zoomOutBtn">Zoom −</button>
@@ -141,25 +168,9 @@
       <button class="secondary" id="togglePatternBtn">Muster</button>
       <button class="secondary" id="toggleTrendScoreBtn">Trendscore</button>
     </div>
-    <div id="status" class="status">Lade Kerzendaten…</div>
   </div>
 
-  <div class="alert-blocks">
-    <div class="alert-block" id="alertBlock-bitcoin">
-      <div class="alert-block-title">BTC</div>
-      <div class="alert-block-body" id="alertBody-bitcoin">Lade…</div>
-    </div>
-    <div class="alert-block" id="alertBlock-ethereum">
-      <div class="alert-block-title">ETH</div>
-      <div class="alert-block-body" id="alertBody-ethereum">Lade…</div>
-    </div>
-    <div class="alert-block" id="alertBlock-solana">
-      <div class="alert-block-title">SOL</div>
-      <div class="alert-block-body" id="alertBody-solana">Lade…</div>
-    </div>
-  </div>
-
-  <div class="chart-wrap">
+  <div class="chart-wrap" id="chartWrapEl">
     <canvas id="priceChart"></canvas>
     <div id="hoverInfoBanner" class="hover-overlay">
       <div class="hover-row"><span class="hover-label">Zeit</span><span class="hover-value" id="hoverTime">—</span></div>
@@ -180,9 +191,11 @@
   </div>
   <div class="exit-banner-desc" id="patternExplain" style="display:none"></div>
   <div class="exit-banner-desc" id="trendScoreExplain" style="display:none"></div>
+
+  <div class="alert-blocks" id="alertBlocksWrap"></div>
 </div>
 
-<div class="card">
+<div class="card" id="marketIndicatorsCard">
   <h2 style="font-size:13px;margin:0 0 8px">Markt-Indikatoren — <span id="indicatorCoinLabel">Bitcoin</span></h2>
   <div class="stats-row" id="indicatorStatsRow"></div>
   <div class="row" style="margin-top:10px;gap:10px;align-items:stretch">
@@ -233,7 +246,7 @@
   zu überschreiben. Ohne diesen Parameter bleibt alles wie gewohnt.
 </div>
 
-<div class="card">
+<div class="card" id="exitFilterCard">
   <h2 style="font-size:13px;margin:0 0 8px">Exit-Strategie &amp; Entry-Filter</h2>
   <div class="exit-banner">
     <div class="exit-banner-row">
@@ -384,7 +397,7 @@
     Modus <strong>„Trendscore"</strong> steuert statt einer Einzelstrategie der gewichtete Konsens aller 9 Strategien
     (siehe Trendscore-Button/-Kästchen im Analyse-Tab) Ein- und Ausstieg; eine so eröffnete Position bleibt ebenfalls
     an dieses Konsens-Signal "eingefroren", auch wenn der Modus später gewechselt wird. Prüft
-    alle 30 Sekunden (und sofort beim Zurückkehren in den Tab) für alle drei Coins, ob die maßgebliche
+    alle 30 Sekunden (und sofort beim Zurückkehren in den Tab) für alle aktiven Coins, ob die maßgebliche
     Strategie-Position vom offenen Papier-Trade abweicht, und öffnet/schließt entsprechend automatisch.
     Ausführungspreis = letzter bekannter Schlusskurs der (evtl. noch laufenden) Kerze, nicht der Live-Tick-Preis.
     Jede Coin-Karte unten zeigt zusätzlich das aktuelle Rohsignal inkl. Zeitpunkt des letzten Wechsels — unabhängig
@@ -478,8 +491,8 @@
   </div>
   <div class="exit-banner-desc">
     Eigenkapitalkurve je Coin (kumulierte Rendite aus geschlossenen Trades, plus die noch offene Position
-    mark-to-market zum letzten bekannten Kurs) sowie eine gleichgewichtete Durchschnittskurve über alle drei Coins
-    ("Kombiniert"). Ohne Gebühren/Slippage, reine Paper-Trading-Simulation.
+    mark-to-market zum letzten bekannten Kurs) sowie eine gleichgewichtete Durchschnittskurve über alle aktiven
+    Coins ("Kombiniert"). Ohne Gebühren/Slippage, reine Paper-Trading-Simulation.
   </div>
 </div>
 
@@ -542,12 +555,65 @@
 
 </div>
 
+<div id="simpleModeView" style="display:none">
+<!--
+  Simple-Mode zeigt bewusst nur eine schlanke Auswahl: keine Coin-Tabs, keine 4.-Coin-Auswahl, keine
+  Alarm-Blöcke, kein Zoom/EMA/FVG/Ichimoku/Swings/S-R/Muster, kein Backtest/Automatik/Wallet. Statt alles doppelt
+  zu bauen (und dadurch zwei unabhängige, potenziell auseinanderlaufende Chart-/Filter-Implementierungen zu
+  riskieren), werden hier die echten, bereits existierenden Elemente aus dem Analyse-Tab per JS in diese Slots
+  hinein- und beim Verlassen wieder zurückverschoben (siehe moveToSimpleMode()/moveHomeFromSimpleMode() weiter
+  unten im Script): dieselbe Chart-Instanz, dieselben Event-Listener, garantiert kein Zustands-Drift.
+-->
+<div class="card" id="simpleModeCard">
+  <div id="simpleTickerSlot"></div>
+  <div class="row" style="margin-bottom:8px">
+    <div id="simpleIntervalSlot" style="flex:1"></div>
+    <div id="simpleStratSlot" style="flex:1"></div>
+  </div>
+  <div class="toolgroup" style="margin-bottom:8px" id="simpleTrendScoreSlot"></div>
+  <div id="simpleChartSlot"></div>
+</div>
+<div id="simpleIndicatorSlot"></div>
+<div id="simpleFilterSlot"></div>
+</div>
+
 <script>
 const COINS = {
   bitcoin:  {label:"Bitcoin (BTC)",  short:"BTC", symbol:"BTCEUR"},
   ethereum: {label:"Ethereum (ETH)", short:"ETH", symbol:"ETHEUR"},
   solana:   {label:"Solana (SOL)",   short:"SOL", symbol:"SOLEUR"}
 };
+// Feste Auswahlliste für den frei wählbaren 4. Coin (bewusst KEIN Freitext -- vermeidet Tippfehler/nicht
+// existierende Paare). Wird beim Auswählen trotzdem live gegen die Binance-API validiert (ensureData()), falls
+// ein Paar zwischenzeitlich delisted wurde o.ä. -- siehe setCustomCoin(). Key-Namensschema wie bei COINS oben
+// (voller Coin-Name, keine "inst_"/Symbol-Kollisionen).
+const EXTRA_COIN_CHOICES = [
+  {key:'ripple',     label:'XRP',                 short:'XRP',  symbol:'XRPEUR'},
+  {key:'cardano',    label:'Cardano (ADA)',       short:'ADA',  symbol:'ADAEUR'},
+  {key:'dogecoin',   label:'Dogecoin (DOGE)',     short:'DOGE', symbol:'DOGEEUR'},
+  {key:'chainlink',  label:'Chainlink (LINK)',    short:'LINK', symbol:'LINKEUR'},
+  {key:'polkadot',   label:'Polkadot (DOT)',      short:'DOT',  symbol:'DOTEUR'},
+  {key:'avalanche',  label:'Avalanche (AVAX)',    short:'AVAX', symbol:'AVAXEUR'},
+  {key:'litecoin',   label:'Litecoin (LTC)',      short:'LTC',  symbol:'LTCEUR'},
+  {key:'bnb',        label:'BNB',                 short:'BNB',  symbol:'BNBEUR'},
+  {key:'tron',       label:'TRON (TRX)',          short:'TRX',  symbol:'TRXEUR'},
+  {key:'cosmos',     label:'Cosmos (ATOM)',       short:'ATOM', symbol:'ATOMEUR'},
+  {key:'uniswap',    label:'Uniswap (UNI)',       short:'UNI',  symbol:'UNIEUR'},
+  {key:'stellar',    label:'Stellar (XLM)',       short:'XLM',  symbol:'XLMEUR'},
+  {key:'polygon',    label:'Polygon (MATIC/POL)', short:'MATIC',symbol:'MATICEUR'},
+  {key:'ethclassic', label:'Ethereum Classic (ETC)', short:'ETC', symbol:'ETCEUR'},
+  {key:'filecoin',   label:'Filecoin (FIL)',      short:'FIL',  symbol:'FILEUR'},
+  {key:'aave',       label:'Aave (AAVE)',         short:'AAVE', symbol:'AAVEEUR'},
+  {key:'near',       label:'NEAR Protocol',       short:'NEAR', symbol:'NEAREUR'},
+  // HYPE (Hyperliquid) ist Stand jetzt hauptsächlich auf Binance.US/Futures gelistet, nicht sicher als Spot-Paar
+  // auf der von diesem Tool genutzten globalen Binance-API (api.binance.com) verfügbar -- die Live-Validierung
+  // in setCustomCoin() fängt ein nicht existierendes Paar trotzdem sauber ab (Fehlermeldung statt Absturz).
+  {key:'hyperliquid', label:'Hyperliquid (HYPE)',  short:'HYPE', symbol:'HYPEEUR'}
+];
+// Farbpalette für die Eigenkapitalkurven je Coin (drawEquityChart) -- Index 0-2 entsprechen den bisherigen fest
+// vergebenen BTC/ETH/SOL-Farben (keine optische Änderung für die drei Ur-Coins), Index 3+ deckt den frei
+// wählbaren 4. Coin ab.
+const COIN_CHART_COLORS = ['#f7931a', '#8b9dc3', '#9945ff', '#e6a23c', '#ff6b81', '#4fd1c5'];
 const INTERVALS = [
   {value:"1m",  label:"1 Minute"},
   {value:"5m",  label:"5 Minuten"},
@@ -620,6 +686,11 @@ let ohlcCache = {};      // "coin::interval" -> {times[],opens[],highs[],lows[],
 let strategyCache = {};  // "coin::interval" -> {stratKey -> result}
 let activeCoin = "bitcoin";
 let activeInterval = "1d";
+// Aktuell gewählter, frei wählbarer 4. Coin (Key aus EXTRA_COIN_CHOICES) oder null, falls keiner aktiv ist.
+// COINS bekommt bei Auswahl den entsprechenden Eintrag dynamisch hinzugefügt/entfernt (siehe setCustomCoin()) --
+// alle Object.keys(COINS)/Object.entries(COINS)-Stellen im Code (Tabs, Alarm-Blöcke, Automatik-Grid,
+// Eigenkapitalkurve, ...) sind bewusst so gebaut, dass sie automatisch mitwachsen/-schrumpfen.
+let customCoinKey = null;
 let chart = null;
 let tickerTimer = null;
 let chartRefreshTimer = null;
@@ -705,6 +776,7 @@ function getInstanceId(){
 }
 const INSTANCE_ID = getInstanceId();
 const LS_PREFIX = INSTANCE_ID ? ('inst_'+INSTANCE_ID+'_') : '';
+const CUSTOM_COIN_LS_KEY = LS_PREFIX+'srt_customCoinKey';
 
 // ---------- Automatik-Trading (Paper-Trading) ----------
 // Nutzt dieselbe buildStrategies()-Engine wie der Analyse-Tab, aber mit einem EIGENEN, unabhängigen Satz Exit-
@@ -971,8 +1043,17 @@ async function ensureData(coin, interval){
   };
   return ohlcCache[key];
 }
+// Promise.allSettled statt Promise.all: ein einzelner fehlschlagender Coin (z.B. ein delisteter/ungültiger
+// 4. Coin) darf die anderen (BTC/ETH/SOL) nicht mit in einen Totalfehler reißen -- vorher hätte ein einzelnes
+// Binance-API-Problem bei EINEM Coin den kompletten Ladevorgang für ALLE Coins als "Fehler beim Laden" gemeldet.
 async function ensureAllCoinsData(interval){
-  await Promise.all(Object.keys(COINS).map(coin => ensureData(coin, interval)));
+  const coins = Object.keys(COINS);
+  const results = await Promise.allSettled(coins.map(coin => ensureData(coin, interval)));
+  results.forEach((r, i)=>{
+    if(r.status === 'rejected'){
+      console.warn('Konnte Kerzendaten für', coins[i], interval, 'nicht laden:', r.reason);
+    }
+  });
 }
 
 // ---------- Indicators ----------
@@ -1937,7 +2018,7 @@ function resetHoverBanner(){
 // aktuellen Layouts -- KEINE eigene "ist Kerze X sichtbar"-Logik mehr; iFrom/iTo grenzen aus Performance-Gründen
 // leicht über das Fenster hinaus ein, sind aber nie die Quelle einer Sichtbarkeits-Entscheidung selbst). ----------
 function getPlotLayout(wCSS, hCSS){
-  const padLeft = 58, padRight = 92, padTop = 30, padBottom = 22;
+  const padLeft = 70, padRight = 80, padTop = 30, padBottom = 22;
   return {
     padLeft, padRight, padTop, padBottom,
     plotLeft: padLeft, plotRight: wCSS - padRight, plotTop: padTop, plotBottom: hCSS - padBottom,
@@ -2695,10 +2776,10 @@ function updateAlertBanner(){
 }
 
 async function loadAndRender(){
-  document.getElementById('status').textContent = 'Lade Kerzendaten für BTC/ETH/SOL…';
+  document.getElementById('status').textContent = 'Lade Kerzendaten für ' + Object.values(COINS).map(c=>c.short).join('/') + '…';
   try{
     await ensureAllCoinsData(activeInterval);
-    Object.keys(COINS).forEach(c => buildStrategies(c, activeInterval));
+    Object.keys(COINS).forEach(c => { if(ohlcCache[c+'::'+activeInterval]) buildStrategies(c, activeInterval); });
     const key = activeCoin+'::'+activeInterval;
     const data = ohlcCache[key];
     document.getElementById('status').textContent = `${data.closes.length} Kerzen geladen (zurück bis ${new Date(data.times[0]).toLocaleDateString('de-DE')}) · aktualisiert ${new Date().toLocaleTimeString('de-DE')}`;
@@ -3213,16 +3294,147 @@ async function selectCoin(coin){
   startTicker();
 }
 
-function populateControls(){
+// Baut die Coin-Tabs komplett neu aus dem aktuellen COINS-Objekt auf (statt einmalig fest verdrahtet) -- wird
+// beim initialen Laden UND jedes Mal aufgerufen, wenn setCustomCoin() den 4. Coin hinzufügt/entfernt/ersetzt.
+function renderCoinTabs(){
   const tabsEl = document.getElementById('coinTabs');
-  Object.entries(COINS).forEach(([coin, c], idx)=>{
+  if(!tabsEl) return;
+  tabsEl.innerHTML = '';
+  Object.entries(COINS).forEach(([coin, c])=>{
     const btn = document.createElement('button');
-    btn.className = 'tab' + (idx===0 ? ' active' : '');
+    btn.className = 'tab' + (coin===activeCoin ? ' active' : '');
     btn.dataset.coin = coin;
     btn.textContent = c.label;
     btn.addEventListener('click', ()=> selectCoin(coin));
     tabsEl.appendChild(btn);
   });
+}
+// Baut die drei/vier Alarm-Blöcke komplett neu aus dem aktuellen COINS-Objekt auf (gleicher Grund wie
+// renderCoinTabs() oben). updateAlertBanner() befüllt anschließend wie gehabt jeden Block per alertBody-<coin>.
+function renderAlertBlocksSkeleton(){
+  const wrap = document.getElementById('alertBlocksWrap');
+  if(!wrap) return;
+  wrap.innerHTML = Object.entries(COINS).map(([coin, c])=>
+    `<div class="alert-block" id="alertBlock-${coin}">
+      <div class="alert-block-title">${c.short}</div>
+      <div class="alert-block-body" id="alertBody-${coin}">Lade…</div>
+    </div>`
+  ).join('');
+}
+// Entfernt alle ohlcCache/strategyCache-Einträge (alle Intervalle/Profile) für einen Coin -- gebraucht, wenn der
+// frei wählbare 4. Coin gewechselt/entfernt wird, damit kein toter Cache-Eintrag mit einem Key stehen bleibt,
+// der nicht mehr in COINS existiert.
+function purgeCoinCaches(coin){
+  Object.keys(ohlcCache).forEach(k=>{ if(k.startsWith(coin+'::')) delete ohlcCache[k]; });
+  Object.keys(strategyCache).forEach(k=>{ if(k.startsWith(coin+'::')) delete strategyCache[k]; });
+}
+// Beim Start gespeicherten 4. Coin (falls vorhanden) VOR dem ersten Rendern der Tabs/Alarm-Blöcke/Ladevorgänge
+// wieder in COINS eintragen, damit er von Anfang an wie ein ganz normaler Coin mitläuft (Tabs, Alarm-Block,
+// initiales ensureAllCoinsData(), Automatik-Karte, ...). Bewusst OHNE Live-Validierung an dieser Stelle -- ein
+// zwischenzeitlich delistetes Paar führt dank der Promise.allSettled-Absicherung in ensureAllCoinsData() nur zu
+// einem dauerhaften "Lade…" für diesen einen Coin, nicht zu einem Totalausfall des restlichen Tools.
+function restoreCustomCoinFromStorage(){
+  try{
+    const saved = localStorage.getItem(CUSTOM_COIN_LS_KEY);
+    const choice = saved && EXTRA_COIN_CHOICES.find(c=>c.key===saved);
+    if(choice){
+      COINS[saved] = {label: choice.label, short: choice.short, symbol: choice.symbol};
+      customCoinKey = saved;
+    }
+  }catch(e){ /* localStorage evtl. nicht verfügbar -> ohne gespeicherten 4. Coin starten */ }
+}
+// Fügt den frei wählbaren 4. Coin hinzu, ersetzt ihn oder entfernt ihn wieder (newKey null/leer -> entfernen).
+// Validiert das gewählte Binance-Paar live per ensureData() (Schutz gegen ein zwischenzeitlich delistetes Paar
+// aus EXTRA_COIN_CHOICES) -- schlägt das fehl, wird die Auswahl vollständig zurückgerollt statt COINS in einem
+// kaputten Zwischenzustand zu belassen.
+async function setCustomCoin(newKey){
+  const statusEl = document.getElementById('extraCoinStatus');
+  const selectEl = document.getElementById('extraCoinSelect');
+  if(newKey === customCoinKey) return;
+  const oldKey = customCoinKey;
+  const wasActiveOldCoin = activeCoin === oldKey;
+
+  if(oldKey){
+    // Offene Automatik-Position des ausscheidenden Coins jetzt zum letzten bekannten Kurs schließen (reines
+    // Paper-Trading) statt sie verwaist in autoOpenPositions stehen zu lassen -- der Coin fällt gleich aus COINS
+    // raus und würde von runAutoTrade() nie wieder erreicht.
+    const pos = autoOpenPositions[oldKey];
+    if(pos){
+      const data = ohlcCache[oldKey+'::'+(pos.interval||autoTradeInterval)];
+      if(data && data.closes.length){
+        closeAutoPosition(oldKey, data.closes[data.closes.length-1], data.times[data.times.length-1], 'Coin gewechselt/entfernt');
+      } else {
+        delete autoOpenPositions[oldKey]; // kein Kurs mehr verfügbar -> ohne PnL-Berechnung verwerfen
+      }
+      saveAutoTradeState();
+    }
+    delete autoCoinPaused[oldKey];
+    delete COINS[oldKey];
+    purgeCoinCaches(oldKey);
+  }
+
+  if(newKey){
+    const choice = EXTRA_COIN_CHOICES.find(c=>c.key===newKey);
+    if(!choice) return;
+    COINS[newKey] = {label: choice.label, short: choice.short, symbol: choice.symbol};
+    if(statusEl) statusEl.textContent = 'Prüfe ' + choice.label + '…';
+    try{
+      await ensureData(newKey, activeInterval);
+      if(autoTradeInterval !== activeInterval) await ensureData(newKey, autoTradeInterval);
+      buildStrategies(newKey, activeInterval);
+    }catch(e){
+      // Ungültiges/delistetes Paar -> Auswahl komplett zurückrollen, nichts von diesem Coin bleibt in COINS/UI hängen.
+      delete COINS[newKey];
+      purgeCoinCaches(newKey);
+      customCoinKey = null;
+      if(selectEl) selectEl.value = '';
+      if(statusEl) statusEl.textContent = choice.label + ' ist gerade nicht über die Binance-API erreichbar (' + e.message + ') — nicht hinzugefügt.';
+      try{ localStorage.removeItem(CUSTOM_COIN_LS_KEY); }catch(e2){ /* localStorage evtl. nicht verfügbar */ }
+      renderCoinTabs(); renderAlertBlocksSkeleton();
+      if(wasActiveOldCoin) await selectCoin('bitcoin'); else { updateAlertBanner(); renderAutoTradeUI(); }
+      return;
+    }
+    if(statusEl) statusEl.textContent = choice.label + ' hinzugefügt.';
+  } else if(statusEl){
+    statusEl.textContent = '';
+  }
+
+  customCoinKey = newKey || null;
+  try{
+    if(customCoinKey) localStorage.setItem(CUSTOM_COIN_LS_KEY, customCoinKey);
+    else localStorage.removeItem(CUSTOM_COIN_LS_KEY);
+  }catch(e){ /* localStorage evtl. nicht verfügbar -> Feature funktioniert trotzdem, nur ohne Persistenz */ }
+
+  renderCoinTabs();
+  renderAlertBlocksSkeleton();
+  updateLoadMoreButtonState();
+
+  if(wasActiveOldCoin){
+    await selectCoin('bitcoin'); // entfernter/ersetzter Coin war gerade aktiv -> zurück auf Bitcoin wechseln
+  } else {
+    updateAlertBanner();
+  }
+  renderAutoTradeUI();
+  if(autoTradeEnabled) runAutoTrade();
+}
+function populateExtraCoinUI(){
+  const sel = document.getElementById('extraCoinSelect');
+  if(!sel) return;
+  sel.innerHTML = '';
+  const noneOpt = document.createElement('option');
+  noneOpt.value = ''; noneOpt.textContent = 'Kein zusätzlicher Coin';
+  sel.appendChild(noneOpt);
+  EXTRA_COIN_CHOICES.forEach(c=>{
+    const opt = document.createElement('option');
+    opt.value = c.key; opt.textContent = c.label;
+    sel.appendChild(opt);
+  });
+  sel.value = customCoinKey || '';
+  sel.addEventListener('change', ()=> setCustomCoin(sel.value || null));
+}
+function populateControls(){
+  renderCoinTabs();
+  renderAlertBlocksSkeleton();
 
   const ivEl = document.getElementById('intervalSelect');
   INTERVALS.forEach(iv=>{
@@ -3830,15 +4042,72 @@ function populateAutoSwingBreakoutUI(){
 }
 
 // ---------- Automatik-Trading: UI-Verkabelung & Rendering ----------
+// ---------- Simple-Mode: verschiebt eine kuratierte Auswahl ECHTER Analyse-Tab-Elemente (Ticker, Intervall-/
+// Strategie-Dropdown, Trendscore-Button, Chart, Markt-Indikatoren-Karte, Exit-/Filter-Karte) in die Simple-Mode-
+// Slots und beim Verlassen wieder zurück, statt sie zu duplizieren (siehe Kommentar bei #simpleModeView im
+// HTML) -- dieselbe Chart-Instanz/Event-Listener, kein Risiko für auseinanderlaufenden Zustand. Home-Position
+// (Elternelement + nextSibling) wird einmalig beim ersten Wechsel gemerkt, damit das Zurückverschieben immer an
+// exakt der ursprünglichen Stelle im Analyse-Tab landet, egal wie oft hin- und hergewechselt wird.
+const SIMPLE_MODE_MOVES = [
+  {elId:'tickerRow',           slotId:'simpleTickerSlot'},
+  {elId:'intervalSelectWrap',  slotId:'simpleIntervalSlot'},
+  {elId:'stratSelectWrap',     slotId:'simpleStratSlot'},
+  {elId:'toggleTrendScoreBtn', slotId:'simpleTrendScoreSlot'},
+  {elId:'chartWrapEl',         slotId:'simpleChartSlot'},
+  {elId:'marketIndicatorsCard', slotId:'simpleIndicatorSlot'},
+  {elId:'exitFilterCard',      slotId:'simpleFilterSlot'},
+];
+let simpleModeHomes = null; // { elId: {parent, nextSibling} }, einmalig befüllt
+function captureSimpleModeHomes(){
+  if(simpleModeHomes) return;
+  simpleModeHomes = {};
+  SIMPLE_MODE_MOVES.forEach(({elId})=>{
+    const el = document.getElementById(elId);
+    if(!el) return;
+    simpleModeHomes[elId] = { parent: el.parentNode, nextSibling: el.nextSibling };
+  });
+}
+function moveToSimpleMode(){
+  captureSimpleModeHomes();
+  SIMPLE_MODE_MOVES.forEach(({elId, slotId})=>{
+    const el = document.getElementById(elId);
+    const slot = document.getElementById(slotId);
+    if(el && slot) slot.appendChild(el);
+  });
+  // Nach dem Reparenting haben Canvas/Container neue Abmessungen -- ohne echtes 'resize'-Event muss hier
+  // manuell neu gezeichnet werden (drawChart()/renderIndicatorPanel() lesen clientWidth/clientHeight bei jedem
+  // Aufruf frisch aus, kein Cache-Problem).
+  if(chart) drawChart();
+  renderIndicatorPanel();
+}
+function moveHomeFromSimpleMode(){
+  if(!simpleModeHomes) return;
+  SIMPLE_MODE_MOVES.forEach(({elId})=>{
+    const el = document.getElementById(elId);
+    const home = simpleModeHomes[elId];
+    if(!el || !home) return;
+    home.parent.insertBefore(el, home.nextSibling);
+  });
+  if(chart) drawChart();
+  renderIndicatorPanel();
+}
+let currentView = 'analysis';
 function switchView(view){
   document.getElementById('analysisView').style.display = view==='analysis' ? '' : 'none';
   document.getElementById('backtestView').style.display = view==='backtest' ? '' : 'none';
   document.getElementById('autoTradeView').style.display = view==='auto' ? '' : 'none';
   document.getElementById('walletView').style.display = view==='wallet' ? '' : 'none';
+  document.getElementById('simpleModeView').style.display = view==='simple' ? '' : 'none';
   document.getElementById('viewTabAnalysis').classList.toggle('active', view==='analysis');
   document.getElementById('viewTabBacktest').classList.toggle('active', view==='backtest');
   document.getElementById('viewTabAuto').classList.toggle('active', view==='auto');
   document.getElementById('viewTabWallet').classList.toggle('active', view==='wallet');
+  document.getElementById('viewTabSimple').classList.toggle('active', view==='simple');
+
+  if(view==='simple' && currentView!=='simple') moveToSimpleMode();
+  else if(view!=='simple' && currentView==='simple') moveHomeFromSimpleMode();
+  currentView = view;
+
   if(view==='analysis') renderIndicatorPanel();
   if(view==='backtest') renderTable();
   if(view==='auto') renderAutoTradeUI();
@@ -3909,6 +4178,7 @@ function populateAutoTradeUI(){
   document.getElementById('viewTabBacktest').addEventListener('click', ()=> switchView('backtest'));
   document.getElementById('viewTabAuto').addEventListener('click', ()=> switchView('auto'));
   document.getElementById('viewTabWallet').addEventListener('click', ()=> switchView('wallet'));
+  document.getElementById('viewTabSimple').addEventListener('click', ()=> switchView('simple'));
 }
 function updateAutoToggleBtn(){
   const btn = document.getElementById('autoToggleBtn');
@@ -4444,12 +4714,13 @@ function drawEquityChart(){
 
   const perCoin = computeAutoEquityCurves();
   const combined = computeCombinedEquityCurve(perCoin);
-  const series = [
-    { label:'BTC', color:'#f7931a', points: perCoin.bitcoin || [] },
-    { label:'ETH', color:'#8b9dc3', points: perCoin.ethereum || [] },
-    { label:'SOL', color:'#9945ff', points: perCoin.solana || [] },
-    { label:'Kombiniert (Ø)', color:'#3fb950', points: combined, bold:true },
-  ];
+  // Dynamisch aus COINS statt fest auf BTC/ETH/SOL verdrahtet, damit ein 4. (frei wählbarer) Coin automatisch
+  // seine eigene Kurve bekommt. Object.keys(COINS)-Reihenfolge bleibt für bitcoin/ethereum/solana stabil
+  // (Einfüge-Reihenfolge), daher unverändert dieselben Farben für die ursprünglichen drei Coins.
+  const series = Object.keys(COINS).map((coin, i)=> ({
+    label: COINS[coin].short, color: COIN_CHART_COLORS[i % COIN_CHART_COLORS.length], points: perCoin[coin] || []
+  }));
+  series.push({ label:'Kombiniert (Ø)', color:'#3fb950', points: combined, bold:true });
 
   const padL=48, padR=10, padT=18, padB=20;
   const plotL=padL, plotR=wCSS-padR, plotT=padT, plotB=hCSS-padB;
@@ -4502,7 +4773,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const badge = document.getElementById('instanceBadge');
     if(badge){ badge.textContent = 'Instanz: ' + INSTANCE_ID; badge.style.display = ''; }
   }
+  restoreCustomCoinFromStorage();
   populateControls();
+  populateExtraCoinUI();
   populateExitBanner();
   populateEntryFilterUI();
   populateAtrSafetyUI();
