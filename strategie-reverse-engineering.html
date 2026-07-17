@@ -52,8 +52,14 @@
   .best{background:rgba(63,185,80,.12)}
   code{background:#0d1117;padding:1px 5px;border-radius:4px;font-size:11px}
   .footnote{color:var(--muted);font-size:10.5px;margin-top:6px}
-  .ticker{display:flex;align-items:baseline;gap:8px;margin-bottom:8px;flex-wrap:wrap}
-  .ticker-value{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;transition:color .2s}
+  /* Kleine Live-Kurs-Box: kompaktes Overlay direkt IM Chart (oben rechts), wie ursprünglich. */
+  .ticker{
+    position:absolute; top:10px; right:10px; z-index:45;
+    display:flex; align-items:baseline; gap:6px; flex-wrap:wrap; max-width:calc(100% - 20px);
+    background:rgba(13,17,23,0.9); border:1px solid var(--border); border-radius:7px;
+    padding:6px 10px; box-shadow:0 4px 14px rgba(0,0,0,0.4);
+  }
+  .ticker-value{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;transition:color .2s}
   .pulse-dot{width:7px;height:7px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 1.6s infinite;margin-right:4px}
   @keyframes pulse{0%{opacity:1}50%{opacity:.25}100%{opacity:1}}
   .warn{color:var(--amber) !important}
@@ -68,12 +74,18 @@
   .alert-item.short{color:var(--short)}
   .alert-time{color:var(--muted);font-weight:600;flex-shrink:0}
   .hover-overlay{
-    /* Absolut relativ zum .chart-wrap (position:relative) statt fixed relativ zum Viewport -- so sitzt das
-       Banner wirklich "oben rechts IM CHART" (wie im Footnote-Text beschrieben), statt oben rechts auf der
-       gesamten Seite zu kleben, wo es in schmalen/gestapelten Layouts (Simple-Mode) über Ticker/Buttons lag. */
-    position:absolute; top:14px; right:14px; z-index:50; pointer-events:none;
+    /* Großes Hover-Info-Banner: schwebt NICHT mehr im Chart selbst, sondern oben rechts über den Dropdown-/
+       Toolbar-Zeilen (in der sonst leeren Fläche, dort wo vorher die Kurs-Box saß). Bewusst KEIN
+       position:absolute mehr: die Box ist 6 Zeilen hoch, die Dropdown-/Toolbar-Spalte daneben nur 2 schmale
+       Zeilen -- als absolutes Overlay würde die Box also über ihren "Anker" hinausragen und den Chart darunter
+       überlappen (genau der Fehler, der hier korrigiert wird). Stattdessen ist der Eltern-Container
+       (#analyseControlsWrap / #simpleControlsWrap) ein normaler Flex-Container, in dem diese Box einfach als
+       zweite Spalte danebensitzt -- die Zeilenhöhe richtet sich automatisch nach dem höheren der beiden
+       Elemente, eine Überlappung ist so strukturell unmöglich. Auf schmalen Bildschirmen bricht die Box dank
+       flex-wrap einfach in eine neue Zeile darunter um. */
+    flex-shrink:0; pointer-events:none;
     background:rgba(13,17,23,0.96); border:1px solid var(--border); border-radius:7px;
-    padding:8px 10px; width:230px; max-width:calc(100% - 20px); display:flex; flex-direction:column; gap:3px;
+    padding:8px 10px; width:230px; max-width:100%; display:flex; flex-direction:column; gap:3px;
     box-shadow:0 4px 14px rgba(0,0,0,0.4);
   }
   .hover-row{display:flex;justify-content:space-between;gap:10px;font-size:10.5px}
@@ -118,6 +130,35 @@
   #simpleModeView #marketIndicatorsCard .equity-wrap{height:170px}
   #simpleModeView #exitFilterCard .exit-banner-row{flex-direction:column;align-items:stretch;gap:10px}
   #simpleModeView .exit-banner-row input[type=number]{width:100%}
+  /* Die beiden Dropdowns teilen sich die Zeile schmal und linksbündig statt sie über die volle Breite
+     auszufüllen -- daher hier explizit von der sonst geltenden "alles untereinander"-Regel (#simpleModeView .row
+     oben) ausgenommen (zwei IDs schlagen eine ID+Klasse in der Spezifität, unabhängig von der Reihenfolge im
+     Stylesheet). */
+  #simpleModeView #simpleTopRow{flex-direction:row;flex-wrap:wrap;justify-content:flex-start;align-items:flex-end;gap:8px}
+  #simpleModeView #simpleTopRow > div{flex:0 1 150px;min-width:120px}
+  /* Trendscore-Button im Simple-Mode: bewusst NICHT die sonst für alle Buttons geltende volle Breite, sondern
+     kompakt und linksbündig -- macht Platz für das Hover-Info-Banner, das rechts daneben schwebt. */
+  #simpleModeView #simpleTrendScoreSlot{display:flex;justify-content:flex-start}
+  #simpleModeView #simpleTrendScoreSlot button{width:auto;padding:8px 16px;font-size:12.5px}
+  /* Flex-Rahmen um Dropdown-Zeile + Trendscore-Button (linke Spalte) und das große Hover-Info-Banner (rechte
+     Spalte, landet per JS in simpleHoverSlot): sitzen dadurch nebeneinander, keine Überlappung möglich (bewusst
+     KEIN position:absolute -- siehe .hover-overlay im CSS weiter oben). Bricht auf schmalen Displays dank
+     flex-wrap automatisch untereinander um. */
+  #simpleModeView #simpleControlsWrap{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap}
+
+  /* Nur im Analyse-Modus (Selektor greift nur, wenn hoverInfoBanner tatsächlich in analyseControlsWrap steckt --
+     im Simple-Mode ist das Element in simpleHoverSlot umgehängt und daher hiervon nicht betroffen): Box um ziemlich
+     genau die Hälfte ihrer eigenen Breite (230px -> 115px) nach links versetzen, plus zusätzlich 0,5cm nach oben
+     und 0,5cm nach rechts (bei üblichen 96px/Zoll ≈ 19px pro 0,5cm -- also -115px+19px = -96px auf der X-Achse,
+     -19px auf der Y-Achse). Bewusst transform statt margin-left/top: die linke Nachbarspalte hat flex:1
+     (flex-grow) -- ein negativer margin-left hätte nur dazu geführt, dass diese Spalte automatisch um genau den
+     freiwerdenden Betrag mitwächst und den Versatz dadurch wieder auffrisst (visuell keine Bewegung). transform
+     greift dagegen NACH dem Flex-Layout rein optisch, ohne dass Geschwister-Elemente reagieren. Nur oberhalb der
+     700px-Grenze aktiv, weil die Box darunter (siehe Media-Query weiter unten) auf 100% Breite umschaltet, wo ein
+     fester Versatz nicht mehr passen würde. */
+  @media (min-width:701px){
+    #analyseControlsWrap #hoverInfoBanner{transform:translate(-96px, -19px)}
+  }
 
   /* ---------- Schmale Bildschirme allgemein (Analyse/Backtest/Automatik/Wallet, NICHT Simple-Mode -- das hat
      oben bereits seine eigene, noch konsequentere Anpassung): ohne das hier war z.B. der Chart im Analyse-Tab
@@ -128,6 +169,10 @@
     /* Tabellen brechen nicht um -- lieber einzeln horizontal scrollbar machen als sie vom overflow-x:hidden
        auf body/html oben unsichtbar abschneiden zu lassen. */
     table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
+    /* Hover-Info-Banner ist jetzt ein normales Flex-Item (kein position:absolute mehr) -- auf schmalen Displays
+       bricht es dank flex-wrap am Elternelement (#analyseControlsWrap/#simpleControlsWrap) automatisch in eine
+       eigene, volle Zeile um. Hier nur noch die volle Breite statt der festen 230px erzwingen. */
+    .hover-overlay{width:100%;box-sizing:border-box}
   }
 </style>
 </head>
@@ -156,47 +201,47 @@
 
   <div class="tabs" id="coinTabs"></div>
 
-  <div class="ticker" id="tickerRow">
-    <span class="pulse-dot"></span>
-    <span class="ticker-value" id="liveTickerValue">—</span>
-    <span class="status" id="liveTickerStatus">lade…</span>
-  </div>
+  <!-- Flex-Rahmen um Intervall-/Strategie-Zeile + Toolbar-Zeile (linke Spalte) und das große Hover-Info-Banner
+       (rechte Spalte): sitzen dadurch nebeneinander in der sonst leeren Fläche über dem Chart, statt den Chart
+       selbst zu überdecken (siehe .hover-overlay weiter oben im CSS -- bewusst KEIN position:absolute, damit die
+       6-zeilige Box nie über ihre schmale linke Nachbarspalte hinausragen und den Chart darunter überlappen
+       kann). Die kleine Live-Kurs-Box bleibt dagegen (wie ursprünglich) als kompaktes Overlay direkt im Chart. -->
+  <div id="analyseControlsWrap" style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">
+    <div style="flex:1;min-width:280px">
+      <div class="row" style="margin-bottom:8px">
+        <div id="intervalSelectWrap">
+          <label>Kerzen-Intervall</label>
+          <select id="intervalSelect"></select>
+        </div>
+        <div id="stratSelectWrap">
+          <label>Chart-Overlay: Strategiesignale</label>
+          <select id="stratSelect"></select>
+        </div>
+        <div id="status" class="status">Lade Kerzendaten…</div>
+      </div>
 
-  <div class="row" style="margin-bottom:8px">
-    <div id="intervalSelectWrap">
-      <label>Kerzen-Intervall</label>
-      <select id="intervalSelect"></select>
+      <div class="row" id="chartToolsRow" style="margin-bottom:8px">
+        <div class="toolgroup">
+          <button class="secondary" id="zoomInBtn">Zoom +</button>
+          <button class="secondary" id="zoomOutBtn">Zoom −</button>
+          <button class="secondary" id="resetZoomBtn">Zoom zurücksetzen</button>
+        </div>
+        <div>
+          <button class="secondary" id="loadMoreBtn">+ 1000 ältere Kerzen laden</button>
+        </div>
+        <div class="toolgroup">
+          <button class="secondary" id="toggleEmaBtn">EMAs</button>
+          <button class="secondary" id="toggleFvgBtn">FVG</button>
+          <button class="secondary" id="toggleFibBtn">Fibonacci</button>
+          <button class="secondary" id="toggleIchimokuBtn">Ichimoku</button>
+          <button class="secondary" id="toggleSwingBtn">Swings</button>
+          <button class="secondary" id="toggleSRBtn">S/R-Zonen</button>
+          <button class="secondary" id="togglePatternBtn">Muster</button>
+          <button class="secondary" id="toggleTrendScoreBtn">Trendscore</button>
+        </div>
+      </div>
     </div>
-    <div id="stratSelectWrap">
-      <label>Chart-Overlay: Strategiesignale</label>
-      <select id="stratSelect"></select>
-    </div>
-    <div id="status" class="status">Lade Kerzendaten…</div>
-  </div>
 
-  <div class="row" id="chartToolsRow" style="margin-bottom:8px">
-    <div class="toolgroup">
-      <button class="secondary" id="zoomInBtn">Zoom +</button>
-      <button class="secondary" id="zoomOutBtn">Zoom −</button>
-      <button class="secondary" id="resetZoomBtn">Zoom zurücksetzen</button>
-    </div>
-    <div>
-      <button class="secondary" id="loadMoreBtn">+ 1000 ältere Kerzen laden</button>
-    </div>
-    <div class="toolgroup">
-      <button class="secondary" id="toggleEmaBtn">EMAs</button>
-      <button class="secondary" id="toggleFvgBtn">FVG</button>
-      <button class="secondary" id="toggleFibBtn">Fibonacci</button>
-      <button class="secondary" id="toggleIchimokuBtn">Ichimoku</button>
-      <button class="secondary" id="toggleSwingBtn">Swings</button>
-      <button class="secondary" id="toggleSRBtn">S/R-Zonen</button>
-      <button class="secondary" id="togglePatternBtn">Muster</button>
-      <button class="secondary" id="toggleTrendScoreBtn">Trendscore</button>
-    </div>
-  </div>
-
-  <div class="chart-wrap" id="chartWrapEl">
-    <canvas id="priceChart"></canvas>
     <div id="hoverInfoBanner" class="hover-overlay">
       <div class="hover-row"><span class="hover-label">Zeit</span><span class="hover-value" id="hoverTime">—</span></div>
       <div class="hover-row"><span class="hover-label">Open</span><span class="hover-value" id="hoverOpen">—</span></div>
@@ -204,6 +249,15 @@
       <div class="hover-row"><span class="hover-label">Low</span><span class="hover-value" id="hoverLow">—</span></div>
       <div class="hover-row"><span class="hover-label">Close</span><span class="hover-value" id="hoverClose">—</span></div>
       <div class="hover-row"><span class="hover-label">Signal</span><span class="hover-value" id="hoverSignal">—</span></div>
+    </div>
+  </div>
+
+  <div class="chart-wrap" id="chartWrapEl">
+    <canvas id="priceChart"></canvas>
+    <div class="ticker" id="tickerRow">
+      <span class="pulse-dot"></span>
+      <span class="ticker-value" id="liveTickerValue">—</span>
+      <span class="status" id="liveTickerStatus">lade…</span>
     </div>
   </div>
   <div class="footnote">
@@ -590,12 +644,16 @@
   unten im Script): dieselbe Chart-Instanz, dieselben Event-Listener, garantiert kein Zustands-Drift.
 -->
 <div class="card" id="simpleModeCard">
-  <div id="simpleTickerSlot"></div>
-  <div class="row" style="margin-bottom:8px">
-    <div id="simpleIntervalSlot" style="flex:1"></div>
-    <div id="simpleStratSlot" style="flex:1"></div>
+  <div id="simpleControlsWrap">
+    <div style="flex:1;min-width:140px">
+      <div class="row" id="simpleTopRow" style="margin-bottom:8px">
+        <div id="simpleIntervalSlot"></div>
+        <div id="simpleStratSlot"></div>
+      </div>
+      <div class="toolgroup" style="margin-bottom:8px" id="simpleTrendScoreSlot"></div>
+    </div>
+    <div id="simpleHoverSlot"></div>
   </div>
-  <div class="toolgroup" style="margin-bottom:8px" id="simpleTrendScoreSlot"></div>
   <div id="simpleChartSlot"></div>
 </div>
 <div id="simpleIndicatorSlot"></div>
@@ -2011,7 +2069,7 @@ function computePanViewState(baseState, dxPixels, xStep, n){
   return clampViewState({ start, end }, n);
 }
 
-// ---------- Hover-Info-Overlay (fest positioniert oben rechts im Chart, feste Größe) ----------
+// ---------- Hover-Info-Overlay (fest positioniert oben rechts über dem Chart, feste Größe) ----------
 function updateHoverBanner(idx){
   if(!chart || !chart.$data || idx==null) return;
   const o = chart.$data;
@@ -4074,7 +4132,9 @@ function populateAutoSwingBreakoutUI(){
 // (Elternelement + nextSibling) wird einmalig beim ersten Wechsel gemerkt, damit das Zurückverschieben immer an
 // exakt der ursprünglichen Stelle im Analyse-Tab landet, egal wie oft hin- und hergewechselt wird.
 const SIMPLE_MODE_MOVES = [
-  {elId:'tickerRow',           slotId:'simpleTickerSlot'},
+  // tickerRow (kleine Live-Kurs-Box) ist absichtlich NICHT hier gelistet: sie sitzt fest als Overlay INNERHALB
+  // von chartWrapEl (siehe HTML) und wandert dadurch automatisch mit, wenn chartWrapEl weiter unten verschoben wird.
+  {elId:'hoverInfoBanner',     slotId:'simpleHoverSlot'},
   {elId:'intervalSelectWrap',  slotId:'simpleIntervalSlot'},
   {elId:'stratSelectWrap',     slotId:'simpleStratSlot'},
   {elId:'toggleTrendScoreBtn', slotId:'simpleTrendScoreSlot'},
