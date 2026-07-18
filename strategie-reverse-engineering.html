@@ -140,6 +140,10 @@
   #simpleModeView label{font-size:11px}
   #simpleModeView .toolgroup{display:block}
   #simpleModeView .chart-wrap{margin:0;height:320px}
+  /* Live-Kurs-Box im Simple-Mode 1cm (~38px) tiefer als im Analyse-Modus: X in "bottom:calc(100% - Xpx)" um 38
+     erhöht (Analyse-Modus-Wert -11px + 38px = 27px, also "calc(100% - 27px)"). Nur im Simple-Mode -- der
+     Analyse-Modus bleibt bei seinem eigenen, bereits abgestimmten Wert (siehe .ticker weiter oben im CSS). */
+  #simpleModeView .ticker{bottom:calc(100% - 27px)}
   #simpleModeView .stats-row{gap:8px}
   #simpleModeView .stat-box{flex:1 1 45%;min-width:0}
   #simpleModeView #marketIndicatorsCard .row{flex-direction:column}
