@@ -57,10 +57,14 @@
      Zeile umbricht, wächst die Box dadurch in der Höhe -- mit fester "top"-Verankerung würde sie dann nach UNTEN
      wachsen und zunehmend Kerzen verdecken (fühlte sich wie ein "Zittern" des Charts an). Mit fixierter
      Unterkante wächst sie stattdessen bei Bedarf nach OBEN in den bislang leeren Platz, ohne den Chart darunter
-     zusätzlich zu verdecken. Zusätzlich auf Wunsch um weitere ca. 1cm (~38px bei 96px/Zoll) höher gesetzt
-     (46px Basis-Abstand + 38px = 84px). */
+     zusätzlich zu verdecken. Bei "bottom:calc(100% - Xpx)" sitzt die Unterkante der Box X Pixel UNTERHALB der
+     Oberkante des Containers -- ein GRÖSSERES X schiebt die Box also weiter NACH UNTEN, nicht nach oben (das war
+     der Fehler in einer früheren Version dieses Kommentars/Werts). Um die Box nach OBEN zu verschieben, muss X
+     kleiner werden bzw. negativ (dann ragt die Box über die Oberkante des Containers hinaus, was hier gewünscht
+     ist). Zweimal um je ca. 1cm höher, dann wieder 0,5cm (~19px) runter: 46px Basis − 38px − 38px + 19px = −11px,
+     also "calc(100% + 11px)". */
   .ticker{
-    position:absolute; bottom:calc(100% - 84px); right:10px; z-index:45;
+    position:absolute; bottom:calc(100% + 11px); right:10px; z-index:45;
     display:flex; align-items:baseline; gap:6px; flex-wrap:wrap; max-width:calc(100% - 20px);
     background:rgba(13,17,23,0.9); border:1px solid var(--border); border-radius:7px;
     padding:6px 10px; box-shadow:0 4px 14px rgba(0,0,0,0.4);
@@ -208,6 +212,13 @@
     <div>
       <label>4. Coin (frei wählbar, zusätzlich zu BTC/ETH/SOL)</label>
       <select id="extraCoinSelect"></select>
+    </div>
+    <div>
+      <label>Anzeige-Währung</label>
+      <div class="toolgroup">
+        <button class="secondary active" id="currencyEurBtn">EUR</button>
+        <button class="secondary" id="currencyUsdBtn">USD</button>
+      </div>
     </div>
     <div id="extraCoinStatus" class="status" style="align-self:center"></div>
   </div>
@@ -787,6 +798,13 @@ let activeInterval = "1d";
 // alle Object.keys(COINS)/Object.entries(COINS)-Stellen im Code (Tabs, Alarm-Blöcke, Automatik-Grid,
 // Eigenkapitalkurve, ...) sind bewusst so gebaut, dass sie automatisch mitwachsen/-schrumpfen.
 let customCoinKey = null;
+// Anzeige-Waehrung (EUR/USD): rein optische Umrechnung fuer die Anzeige. Alle Kerzendaten/Indikatoren/Strategien
+// werden weiterhin unveraendert in EUR abgerufen und berechnet (Binance liefert ohnehin nur die EUR-Paare, siehe
+// COINS) -- Trendfolge/RSI/MACD/etc. sind ohnehin waehrungsunabhaengig (relative Prozentwerte), daher genuegt es,
+// nur die ANZEIGE (fmtEUR) bei Bedarf mit dem aktuellen EUR/USD-Kurs umzurechnen, statt komplett getrennte
+// USD-Kerzendaten zu laden.
+let displayCurrency = 'EUR';
+let eurUsdRate = null;
 let chart = null;
 let tickerTimer = null;
 let chartRefreshTimer = null;
@@ -873,6 +891,7 @@ function getInstanceId(){
 const INSTANCE_ID = getInstanceId();
 const LS_PREFIX = INSTANCE_ID ? ('inst_'+INSTANCE_ID+'_') : '';
 const CUSTOM_COIN_LS_KEY = LS_PREFIX+'srt_customCoinKey';
+const DISPLAY_CURRENCY_LS_KEY = LS_PREFIX+'srt_displayCurrency';
 
 // ---------- Automatik-Trading (Paper-Trading) ----------
 // Nutzt dieselbe buildStrategies()-Engine wie der Analyse-Tab, aber mit einem EIGENEN, unabhängigen Satz Exit-
@@ -1095,8 +1114,13 @@ function renderHlWalletUI(){
 // ---------- Formatting ----------
 function fmtEUR(x){
   if(x==null || isNaN(x)) return "—";
-  const decimals = x < 1 ? 6 : x < 100 ? 4 : 2;
-  return new Intl.NumberFormat('de-DE', {style:'currency', currency:'EUR', minimumFractionDigits:decimals, maximumFractionDigits:decimals}).format(x);
+  // Anzeige-Waehrung: bei "USD" wird der EUR-Wert mit dem zuletzt bekannten EUR/USD-Kurs umgerechnet (siehe
+  // refreshEurUsdRate()) -- ist noch kein Kurs geladen, wird sicherheitshalber bei EUR geblieben statt einen
+  // falschen/fehlenden Wert anzuzeigen.
+  let val = x, currency = 'EUR';
+  if(displayCurrency === 'USD' && eurUsdRate){ val = x * eurUsdRate; currency = 'USD'; }
+  const decimals = val < 1 ? 6 : val < 100 ? 4 : 2;
+  return new Intl.NumberFormat('de-DE', {style:'currency', currency, minimumFractionDigits:decimals, maximumFractionDigits:decimals}).format(val);
 }
 function fmtPct(x){
   if(x==null) return "—";
@@ -1124,6 +1148,18 @@ async function fetchLivePrice(coin){
   if(!res.ok) throw new Error('rate-limited');
   const json = await res.json();
   return parseFloat(json.price);
+}
+// Live EUR/USD-Kurs fuer die Anzeige-Waehrungsumrechnung (siehe fmtEUR/displayCurrency). Nutzt das Binance-Paar
+// EURUSDT (USDT ~ USD) -- schlaegt der Abruf fehl, bleibt einfach der zuletzt bekannte Kurs (oder null) stehen,
+// fmtEUR faellt dann sicherheitshalber auf EUR zurueck statt einen falschen Wert zu zeigen.
+async function refreshEurUsdRate(){
+  try{
+    const res = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=EURUSDT');
+    if(!res.ok) return;
+    const json = await res.json();
+    const rate = parseFloat(json.price);
+    if(!isNaN(rate) && rate > 0) eurUsdRate = rate;
+  }catch(e){ /* stiller Fallback -- siehe Kommentar oben */ }
 }
 async function ensureData(coin, interval){
   const key = coin+'::'+interval;
@@ -3528,6 +3564,39 @@ function populateExtraCoinUI(){
   sel.value = customCoinKey || '';
   sel.addEventListener('change', ()=> setCustomCoin(sel.value || null));
 }
+// Re-rendert alle Stellen, die Preise ueber fmtEUR() anzeigen, nachdem sich die Anzeige-Waehrung geaendert hat
+// (bzw. der EUR/USD-Kurs neu geladen wurde) -- die Kerzendaten/Indikatoren selbst bleiben unveraendert, nur die
+// bereits im DOM stehenden formatierten Werte muessen neu gezeichnet/geschrieben werden.
+function rerenderAfterCurrencyChange(){
+  if(chart) drawChart();
+  renderIndicatorPanel();
+  renderTable();
+  renderAutoTradeUI();
+  if(lastPriceValue != null) updateTickerDisplay(lastPriceValue);
+}
+function setDisplayCurrency(cur){
+  displayCurrency = cur;
+  try{ localStorage.setItem(DISPLAY_CURRENCY_LS_KEY, cur); }catch(e){ /* localStorage evtl. nicht verfügbar */ }
+  const eurBtn = document.getElementById('currencyEurBtn'), usdBtn = document.getElementById('currencyUsdBtn');
+  if(eurBtn) eurBtn.classList.toggle('active', cur === 'EUR');
+  if(usdBtn) usdBtn.classList.toggle('active', cur === 'USD');
+  if(cur === 'USD' && !eurUsdRate){
+    // Kurs noch nicht geladen -> jetzt nachholen, danach neu rendern (bis dahin zeigt fmtEUR sicherheitshalber
+    // weiter EUR, siehe Kommentar dort).
+    refreshEurUsdRate().then(rerenderAfterCurrencyChange);
+  } else {
+    rerenderAfterCurrencyChange();
+  }
+}
+function populateCurrencyToggleUI(){
+  let saved = 'EUR';
+  try{ saved = localStorage.getItem(DISPLAY_CURRENCY_LS_KEY) || 'EUR'; }catch(e){ /* localStorage evtl. nicht verfügbar */ }
+  displayCurrency = saved === 'USD' ? 'USD' : 'EUR';
+  const eurBtn = document.getElementById('currencyEurBtn'), usdBtn = document.getElementById('currencyUsdBtn');
+  if(eurBtn){ eurBtn.classList.toggle('active', displayCurrency === 'EUR'); eurBtn.addEventListener('click', ()=> setDisplayCurrency('EUR')); }
+  if(usdBtn){ usdBtn.classList.toggle('active', displayCurrency === 'USD'); usdBtn.addEventListener('click', ()=> setDisplayCurrency('USD')); }
+  refreshEurUsdRate().then(()=>{ if(displayCurrency === 'USD') rerenderAfterCurrencyChange(); });
+}
 function populateControls(){
   renderCoinTabs();
   renderAlertBlocksSkeleton();
@@ -4874,6 +4943,7 @@ document.addEventListener('DOMContentLoaded', () => {
   restoreCustomCoinFromStorage();
   populateControls();
   populateExtraCoinUI();
+  populateCurrencyToggleUI();
   populateExitBanner();
   populateEntryFilterUI();
   populateAtrSafetyUI();
