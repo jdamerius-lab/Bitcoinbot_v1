@@ -50,6 +50,13 @@
   .status{color:var(--muted);font-size:11px}
   .badge{display:inline-block;padding:1px 6px;border-radius:999px;font-size:10px;font-weight:600;background:#1f2530;color:var(--amber);margin-left:6px}
   .best{background:rgba(63,185,80,.12)}
+  /* Signal-Reliability-Matrix (Backtest-Tab): Score-Zellen farblich nach Zuverlässigkeitsband eingefärbt. */
+  .reliability-cell{text-align:center;font-weight:700;padding:6px 8px}
+  .reliability-high{background:rgba(63,185,80,.18);color:var(--green)}
+  .reliability-mid{background:rgba(210,153,34,.15);color:var(--amber)}
+  .reliability-low{background:rgba(248,81,73,.15);color:var(--red)}
+  .reliability-na{color:var(--muted);font-weight:400}
+  .reliability-n{display:block;font-size:9px;font-weight:400;color:var(--muted)}
   code{background:#0d1117;padding:1px 5px;border-radius:4px;font-size:11px}
   .footnote{color:var(--muted);font-size:10.5px;margin-top:6px}
   /* Kleine Live-Kurs-Box: kompaktes Overlay direkt IM Chart (oben rechts), wie ursprünglich. Bewusst mit "bottom"
@@ -464,6 +471,39 @@
       Out-of-Sample-Rendite stark von der In-Sample-Rendite ab, ist das ein Warnsignal für Überanpassung statt
       einer wirklich robusten Kombination.
     </div>
+  </div>
+</div>
+
+<div class="card">
+  <h2 style="font-size:13px;margin:0 0 8px">Signal-Reliability nach Timeframe</h2>
+  <div class="exit-banner-desc">
+    Testet NICHT die Trade-Simulation (die hängt vom gewählten Exit-Modus ab), sondern die rohen Entry-Signale
+    jeder Strategie direkt: hat sich der Kurs nach einem Signal tatsächlich weiter in die angenommene Richtung
+    bewegt als dagegen (gemessen über die 20 Kerzen nach dem Signal), und wie weit maximal? Nutzt die aktuell
+    aktiven Entry-Filter/Exit-Einstellungen — ändere die Parameter oben und klicke erneut auf "Berechnen", um den
+    Effekt zu sehen. Score = Trefferquote × Vertrauensfaktor (steigt mit der Anzahl ausgewerteter Signale, ab 20
+    Signalen volle Punktzahl) — wenige Signale ergeben also automatisch einen niedrigeren, vorsichtigeren Score,
+    selbst bei 100% Trefferquote.
+  </div>
+  <div class="row" style="margin:8px 0">
+    <div><button id="reliabilityMatrixBtn">Reliability-Matrix berechnen</button></div>
+    <div id="reliabilityMatrixStatus" class="status"></div>
+  </div>
+  <div id="reliabilityMatrixWrap"></div>
+  <div class="footnote">
+    Reine Heuristik auf Basis von Höchst-/Tiefstkursen im Nachhinein (Max. Favorable/Adverse Excursion), keine
+    Anlageberatung. Ein hoher Score bedeutet, dass die Signale dieser Strategie auf diesem Timeframe historisch
+    häufig die richtige Richtung mit ausreichend Bewegung erwischt haben — keine Garantie für die Zukunft.
+  </div>
+  <div class="row" style="margin:14px 0 8px;padding-top:10px;border-top:1px solid var(--border)">
+    <div><button id="reliabilityBestComboBtn">Beste Entry+Exit-Kombination je Zeitrahmen (Reliability)</button></div>
+    <div id="reliabilityBestComboStatus" class="status"></div>
+  </div>
+  <div id="reliabilityBestComboWrap"></div>
+  <div class="footnote">
+    Testet zusätzlich alle 5 Exit-Modi (nicht nur den oben aktuell eingestellten) je Strategie und Zeitrahmen und
+    zeigt pro Zeitrahmen, welche Entry+Exit-Kombination den höchsten Reliability-Score erreicht. Verändert dabei
+    NICHT die aktuell aktiven Einstellungen (Exit-Modus/Chart-Overlay bleiben unangetastet) — reine Übersicht.
   </div>
 </div>
 
@@ -1601,6 +1641,58 @@ function finalizeStrategy(signal, highs, lows, closes, exitCtx){
   return { position: sim.position, equity, trades: sim.trades, exits: sim.exits, totalReturn, buyHold, maxDD, winRate: total ? wins/total : null };
 }
 
+// ---------- Signal-Reliability nach Timeframe (Backtest-Zusatz) ----------
+// Testet bewusst NICHT die Trade-Simulation (die haengt vom gewaehlten Exit-Modus ab, ist also eine Aussage
+// ueber die EXIT-Strategie mit-vermischt) -- stattdessen die rohen Entry-Signale direkt: hat sich der Kurs nach
+// einem Signal tatsaechlich weiter in die angenommene Richtung bewegt als dagegen (Max. Favorable Excursion >
+// Max. Adverse Excursion in einem festen Kerzenfenster danach), und wie weit maximal? Nutzt das position-Array
+// aus buildStrategies(), das bereits die aktuell aktiven Entry-Filter beruecksichtigt -- der Score ist also
+// abhaengig von den gerade eingestellten Parametern, wie gewuenscht.
+const RELIABILITY_TIMEFRAMES = ['5m','15m','30m','1h','4h','1d','1w'];
+const RELIABILITY_LOOKFORWARD = 20; // Kerzen nach dem Signal, in denen die Bewegung gemessen wird
+function computeSignalReliability(coin, interval, stratKey, lookforward=RELIABILITY_LOOKFORWARD){
+  const cache = ohlcCache[coin+'::'+interval];
+  if(!cache) return null;
+  const {highs, lows, closes} = cache;
+  const n = closes.length;
+  let pos;
+  // 'trendscore' ist keine der 9 buildStrategies()-Strategien, sondern der gewichtete Konsens (siehe
+  // computeTrendScoreResult) -- hat aber dieselbe {position:[...]}-Form, kann also identisch ausgewertet werden.
+  if(stratKey === 'trendscore'){
+    let ts;
+    try{ ts = computeTrendScoreResult(coin, interval); }catch(e){ return null; }
+    pos = ts && ts.position;
+  } else {
+    let strategies;
+    try{ strategies = buildStrategies(coin, interval); }catch(e){ return null; }
+    pos = strategies[stratKey] && strategies[stratKey].position;
+  }
+  if(!pos) return null;
+  let hits = 0, total = 0, magnitudeSum = 0;
+  for(let i=1;i<n;i++){
+    if(pos[i]===0 || pos[i]===pos[i-1]) continue; // kein neues Entry-Signal an dieser Stelle
+    const entryPrice = closes[i];
+    const end = Math.min(n-1, i+lookforward);
+    if(end <= i) continue; // nicht genug Kerzen danach übrig (Signal zu nah am aktuellen Rand) -> überspringen
+    let mfe = -Infinity, mae = -Infinity;
+    for(let j=i+1;j<=end;j++){
+      let fav, adv;
+      if(pos[i]===1){ fav = (highs[j]-entryPrice)/entryPrice; adv = (entryPrice-lows[j])/entryPrice; }
+      else { fav = (entryPrice-lows[j])/entryPrice; adv = (highs[j]-entryPrice)/entryPrice; }
+      if(fav>mfe) mfe = fav;
+      if(adv>mae) mae = adv;
+    }
+    total++;
+    if(mfe > mae) hits++;
+    magnitudeSum += mfe;
+  }
+  const hitRate = total ? hits/total : null;
+  const avgMagnitude = total ? magnitudeSum/total : null;
+  const confidence = Math.min(1, total/20); // ab 20 ausgewerteten Signalen volle Punktzahl, darunter gedämpft
+  const score = hitRate!=null ? Math.round(100*hitRate*confidence) : null;
+  return {total, hitRate, avgMagnitude, score};
+}
+
 // Löscht den Strategie-Cache für ein coin/interval-Paar in BEIDEN Profilen (Analyse + Automatik) -- genutzt an
 // allen Stellen, die nur "irgendwas hat sich an den Rohdaten geändert" wissen, aber nicht, welches der beiden
 // Profile davon gerade betroffen ist (z.B. nach dem Nachladen neuer Kerzen). Günstiger als ein kompletter
@@ -2033,9 +2125,23 @@ function discretizeTrendScore(scoreSeries, threshold){
   }
   return position;
 }
+// Baut denselben exitCtx (ATR/Swing-Punkte fürs Trailing-/Struktur-Exit) wie buildStrategiesCore() für den
+// Trendscore nach, da buildStrategiesCore() seinen internen exitCtx nicht nach außen gibt -- liest bewusst die
+// aktuell aktiven exitMode/exitParam/structureAtrSafetyMult-Globals, damit computeTrendScoreResult() (siehe
+// unten) exakt denselben Exit-Modus anwendet wie die 9 Einzelstrategien, statt fest auf "Exit = nächstes
+// Gegensignal" zu bestehen.
+function computeTrendScoreExitResult(position, highs, lows, closes){
+  const needsAtr = exitMode === 'trailing' || (exitMode === 'structure' && structureAtrSafetyMult > 0);
+  const atrForExit = needsAtr ? atr(highs, lows, closes, 14) : null;
+  const swingForExit = exitMode === 'structure' ? findSwingPoints(highs, lows, Math.max(1, Math.round(exitParam || 3))) : null;
+  const exitCtx = { atrArr: atrForExit, swingHighAt: swingForExit && swingForExit.swingHighAt, swingLowAt: swingForExit && swingForExit.swingLowAt };
+  return finalizeStrategy(position, highs, lows, closes, exitCtx);
+}
 // profile='analyse' (Standard) nutzt die Analyse-Tab-Strategien/-Filter (für Chart-Overlay + Indikator-Panel);
-// profile='auto' nutzt stattdessen die eigenständigen Automatik-Strategien/-Filter (für den neuen Automatik-Modus
-// "Trendscore") -- exakt dieselbe Profil-Weiche wie bei buildStrategies() selbst.
+// profile='auto' nutzt stattdessen die eigenständigen Automatik-Strategien/-Filter (für den Automatik-Modus
+// "Trendscore") -- exakt dieselbe Profil-Weiche wie bei buildStrategies() selbst, jetzt auch für die
+// Exit-Berechnung (vorher lief der Trendscore IMMER mit "Exit = nächstes Gegensignal", unabhängig vom
+// eingestellten Exit-Modus -- das ist jetzt behoben).
 function computeTrendScoreResult(coin, interval, profile='analyse'){
   const data = ohlcCache[coin+'::'+interval];
   if(!data || data.closes.length < 5) return null;
@@ -2044,7 +2150,21 @@ function computeTrendScoreResult(coin, interval, profile='analyse'){
   const n = data.closes.length;
   const scoreSeries = computeTrendScoreSeries(strategies, weights, n);
   const position = discretizeTrendScore(scoreSeries, TREND_SCORE_THRESHOLD);
-  const result = positionToResult(position, data.closes);
+  const { highs, lows, closes } = data;
+  let result;
+  if(profile === 'auto'){
+    const saved = { exitMode, exitParam, entryConfirmBars, structureAtrSafetyMult };
+    exitMode = autoExitMode; exitParam = autoExitParam; entryConfirmBars = autoEntryConfirmBars;
+    structureAtrSafetyMult = autoStructureAtrSafetyMult;
+    try{
+      result = computeTrendScoreExitResult(position, highs, lows, closes);
+    } finally {
+      exitMode = saved.exitMode; exitParam = saved.exitParam; entryConfirmBars = saved.entryConfirmBars;
+      structureAtrSafetyMult = saved.structureAtrSafetyMult;
+    }
+  } else {
+    result = computeTrendScoreExitResult(position, highs, lows, closes);
+  }
   return {
     weights, scoreSeries, position: result.position, trades: result.trades, exits: result.exits,
     totalReturn: result.totalReturn, buyHold: result.buyHold, winRate: result.winRate, maxDD: result.maxDD,
@@ -2844,7 +2964,12 @@ function renderTable(){
   const key = coin+'::'+interval;
   const count = ohlcCache[key] ? ohlcCache[key].closes.length : 0;
   document.getElementById('compTitle').textContent = `${COINS[coin].label} — ${iv.label}-Kerzen (${count} geladen)`;
-  const strategies = buildStrategies(coin, interval);
+  // Shallow copy statt der von buildStrategies() zurückgegebenen (gecachten!) Referenz -- sonst würde das
+  // gleich angehängte "trendscore"-Feld dauerhaft im strategyCache landen und andere Stellen verwirren, die
+  // Object.keys(strategies) als "genau die 9 echten Strategien" annehmen (u.a. computeTrendScoreWeights selbst).
+  const strategies = { ...buildStrategies(coin, interval) };
+  const trendScore = computeTrendScoreResult(coin, interval);
+  if(trendScore) strategies.trendscore = trendScore;
   const tbody = document.querySelector('#compTable tbody');
   tbody.innerHTML = '';
   let best = null;
@@ -2852,8 +2977,9 @@ function renderTable(){
   Object.entries(strategies).forEach(([k,r])=>{
     const tr = document.createElement('tr');
     if(k===best) tr.className='best';
+    const label = k==='trendscore' ? 'Trendscore-Konsens' : STRAT_LABELS_FULL[k];
     tr.innerHTML = `
-      <td>${STRAT_LABELS_FULL[k]}${k===best?'<span class="badge">BESTE</span>':''}</td>
+      <td>${label}${k===best?'<span class="badge">BESTE</span>':''}</td>
       <td>${fmtPct(r.totalReturn)}</td>
       <td>${fmtPct(r.totalReturn - r.buyHold)}</td>
       <td>${fmtPct(r.maxDD)}</td>
@@ -2862,6 +2988,109 @@ function renderTable(){
     `;
     tbody.appendChild(tr);
   });
+}
+
+// Lädt bei Bedarf die Kerzendaten für alle RELIABILITY_TIMEFRAMES nach (falls noch nicht im Cache) und rendert
+// die 9×7-Matrix. Bewusst button-getriggert statt automatisch beim Tab-Öffnen, da bis zu 7 zusätzliche
+// Kerzen-Ladevorgänge nötig sein können (wie beim Kombinations-Optimierer).
+async function runReliabilityMatrix(){
+  const coin = activeCoin;
+  const btn = document.getElementById('reliabilityMatrixBtn');
+  const statusEl = document.getElementById('reliabilityMatrixStatus');
+  const wrapEl = document.getElementById('reliabilityMatrixWrap');
+  if(btn) btn.disabled = true;
+  if(statusEl) statusEl.textContent = 'Lade Kerzendaten für alle Timeframes…';
+  for(const iv of RELIABILITY_TIMEFRAMES){
+    try{ await ensureData(coin, iv); }
+    catch(e){ console.warn('Reliability-Matrix: Kerzendaten für', iv, 'nicht ladbar:', e); }
+  }
+  if(statusEl) statusEl.textContent = 'Berechne…';
+  // 'trendscore' (gewichteter Konsens aller 9 Strategien) läuft als zusätzliche Zeile mit -- computeSignalReliability
+  // kennt diesen Sonderfall (siehe dort) und wertet computeTrendScoreResult().position statt einer der 9
+  // buildStrategies()-Positionen aus.
+  const stratKeys = [...Object.keys(STRAT_LABELS), 'trendscore'];
+  let html = '<table><thead><tr><th>Strategie</th>' +
+    RELIABILITY_TIMEFRAMES.map(iv => `<th>${INTERVALS.find(t=>t.value===iv).label}</th>`).join('') +
+    '</tr></thead><tbody>';
+  stratKeys.forEach(k=>{
+    const label = k==='trendscore' ? 'Trendscore-Konsens' : STRAT_LABELS_FULL[k];
+    html += `<tr><td>${label}</td>`;
+    RELIABILITY_TIMEFRAMES.forEach(iv=>{
+      const r = computeSignalReliability(coin, iv, k);
+      if(!r || r.score==null){
+        html += `<td class="reliability-cell reliability-na">—</td>`;
+      } else {
+        const cls = r.score>=60 ? 'reliability-high' : r.score>=40 ? 'reliability-mid' : 'reliability-low';
+        html += `<td class="reliability-cell ${cls}" title="${r.total} Signale ausgewertet, Trefferquote ${(r.hitRate*100).toFixed(0)}%, Ø max. Bewegung in Signal-Richtung ${(r.avgMagnitude*100).toFixed(1)}%">${r.score}<span class="reliability-n">n=${r.total}</span></td>`;
+      }
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  if(wrapEl) wrapEl.innerHTML = html;
+  if(statusEl) statusEl.textContent = `${COINS[coin].label} — Zellen zeigen Score (0–100) und Anzahl ausgewerteter Signale (n). Zum Detail einer Zelle hovern.`;
+  if(btn) btn.disabled = false;
+}
+
+// Wie runReliabilityMatrix(), testet aber zusätzlich alle 5 EXIT_MODES statt nur den gerade aktiven -- pro
+// Zeitrahmen wird über stratKeys × EXIT_MODES gesucht, welche Entry+Exit-Kombination den höchsten
+// Reliability-Score erreicht (Tie-Break: mehr ausgewertete Signale n gewinnt). Mutiert exitMode/exitParam/
+// strategyCache waehrend der Suche wie computeComboSearchResults(), stellt am Ende aber den Ausgangszustand
+// wieder her -- reine Übersicht, NICHTS wird in die aktiven Einstellungen übernommen.
+async function runReliabilityBestComboPerTimeframe(){
+  const coin = activeCoin;
+  const btn = document.getElementById('reliabilityBestComboBtn');
+  const statusEl = document.getElementById('reliabilityBestComboStatus');
+  const wrapEl = document.getElementById('reliabilityBestComboWrap');
+  if(btn) btn.disabled = true;
+  if(statusEl) statusEl.textContent = 'Lade Kerzendaten für alle Timeframes…';
+  for(const iv of RELIABILITY_TIMEFRAMES){
+    try{ await ensureData(coin, iv); }
+    catch(e){ console.warn('Beste Kombi je Timeframe: Kerzendaten für', iv, 'nicht ladbar:', e); }
+  }
+  if(statusEl) statusEl.textContent = 'Teste alle Entry×Exit-Kombinationen je Zeitrahmen (kann kurz dauern)…';
+  await new Promise(r=>setTimeout(r, 20));
+  const savedExitMode = exitMode, savedExitParam = exitParam;
+  const stratKeys = [...Object.keys(STRAT_LABELS), 'trendscore'];
+  const rows = [];
+  try{
+    for(const iv of RELIABILITY_TIMEFRAMES){
+      let best = null;
+      Object.entries(EXIT_MODES).forEach(([modeKey, cfg])=>{
+        exitMode = modeKey;
+        exitParam = cfg.paramDefault;
+        strategyCache = {}; // exit-abhängig -> muss pro Exit-Modus neu berechnet werden
+        stratKeys.forEach(stratKey=>{
+          const r = computeSignalReliability(coin, iv, stratKey);
+          if(!r || r.score==null) return;
+          if(!best || r.score > best.score || (r.score === best.score && r.total > best.total)){
+            best = { stratKey, exitModeKey: modeKey, score: r.score, total: r.total, hitRate: r.hitRate, avgMagnitude: r.avgMagnitude };
+          }
+        });
+      });
+      const ivLabel = INTERVALS.find(t=>t.value===iv).label;
+      if(!best){
+        rows.push(`<tr><td>${ivLabel}</td><td colspan="4" class="reliability-na">keine auswertbaren Signale</td></tr>`);
+      } else {
+        const label = best.stratKey==='trendscore' ? 'Trendscore-Konsens' : STRAT_LABELS_FULL[best.stratKey];
+        rows.push(`<tr>
+          <td>${ivLabel}</td>
+          <td>${label}</td>
+          <td>${EXIT_MODES[best.exitModeKey].label}</td>
+          <td>${best.score}</td>
+          <td>n=${best.total}</td>
+        </tr>`);
+      }
+    }
+  } finally {
+    exitMode = savedExitMode; exitParam = savedExitParam;
+    strategyCache = {}; // durch die Suchschleife verunreinigt -- auf den Ausgangszustand zurücksetzen
+    if(btn) btn.disabled = false;
+  }
+  if(wrapEl){
+    wrapEl.innerHTML = `<table><thead><tr><th>Zeitrahmen</th><th>Beste Strategie</th><th>Bester Exit</th><th>Score</th><th>Signale</th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
+  }
+  if(statusEl) statusEl.textContent = `${COINS[coin].label} — beste Entry+Exit-Kombination je Zeitrahmen nach Reliability-Score. Aktuelle Einstellungen unverändert.`;
 }
 
 // ---------- Alarm-Blöcke: 3 Coins nebeneinander, Signale der letzten 30 Min, neu->alt, mit Uhrzeit ----------
@@ -3829,6 +4058,24 @@ async function refineFiltersForBest(stratKey, data, windowSize, scoreBounds){
   return bestFilter;
 }
 
+// Kern der Entry×Exit-Suche, ausgelagert für Wiederverwendbarkeit. Mutiert bewusst
+// exitMode/exitParam/strategyCache waehrend der Suche (wie bisher) -- Aufrufer ist dafuer verantwortlich, den
+// Ausgangszustand danach wiederherzustellen, falls gewuenscht.
+function computeComboSearchResults(coin, interval, data, scoreBounds){
+  const results = [];
+  Object.entries(EXIT_MODES).forEach(([modeKey, cfg])=>{
+    exitMode = modeKey;
+    exitParam = cfg.paramDefault;
+    strategyCache = {};
+    const strategies = buildStrategies(coin, interval);
+    Object.entries(strategies).forEach(([stratKey, r])=>{
+      const score = scoreRange(r.position, data.closes, scoreBounds.start, scoreBounds.end);
+      results.push({ exitModeKey: modeKey, exitParam: cfg.paramDefault, stratKey, ...score });
+    });
+  });
+  results.sort((a,b)=> b.totalReturn - a.totalReturn);
+  return results;
+}
 async function runComboOptimizer(){
   const key = activeCoin+'::'+activeInterval;
   const data = ohlcCache[key];
@@ -3862,18 +4109,7 @@ async function runComboOptimizer(){
     }
     const scoreBounds = { start: winStart, end: isEnd };
 
-    const results = [];
-    Object.entries(EXIT_MODES).forEach(([modeKey, cfg])=>{
-      exitMode = modeKey;
-      exitParam = cfg.paramDefault;
-      strategyCache = {}; // exit-abhängig -> muss pro Exit-Modus neu berechnet werden
-      const strategies = buildStrategies(activeCoin, activeInterval);
-      Object.entries(strategies).forEach(([stratKey, r])=>{
-        const score = scoreRange(r.position, data.closes, scoreBounds.start, scoreBounds.end);
-        results.push({ exitModeKey: modeKey, exitParam: cfg.paramDefault, stratKey, ...score });
-      });
-    });
-    results.sort((a,b)=> b.totalReturn - a.totalReturn);
+    const results = computeComboSearchResults(activeCoin, activeInterval, data, scoreBounds);
     const best = results[0];
 
     exitMode = best.exitModeKey;
@@ -4957,6 +5193,8 @@ document.addEventListener('DOMContentLoaded', () => {
   populateSwingBreakoutUI();
   populateOptimizerWalkForwardUI();
   document.getElementById('optimizerBtn').addEventListener('click', runComboOptimizer);
+  document.getElementById('reliabilityMatrixBtn').addEventListener('click', runReliabilityMatrix);
+  document.getElementById('reliabilityBestComboBtn').addEventListener('click', runReliabilityBestComboPerTimeframe);
   attachIndicatorChartResizeListener();
   clearMiniCharts();
 
