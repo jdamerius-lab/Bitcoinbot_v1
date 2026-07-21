@@ -89,6 +89,8 @@
   .alert-item span:first-child{overflow:hidden;text-overflow:ellipsis}
   .alert-item.long{color:var(--long)}
   .alert-item.short{color:var(--short)}
+  .alert-other-tf{margin-top:4px;padding:3px 6px;font-size:10px;line-height:1.4;border-radius:4px;background:rgba(210,153,34,.15);color:var(--amber);cursor:pointer}
+  .alert-other-tf:hover{background:rgba(210,153,34,.28)}
   .alert-time{color:var(--muted);font-weight:600;flex-shrink:0}
   .hover-overlay{
     /* Großes Hover-Info-Banner: schwebt NICHT mehr im Chart selbst, sondern oben rechts über den Dropdown-/
@@ -273,8 +275,11 @@
           <button class="secondary" id="toggleSRBtn">S/R-Zonen</button>
           <button class="secondary" id="togglePatternBtn">Muster</button>
           <button class="secondary" id="toggleTrendScoreBtn">Trendscore</button>
+          <button class="secondary" id="toggleForecastBtn" title="Zyklen-Prognose (nur Bitcoin/1-Tages-Chart) -- reine Heuristik, keine Anlageberatung">Prognose</button>
+          <input type="number" id="forecastDaysInput" min="7" max="720" step="10" value="180" style="width:62px" title="Prognose-Zeitraum in Tagen">
         </div>
       </div>
+      <div id="forecastStatus" class="status" style="margin:-4px 0 8px"></div>
     </div>
 
     <div id="hoverInfoBanner" class="hover-overlay">
@@ -2568,6 +2573,35 @@ function drawSignalMarkers(ctx, d, iFrom, iTo, scaleX, scaleY){
   }
   ctx.restore();
 }
+// Zeichnet die BTC-Zyklen-Prognose rechts von der letzten echten Kerze: die beiden historischen Referenzpfade
+// (2017/2021, dünn/gestrichelt) und die gemittelte Prognoselinie (dick, durchgezogen), alle drei starten exakt
+// beim heutigen echten Kurs (siehe Rebasing in computeCycleForecast()) und laufen dann getrennt weiter -- so
+// bleibt sichtbar, wenn sich beide historischen Analogien widersprechen, statt das hinter einem Mittelwert zu
+// verstecken. Eine gestrichelte vertikale Linie markiert die Grenze "echte Kerzen | Prognose".
+function drawCycleForecastOverlay(ctx, forecast, n, scaleX, scaleY, layout){
+  ctx.save();
+  const startX = scaleX(n-1), startY = scaleY(forecast.todayPrice);
+  ctx.setLineDash([3,4]);
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(startX, layout.plotTop); ctx.lineTo(startX, layout.plotBottom); ctx.stroke();
+
+  function drawPath(valueKey, color, lineWidth, dash){
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    forecast.points.forEach(p=> ctx.lineTo(scaleX(n-1+p.k), scaleY(p[valueKey])));
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.setLineDash(dash || []);
+    ctx.stroke();
+  }
+  drawPath('price1', 'rgba(88,166,255,0.55)', 1, [4,3]);  // 2017er-Referenzpfad
+  drawPath('price2', 'rgba(210,153,34,0.55)', 1, [4,3]);  // 2021er-Referenzpfad
+  drawPath('avg', '#d2a8ff', 2, null);                     // gemittelte Prognose
+
+  ctx.setLineDash([]);
+  ctx.restore();
+}
 function drawLegend(ctx, layout){
   ctx.save();
   ctx.font = '10px sans-serif';
@@ -2581,6 +2615,11 @@ function drawLegend(ctx, layout){
     {label:'Short-Ausstieg', color:'#fb923c', shape:'circle'}
   ];
   if(showEMAs){ EMA_CONFIGS.forEach(cfg=> items.push({label:cfg.label, color:cfg.color, shape:'line'})); }
+  if(showForecast && chart && chart.$forecast){
+    items.push({label:'Zyklus-Prognose 2017', color:'rgba(88,166,255,0.55)', shape:'line'});
+    items.push({label:'Zyklus-Prognose 2021', color:'rgba(210,153,34,0.55)', shape:'line'});
+    items.push({label:'Prognose (Ø)', color:'#d2a8ff', shape:'line'});
+  }
   items.forEach(it=>{
     if(it.shape==='tri-up'){ drawTriangleUp(ctx, x+5, y, 4); ctx.fillStyle=it.color; ctx.fill(); }
     else if(it.shape==='tri-down'){ drawTriangleDown(ctx, x+5, y, 4); ctx.fillStyle=it.color; ctx.fill(); }
@@ -2651,10 +2690,19 @@ function drawChart(){
   let view = chart.fullView ? { start: 0, end: Math.max(0, n-1) } : clampViewState(chart.viewState, n);
   if(!chart.fullView) chart.viewState = view;
 
+  // Zyklen-Prognose (nur Bitcoin + 1-Tages-Chart, siehe Toggle-Button): der sichtbare Achsenbereich wird bei
+  // aktiver Prognose um die Projektionstage nach RECHTS erweitert -- wirkt sich NUR auf die x-Achsen-Skalierung
+  // (xStep/scaleX) aus, welche ECHTEN Kerzen gezeichnet werden (iFrom/iTo unten) bleibt unverändert auf die
+  // echten Daten begrenzt. Dadurch rücken Kerzen/EMAs/Marker optisch nach links zusammen, genau wie beim
+  // Rauszoomen -- die Prognose bekommt so sichtbaren Platz "als Erweiterung auf der rechten Chart-Seite".
+  const forecastPoints = (showForecast && chart.$forecast) ? chart.$forecast.points : null;
+  const forecastExtraDays = forecastPoints ? forecastPoints.length : 0;
+  const axisView = forecastExtraDays>0 ? { start: view.start, end: view.end + forecastExtraDays } : view;
+
   const layout = getPlotLayout(wCSS, hCSS);
   const { plotLeft, plotRight, plotTop, plotBottom, plotW, plotH } = layout;
-  const xStep = computeXStep(plotW, view.start, view.end);
-  const scaleX = (i) => idxToPixel(i, view.start, plotLeft, xStep);
+  const xStep = computeXStep(plotW, axisView.start, axisView.end);
+  const scaleX = (i) => idxToPixel(i, axisView.start, plotLeft, xStep);
 
   const iFrom = Math.max(0, view.start - 2);
   const iTo = Math.min(n - 1, view.end + 2);
@@ -2671,6 +2719,11 @@ function drawChart(){
         const v = series[i];
         if(v!=null){ if(v<lo) lo=v; if(v>hi) hi=v; }
       }
+    });
+  }
+  if(forecastPoints){
+    forecastPoints.forEach(p=>{
+      [p.price1, p.price2, p.avg].forEach(v=>{ if(v<lo) lo=v; if(v>hi) hi=v; });
     });
   }
   if(!isFinite(lo) || !isFinite(hi) || hi<=lo){ const mid = isFinite(lo)?lo:(isFinite(hi)?hi:1); lo = mid-1; hi = mid+1; }
@@ -2698,6 +2751,7 @@ function drawChart(){
   if(showPatterns && chart.$patterns) drawPatternOverlay(ctx, chart.$patterns, d, iFrom, iTo, scaleX, scaleY);
   if(showTrendScore && chart.$trendScore) drawTrendScoreOverlay(ctx, chart.$trendScore, d, iFrom, iTo, scaleX, scaleY);
   drawSignalMarkers(ctx, d, iFrom, iTo, scaleX, scaleY);
+  if(forecastPoints) drawCycleForecastOverlay(ctx, chart.$forecast, n, scaleX, scaleY, layout);
 
   drawLegend(ctx, layout);
 
@@ -2913,6 +2967,7 @@ function renderChart(){
     $srZones: meta.srZones,
     $patterns: meta.patterns,
     $trendScore: meta.trendScore,
+    $forecast: (showForecast && activeCoin==='bitcoin' && activeInterval==='1d') ? computeCycleForecast(forecastProjectionDays) : null,
     dragging: null,
     crosshairIdx: null,
     crosshairPx: null,
@@ -2937,6 +2992,7 @@ function refreshChartDatasets(){
   chart.$srZones = meta.srZones;
   chart.$patterns = meta.patterns;
   chart.$trendScore = meta.trendScore;
+  chart.$forecast = (showForecast && activeCoin==='bitcoin' && activeInterval==='1d') ? computeCycleForecast(forecastProjectionDays) : null;
   updatePatternExplainUI();
   updateTrendScoreExplainUI();
   return d;
@@ -3094,40 +3150,51 @@ async function runReliabilityBestComboPerTimeframe(){
 }
 
 // ---------- Alarm-Blöcke: 3 Coins nebeneinander, Signale der letzten 30 Min, neu->alt, mit Uhrzeit ----------
+// Ermittelt die Liste "neuer" Signale (innerhalb des Alarm-Fensters) für EIN coin/interval-Paar -- genutzt
+// sowohl für den Haupt-Alarm-Block (activeInterval) als auch für den "Signale auf anderen Zeitrahmen"-Zusatz-
+// hinweis weiter unten, damit beide exakt dieselbe Logik verwenden. Rückgabe null = Daten (noch) nicht geladen,
+// [] = geladen, aber aktuell keine Treffer -- dieser Unterschied wird von den Aufrufern unterschiedlich behandelt.
+function findAlertItemsForTimeframe(coin, interval){
+  const data = ohlcCache[coin+'::'+interval];
+  if(!data || data.closes.length===0) return null;
+  let strategies;
+  try{ strategies = buildStrategies(coin, interval); }catch(e){ return null; }
+  const now = Date.now();
+  const intervalMs = INTERVAL_MS[interval] || 60000;
+  const useCandleWindow = intervalMs > 30*60*1000; // ab >30-Min-Kerzen: kerzenbasiertes statt zeitbasiertes Fenster
+  const lastIdx = data.closes.length - 1;
+  const items = [];
+  Object.entries(strategies).forEach(([k,r])=>{
+    const lastTrade = r.trades[r.trades.length-1];
+    if(!lastTrade) return;
+    const entryTime = data.times[lastTrade.i];
+    let within;
+    if(useCandleWindow){
+      within = (lastIdx - lastTrade.i) <= ALERT_WINDOW_CANDLES;
+    } else {
+      const ageMs = now - entryTime;
+      within = ageMs <= ALERT_WINDOW_MS && ageMs >= -60000;
+    }
+    if(within){
+      items.push({ label:STRAT_LABELS[k], type:lastTrade.type, time:entryTime, key:k });
+    }
+  });
+  items.sort((a,b)=> b.time - a.time);
+  return items;
+}
 function updateAlertBanner(){
   Object.keys(COINS).forEach(coin=>{
     const bodyEl = document.getElementById('alertBody-'+coin);
     const blockEl = document.getElementById('alertBlock-'+coin);
-    const key = coin+'::'+activeInterval;
-    const data = ohlcCache[key];
     if(!bodyEl || !blockEl) return;
-    if(!data || data.closes.length===0){
+    const items = findAlertItemsForTimeframe(coin, activeInterval);
+    if(items === null){
       bodyEl.innerHTML = '<span class="status">Lade…</span>';
       blockEl.classList.remove('active');
       return;
     }
-    const strategies = buildStrategies(coin, activeInterval);
-    const now = Date.now();
-    const items = [];
     const intervalMs = INTERVAL_MS[activeInterval] || 60000;
-    const useCandleWindow = intervalMs > 30*60*1000; // ab >30-Min-Kerzen: kerzenbasiertes statt zeitbasiertes Fenster
-    const lastIdx = data.closes.length - 1;
-    Object.entries(strategies).forEach(([k,r])=>{
-      const lastTrade = r.trades[r.trades.length-1];
-      if(!lastTrade) return;
-      const entryTime = data.times[lastTrade.i];
-      let within;
-      if(useCandleWindow){
-        within = (lastIdx - lastTrade.i) <= ALERT_WINDOW_CANDLES;
-      } else {
-        const ageMs = now - entryTime;
-        within = ageMs <= ALERT_WINDOW_MS && ageMs >= -60000;
-      }
-      if(within){
-        items.push({ label:STRAT_LABELS[k], type:lastTrade.type, time:entryTime, key:k });
-      }
-    });
-    items.sort((a,b)=> b.time - a.time);
+    const useCandleWindow = intervalMs > 30*60*1000;
     if(items.length===0){
       bodyEl.innerHTML = `<span class="status">Keine aktiven Signale (${useCandleWindow ? 'letzte '+ALERT_WINDOW_CANDLES+' Kerzen' : '30 Min'})</span>`;
       blockEl.classList.remove('active');
@@ -3137,7 +3204,72 @@ function updateAlertBanner(){
         `<div class="alert-item ${it.type}"><span>${it.label} ${it.type==='long'?'LONG':'SHORT'}</span><span class="alert-time">${fmtClock(it.time)}</span></div>`
       ).join('');
     }
+    // Zusatz-Hinweis: neue Signale auf ANDEREN (nicht aktuell aktiven) Timeframes. Nutzt nur bereits im
+    // Hintergrund geladene Timeframes (siehe ensureOtherTimeframesLoaded()/kickOffOtherTimeframeMonitoring()) --
+    // dieser Check hier bleibt dadurch rein synchron/günstig, kein Nachladen an dieser Stelle.
+    const otherEl = document.getElementById('alertOtherTf-'+coin);
+    if(otherEl){
+      const hits = [];
+      RELIABILITY_TIMEFRAMES.forEach(iv=>{
+        if(iv === activeInterval) return;
+        const otherItems = findAlertItemsForTimeframe(coin, iv);
+        if(otherItems && otherItems.length>0) hits.push({ interval: iv, label: INTERVALS.find(t=>t.value===iv).label, top: otherItems[0] });
+      });
+      hits.sort((a,b)=> b.top.time - a.top.time);
+      if(hits.length===0){
+        otherEl.innerHTML = '';
+      } else {
+        otherEl.innerHTML = hits.map(h =>
+          `<div class="alert-other-tf" onclick="switchToCoinAndInterval('${coin}','${h.interval}')" title="${h.top.label} ${h.top.type==='long'?'LONG':'SHORT'} um ${fmtClock(h.top.time)} — klicken zum Wechseln">Neues Signal auf ${h.label} gefunden</div>`
+        ).join('');
+      }
+    }
   });
+}
+// Lädt (falls noch nicht im Cache) einmalig die Kerzendaten aller RELIABILITY_TIMEFRAMES für einen Coin nach,
+// damit updateAlertBanner() auch auf NICHT aktiven Zeitrahmen prüfen kann, ob dort neue Signale aufgetaucht sind.
+// Bewusst fire-and-forget (nicht awaited von loadAndRender()/selectCoin()), damit das Rendern des gerade aktiven
+// Zeitrahmens dadurch nicht verzögert wird -- sobald ein Timeframe fertig geladen ist, aktualisiert sich der
+// Zusatz-Hinweis von selbst (updateAlertBanner() wird nach jedem einzelnen Ladevorgang erneut aufgerufen).
+async function ensureOtherTimeframesLoaded(coin){
+  for(const iv of RELIABILITY_TIMEFRAMES){
+    if(iv === activeInterval) continue; // wird ohnehin schon normal geladen/aktuell gehalten
+    if(ohlcCache[coin+'::'+iv]) continue;
+    try{ await ensureData(coin, iv); updateAlertBanner(); }
+    catch(e){ /* leise -- naechster Coin-/Timeframe-Wechsel oder App-Neustart versucht es erneut */ }
+  }
+}
+function kickOffOtherTimeframeMonitoring(){
+  Object.keys(COINS).forEach(c => ensureOtherTimeframesLoaded(c));
+}
+// Wechselt den Analyse-Zeitrahmen programmatisch (z.B. per Klick auf den "Neues Signal auf X gefunden"-Hinweis)
+// -- identisch zum manuellen Wechsel über das Dropdown, inkl. Auswahlfeld-Sync.
+function switchToInterval(iv){
+  const ivEl = document.getElementById('intervalSelect');
+  if(ivEl) ivEl.value = iv;
+  activeInterval = iv;
+  updateLoadMoreButtonState();
+  refreshHigherTFSelect(document.getElementById('mtfHigherTfSelect'), document.getElementById('mtfHigherTfLabel'), activeInterval);
+  loadAndRender();
+  kickOffOtherTimeframeMonitoring();
+}
+// Wie switchToInterval(), wechselt aber ZUSÄTZLICH auch den aktiven Coin -- gebraucht für den "Neues Signal auf
+// X gefunden"-Zusatzhinweis: der klickt sich ja aus dem Alarm-Block eines BESTIMMTEN Coins heraus, der nicht
+// zwingend der gerade aktive ist (sonst würde nur der Zeitrahmen wechseln, während oben weiterhin z.B. Bitcoin
+// angezeigt bliebe, obwohl das neue Signal für Solana galt -- genau der gemeldete Bug). Kombiniert bewusst in
+// EINER Funktion statt selectCoin()+switchToInterval() nacheinander aufzurufen, damit nur ein einziger
+// loadAndRender()-Durchlauf nötig ist.
+function switchToCoinAndInterval(coin, iv){
+  activeCoin = coin;
+  document.querySelectorAll('#coinTabs .tab').forEach(b=>b.classList.toggle('active', b.dataset.coin===coin));
+  const ivEl = document.getElementById('intervalSelect');
+  if(ivEl) ivEl.value = iv;
+  activeInterval = iv;
+  updateLoadMoreButtonState();
+  refreshHigherTFSelect(document.getElementById('mtfHigherTfSelect'), document.getElementById('mtfHigherTfLabel'), activeInterval);
+  loadAndRender();
+  startTicker();
+  kickOffOtherTimeframeMonitoring();
 }
 
 async function loadAndRender(){
@@ -3231,6 +3363,108 @@ function maybeAutoLoadMore(){
   const key = activeCoin+'::'+activeInterval;
   if(isLoadingMoreHistory || historyExhausted[key]) return;
   if(chart.viewState.start <= 40) loadMoreHistory();
+}
+
+// ---------- Bitcoin-Zyklen-Prognose (reine Heuristik, KEINE Anlageberatung) ----------
+// Idee: die letzten beiden abgeschlossenen Bitcoin-Zyklen (Hoch Ende 2017, Hoch Ende 2021) als "Vorlage" nehmen,
+// jeweils ab ihrem Allzeithoch ausgerichtet ("Tage seit Zyklus-Hoch" statt Kalenderdatum), und deren %-Verlauf
+// NACH dem Hoch auf den aktuellen Zyklus (Hoch vermutlich 2025, siehe Nutzerangabe) projizieren -- rebasiert auf
+// den tatsächlichen aktuellen Kurs, damit die Projektion nahtlos an die echten Kerzen anschließt.
+// Bewusst NUR eine Heuristik mit n=2 historischen Analogien: jeder Zyklus hatte andere Treiber (Regulierung,
+// ETF-Zuflüsse, Makrolage), "der Kurs wiederholt sich" ist eine Erzählung, kein Naturgesetz.
+let showForecast = false;
+let forecastProjectionDays = 180;
+// Grobe, breite Suchfenster für die drei Zyklus-Hochs (bewusst nicht exakt auf einen Tag genau -- der TATSÄCHLICHE
+// Hoch-Zeitpunkt/-Kurs wird immer live aus den ECHTEN geladenen Binance-Kerzen ermittelt, diese Fenster geben nur
+// den ungefähren Suchbereich vor). Binance existiert erst seit Mitte 2017 -- der Boom VOR dem 2017er-Hoch ist dort
+// kaum abgedeckt, weshalb NUR "Tage seit Hoch" (nicht "seit Zyklus-Tief") als Ausrichtung funktioniert.
+const CYCLE_PEAK_WINDOWS = [
+  { key:'cycle2017', start: new Date('2017-06-01T00:00:00Z').getTime(), end: new Date('2018-03-01T00:00:00Z').getTime() },
+  { key:'cycle2021', start: new Date('2021-06-01T00:00:00Z').getTime(), end: new Date('2022-02-01T00:00:00Z').getTime() },
+  { key:'cycleCurrent', start: new Date('2024-06-01T00:00:00Z').getTime(), end: Date.now() - 30*24*3600*1000 }, // 30 Tage Sicherheitsabstand zu "heute", damit ein noch laufender Anstieg nicht fälschlich als "das Hoch" erkannt wird
+];
+function findPeakIdxInWindow(data, win){
+  let bestIdx = -1, bestClose = -Infinity;
+  for(let i=0;i<data.times.length;i++){
+    if(data.times[i] < win.start || data.times[i] > win.end) continue;
+    if(data.closes[i] > bestClose){ bestClose = data.closes[i]; bestIdx = i; }
+  }
+  return bestIdx;
+}
+// NUR für die Zyklus-Erkennung/-Pfade: eine eigene, von ohlcCache unabhängige Tagesserie in USDT. WICHTIG: bewusst
+// hart 'BTCUSDT' statt COINS.bitcoin.symbol ('BTCEUR') -- Binance hat sein EUR-Handelspaar erst deutlich später
+// eingeführt als BTCUSDT (das seit Binances Start Mitte 2017 existiert). Mit 'BTCEUR' gäbe es schlicht KEINE
+// Kerzen im 2017er-Suchfenster, das 2017er-Hoch wäre nie auffindbar -- genau der gemeldete Bug ("Zyklus-Hochs
+// konnten nicht erkannt werden"). Da nur PROZENTUALE Verläufe (Ratios) verwendet werden, ist es unkritisch, dass
+// diese Referenzserie in einer anderen Währung als der Live-Chart läuft -- nur der heutige Rebasing-Anker
+// (todayPrice weiter unten) kommt weiterhin aus der ECHTEN, gerade angezeigten Serie.
+let btcCycleHistory = null;
+const BTC_CYCLE_HISTORY_KEY = 'btcUsdtCycleHistory'; // eigener historyExhausted-Key, unabhängig vom EUR/USD-Chart-Cache
+// Lädt (falls noch nicht im Cache) die komplette Bitcoin-Tageshistorie (BTCUSDT) zurück bis ~2017 nach
+// (Rückwärts-Pagination wie loadMoreHistory(), aber automatisch in einer Schleife statt per Button) -- nötig,
+// damit der 2017er-Zyklus als Vorlage überhaupt zur Verfügung steht. Bewusst mit Sicherheits-Obergrenze an
+// Anfragen, falls Binance aus irgendeinem Grund frühzeitig abbricht (leere Antwort o.ä.).
+async function ensureBitcoinFullCycleHistory(){
+  if(!btcCycleHistory){
+    const initial = await fetchKlines('BTCUSDT', '1d', {limit:1000});
+    btcCycleHistory = { times: initial.map(c=>c.time), closes: initial.map(c=>c.close) };
+  }
+  const targetStart = new Date('2017-01-01T00:00:00Z').getTime();
+  let guard = 0;
+  while(btcCycleHistory.times[0] > targetStart && !historyExhausted[BTC_CYCLE_HISTORY_KEY] && guard < 15){
+    guard++;
+    const earliest = btcCycleHistory.times[0];
+    let older;
+    try{ older = await fetchKlines('BTCUSDT', '1d', {limit:1000, endTime: earliest-1}); }
+    catch(e){ break; } // leise abbrechen -- was bisher geladen ist, bleibt nutzbar (ggf. mit verkürztem 2017er-Zyklus)
+    if(!older || older.length===0){ historyExhausted[BTC_CYCLE_HISTORY_KEY] = true; break; }
+    btcCycleHistory.times  = older.map(c=>c.time).concat(btcCycleHistory.times);
+    btcCycleHistory.closes = older.map(c=>c.close).concat(btcCycleHistory.closes);
+    if(older.length < 1000) historyExhausted[BTC_CYCLE_HISTORY_KEY] = true;
+  }
+  return btcCycleHistory;
+}
+// Kernberechnung: findet die drei Zyklus-Hochs in der BTCUSDT-Referenzserie, richtet sie an "Tage seit Hoch" aus
+// und projiziert die beiden historischen %-Pfade (2017, 2021) -- rebasiert auf den heutigen ECHTEN (EUR/USD-
+// Anzeige-)Kurs -- für `projectionDays` Tage in die Zukunft. Rückgabe null in jedem Fall, in dem das Modell
+// nicht sauber anwendbar ist (fehlende Historie, ein Zyklus-Hoch nicht gefunden, aktueller Zyklus laut Daten noch
+// nicht über sein Hoch hinaus) -- lieber gar keine Prognose zeigen als eine auf wackliger Grundlage.
+function computeCycleForecast(projectionDays){
+  const refData = btcCycleHistory;
+  const liveData = ohlcCache['bitcoin::1d'];
+  if(!refData || refData.closes.length < 30) return null;
+  if(!liveData || liveData.closes.length === 0) return null;
+  const peakIdx = CYCLE_PEAK_WINDOWS.map(w => findPeakIdxInWindow(refData, w));
+  if(peakIdx.some(i => i < 0)) return null; // mindestens eines der drei Hochs nicht in seinem Suchfenster gefunden
+  const [p1, p2, p3] = peakIdx;
+
+  const todayTime = liveData.times[liveData.times.length-1];
+  const peak3Time = refData.times[p3];
+  const d0 = Math.round((todayTime - peak3Time) / (24*3600*1000));
+  if(d0 < 0) return null; // aktueller Zyklus hat sein Hoch laut den geladenen Daten noch nicht erreicht
+
+  function ratio(peakI, d){
+    const idx = peakI + d;
+    if(idx < 0 || idx >= refData.closes.length) return null;
+    return refData.closes[idx] / refData.closes[peakI];
+  }
+  const r1_0 = ratio(p1, d0), r2_0 = ratio(p2, d0);
+  if(r1_0==null || r2_0==null) return null; // eine der beiden Referenzen deckt "heute" (Tage seit IHREM Hoch) nicht ab
+
+  const todayPrice = liveData.closes[liveData.closes.length-1]; // ECHTER aktueller Kurs (Rebasing-Anker), NICHT aus refData
+  const points = [];
+  let truncatedAt = null;
+  for(let k=1; k<=projectionDays; k++){
+    const r1_k = ratio(p1, d0+k), r2_k = ratio(p2, d0+k);
+    if(r1_k==null || r2_k==null){ truncatedAt = k-1; break; } // eine Referenz reicht nicht weiter -> hier abschneiden
+    const g1 = r1_k / r1_0, g2 = r2_k / r2_0;
+    points.push({ k, price1: todayPrice*g1, price2: todayPrice*g2, avg: todayPrice*(g1+g2)/2 });
+  }
+  return {
+    peakIdx: { cycle2017:p1, cycle2021:p2, cycleCurrent:p3 },
+    peakTime: { cycle2017:refData.times[p1], cycle2021:refData.times[p2], cycleCurrent:refData.times[p3] },
+    daysSincePeak: d0, todayPrice, points, truncatedAt
+  };
 }
 
 // ---------- Live-Preis: Binance-WebSocket (Trade-Stream) für Echtzeit-Push + Polling als Fallback ----------
@@ -3351,6 +3585,12 @@ async function refreshAllCoinsLatestCandles(){
     // im selben 30s-Zyklus nachziehen (nutzt dieselbe Lücken-Erkennung/-Backfill wie oben).
     await Promise.all(Object.keys(COINS).map(c => refreshLatestCandlesForCoin(c, autoTradeInterval)));
   }
+  // Hintergrund-Timeframes für den "neue Signale auf anderen Zeitrahmen"-Hinweis: nur die BEREITS geladenen
+  // aktualisieren (kein Neuladen hier -- das übernimmt ensureOtherTimeframesLoaded() separat/lazy), sonst würde
+  // dieser 30s-Zyklus durch potenziell mehrere neue 1000-Kerzen-Ladevorgänge pro Coin regelmäßig ausgebremst.
+  await Promise.all(Object.keys(COINS).flatMap(c =>
+    RELIABILITY_TIMEFRAMES.filter(iv => iv !== activeInterval && ohlcCache[c+'::'+iv]).map(iv => refreshLatestCandlesForCoin(c, iv))
+  ));
   const key = activeCoin+'::'+activeInterval;
   if(ohlcCache[key]){
     document.getElementById('status').textContent = `${ohlcCache[key].closes.length} Kerzen geladen · aktualisiert ${new Date().toLocaleTimeString('de-DE')}`;
@@ -3657,6 +3897,7 @@ async function selectCoin(coin){
     updateAlertBanner();
   }
   startTicker();
+  kickOffOtherTimeframeMonitoring();
 }
 
 // Baut die Coin-Tabs komplett neu aus dem aktuellen COINS-Objekt auf (statt einmalig fest verdrahtet) -- wird
@@ -3683,6 +3924,7 @@ function renderAlertBlocksSkeleton(){
     `<div class="alert-block" id="alertBlock-${coin}">
       <div class="alert-block-title">${c.short}</div>
       <div class="alert-block-body" id="alertBody-${coin}">Lade…</div>
+      <div id="alertOtherTf-${coin}"></div>
     </div>`
   ).join('');
 }
@@ -3781,6 +4023,7 @@ async function setCustomCoin(newKey){
   }
   renderAutoTradeUI();
   if(autoTradeEnabled) runAutoTrade();
+  kickOffOtherTimeframeMonitoring(); // neuer 4. Coin soll ebenfalls auf anderen Zeitrahmen mitüberwacht werden
 }
 function populateExtraCoinUI(){
   const sel = document.getElementById('extraCoinSelect');
@@ -3841,12 +4084,7 @@ function populateControls(){
     if(iv.value===activeInterval) opt.selected = true;
     ivEl.appendChild(opt);
   });
-  ivEl.addEventListener('change', e=>{
-    activeInterval = e.target.value;
-    updateLoadMoreButtonState();
-    refreshHigherTFSelect(document.getElementById('mtfHigherTfSelect'), document.getElementById('mtfHigherTfLabel'), activeInterval);
-    loadAndRender();
-  });
+  ivEl.addEventListener('change', e=> switchToInterval(e.target.value));
 
   const stratEl = document.getElementById('stratSelect');
   const allOpt = document.createElement('option');
@@ -3917,6 +4155,55 @@ function populateControls(){
     if(chart) drawChart();
     updateTrendScoreExplainUI();
   });
+  document.getElementById('toggleForecastBtn').addEventListener('click', (e)=> toggleCycleForecast(e.currentTarget));
+  document.getElementById('forecastDaysInput').addEventListener('change', ()=>{
+    if(!showForecast) return; // Änderung wirkt erst beim nächsten Einschalten, kein automatisches Neuladen mitten im Betrieb
+    const days = Math.max(7, Math.min(720, parseInt(document.getElementById('forecastDaysInput').value,10) || 180));
+    forecastProjectionDays = days;
+    if(chart){
+      chart.$forecast = computeCycleForecast(forecastProjectionDays);
+      drawChart();
+    }
+  });
+}
+// Schaltet die Zyklen-Prognose an/aus (Button "Prognose"). Nur sinnvoll für Bitcoin + 1-Tages-Chart (siehe
+// computeCycleForecast()) -- bei anderem Coin/Zeitrahmen wird stattdessen nur ein Hinweis angezeigt, ohne
+// einzuschalten. Lädt beim ersten Einschalten einmalig die komplette Bitcoin-Tageshistorie nach (kann kurz
+// dauern), danach ist sie im Cache und weitere Toggles sind sofort da.
+async function toggleCycleForecast(btn){
+  const statusEl = document.getElementById('forecastStatus');
+  if(showForecast){
+    showForecast = false;
+    btn.classList.remove('active');
+    if(statusEl) statusEl.textContent = '';
+    if(chart){ chart.$forecast = null; drawChart(); }
+    return;
+  }
+  if(activeCoin !== 'bitcoin' || activeInterval !== '1d'){
+    if(statusEl) statusEl.textContent = 'Nur im Bitcoin-Tages-Chart verfügbar -- Coin auf Bitcoin und Zeitrahmen auf "1 Tag" stellen.';
+    return;
+  }
+  btn.disabled = true;
+  if(statusEl) statusEl.textContent = 'Lade komplette Bitcoin-Historie (kann kurz dauern)…';
+  try{
+    await ensureBitcoinFullCycleHistory();
+    forecastProjectionDays = Math.max(7, Math.min(720, parseInt(document.getElementById('forecastDaysInput').value,10) || 180));
+    const forecast = computeCycleForecast(forecastProjectionDays);
+    if(!forecast){
+      if(statusEl) statusEl.textContent = 'Zyklen-Hochs konnten nicht eindeutig erkannt werden (zu wenig Historie oder Modell aktuell nicht anwendbar) -- keine Prognose möglich.';
+      return;
+    }
+    showForecast = true;
+    btn.classList.add('active');
+    if(statusEl){
+      statusEl.textContent = `Prognose aktiv (${forecast.points.length} Tage${forecast.truncatedAt!=null ? ', durch Referenzhistorie begrenzt' : ''}) -- reine Heuristik auf Basis der Zyklen 2017/2021, KEINE Anlageberatung.`;
+    }
+    if(chart){ chart.$forecast = forecast; drawChart(); }
+  } catch(err){
+    if(statusEl) statusEl.textContent = 'Fehler beim Laden der Historie: ' + err.message;
+  } finally {
+    btn.disabled = false;
+  }
 }
 // Zeigt/aktualisiert die Erklärung zum aktuell erkannten Muster unter dem Chart -- nur sichtbar, solange der
 // "Muster"-Toggle aktiv ist (reine Textbeschreibung dessen, was das Overlay gerade einzeichnet und warum).
