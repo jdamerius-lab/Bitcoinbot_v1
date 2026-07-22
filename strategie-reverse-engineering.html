@@ -179,15 +179,17 @@
      im Simple-Mode ist das Element in simpleHoverSlot umgehängt und daher hiervon nicht betroffen): Box um ziemlich
      genau die Hälfte ihrer eigenen Breite (230px -> 115px) nach links versetzen, plus zusätzlich 0,5cm nach oben
      und 0,5cm nach rechts (bei üblichen 96px/Zoll ≈ 19px pro 0,5cm -- also -115px+19px = -96px auf der X-Achse),
-     sowie danach nochmal 1cm weiter nach oben (~38px) auf Wunsch -- macht -19px-38px = -57px auf der Y-Achse.
-     Bewusst transform statt margin-left/top: die linke Nachbarspalte hat flex:1 (flex-grow) -- ein negativer
-     margin-left hätte nur dazu geführt, dass diese Spalte automatisch um genau den freiwerdenden Betrag mitwächst
-     und den Versatz dadurch wieder auffrisst (visuell keine Bewegung). transform greift dagegen NACH dem
-     Flex-Layout rein optisch, ohne dass Geschwister-Elemente reagieren. Nur oberhalb der 700px-Grenze aktiv, weil
-     die Box darunter (siehe Media-Query weiter unten) auf 100% Breite umschaltet, wo ein fester Versatz nicht
-     mehr passen würde. */
+     sowie danach nochmal 1cm weiter nach oben (~38px), und zuletzt NOCH 1cm weiter nach oben (~38px), damit sie
+     nicht mehr mit dem "Prognose"-Button/Tage-Eingabefeld ganz rechts in der Werkzeugleiste kollidiert (die Zeile
+     ist durch den neuen Button breiter geworden und würde sonst unter dieser Box verschwinden) -- macht
+     -19px-38px-38px = -95px auf der Y-Achse. Bewusst transform statt margin-left/top: die linke Nachbarspalte hat
+     flex:1 (flex-grow) -- ein negativer margin-left hätte nur dazu geführt, dass diese Spalte automatisch um genau
+     den freiwerdenden Betrag mitwächst und den Versatz dadurch wieder auffrisst (visuell keine Bewegung).
+     transform greift dagegen NACH dem Flex-Layout rein optisch, ohne dass Geschwister-Elemente reagieren. Nur
+     oberhalb der 700px-Grenze aktiv, weil die Box darunter (siehe Media-Query weiter unten) auf 100% Breite
+     umschaltet, wo ein fester Versatz nicht mehr passen würde. */
   @media (min-width:701px){
-    #analyseControlsWrap #hoverInfoBanner{transform:translate(-96px, -57px)}
+    #analyseControlsWrap #hoverInfoBanner{transform:translate(-96px, -95px)}
   }
 
   /* ---------- Schmale Bildschirme allgemein (Analyse/Backtest/Automatik/Wallet, NICHT Simple-Mode -- das hat
@@ -2251,6 +2253,22 @@ function computePanViewState(baseState, dxPixels, xStep, n){
 function updateHoverBanner(idx){
   if(!chart || !chart.$data || idx==null) return;
   const o = chart.$data;
+  const n = o.closes.length;
+  // Cursor steht im Prognose-Bereich (rechts von der letzten echten Kerze, nur möglich wenn showForecast aktiv
+  // ist -- siehe handleHover()): zeigt die projizierten Werte statt echter OHLC/Signal-Daten.
+  if(idx >= n){
+    const forecast = chart.$forecast;
+    const k = idx - (n-1);
+    const p = forecast && forecast.points[k-1];
+    const dateLabel = new Date(o.times[n-1] + k*24*3600*1000).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'2-digit'});
+    document.getElementById('hoverTime').textContent = dateLabel + ' (Prognose)';
+    document.getElementById('hoverOpen').textContent = '—';
+    document.getElementById('hoverHigh').textContent = '—';
+    document.getElementById('hoverLow').textContent = '—';
+    document.getElementById('hoverClose').textContent = p ? fmtEUR(p.avg) : '—';
+    document.getElementById('hoverSignal').textContent = p ? `Ø-Prognose ${fmtEUR(p.avg)} — 2017-Pfad ${fmtEUR(p.price1)} · 2021-Pfad ${fmtEUR(p.price2)}` : '—';
+    return;
+  }
   const label = o.labels[idx] ?? '—';
   let signal = '–';
   const m = chart.$markers;
@@ -2645,7 +2663,12 @@ function drawCrosshair(ctx, layout, px, d, lo, hi){
   ctx.beginPath(); ctx.moveTo(plotLeft, crossY); ctx.lineTo(plotRight, crossY); ctx.stroke();
   ctx.setLineDash([]);
 
-  const label = d.labels[idx] ?? '';
+  // Im Prognose-Bereich (idx >= Anzahl echter Kerzen) gibt es kein d.labels[idx] -- Datum stattdessen aus der
+  // letzten echten Kerze + Tagesoffset berechnen, mit "(Prognose)"-Hinweis statt einer echten Uhrzeit/Kerze.
+  const n = d.closes.length;
+  const label = idx < n
+    ? (d.labels[idx] ?? '')
+    : new Date(d.times[n-1] + (idx-(n-1))*24*3600*1000).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'2-digit'}) + ' (Prognose)';
   ctx.font = '10px sans-serif';
   const textW = ctx.measureText(label).width;
   const boxW = textW+12, boxH=17;
@@ -2785,7 +2808,11 @@ function attachChartInteraction(canvas){
     if(!chart || !chart.$layout) return;
     const {x, y} = localXY(clientX, clientY);
     const { view, plotLeft, xStep } = chart.$layout;
-    const idx = Math.max(view.start, Math.min(view.end, Math.round(pixelToIdx(x, view.start, plotLeft, xStep))));
+    // Bei aktiver Prognose darf das Fadenkreuz auch RECHTS von der letzten echten Kerze in den Prognose-Bereich
+    // wandern (sonst blieb es bisher immer exakt bei view.end/"heute" hängen, selbst wenn der Cursor sichtbar
+    // weiter rechts über den projizierten Linien steht -- das war der gemeldete Bug).
+    const maxIdx = (showForecast && chart.$forecast) ? view.end + chart.$forecast.points.length : view.end;
+    const idx = Math.max(view.start, Math.min(maxIdx, Math.round(pixelToIdx(x, view.start, plotLeft, xStep))));
     chart.crosshairIdx = idx;
     chart.crosshairPx = { x, y };
     updateHoverBanner(idx);
@@ -2921,7 +2948,7 @@ function computeOverlayData(){
   // Null-Array-Cache mehr, der beim Umschalten kurzzeitig "leer" wäre.
   const emaSeries = EMA_CONFIGS.map(cfg => ema(closes, cfg.period));
 
-  return {labels, opens, highs, lows, closes,
+  return {labels, times, opens, highs, lows, closes,
     longMarker, longRadius, shortMarker, shortRadius,
     exitLongMarker, exitLongRadius, exitShortMarker, exitShortRadius,
     longLabelsAt, shortLabelsAt, exitLongLabelsAt, exitShortLabelsAt,
