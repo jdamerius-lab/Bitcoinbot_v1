@@ -304,7 +304,7 @@
   </div>
   <div class="footnote">
     Blaues Dreieck unten = Long-Einstieg, oranges Dreieck oben = Short-Einstieg. Hohler Kreis = Ausstieg. Standardmäßig zeigt
-    der Chart die Signale <strong>aller</strong> 9 Strategien gleichzeitig (Overlay „Alle Strategien"); beim Darüberfahren
+    der Chart die Signale <strong>aller</strong> 10 Strategien gleichzeitig (Overlay „Alle Strategien"); beim Darüberfahren
     verrät das Banner oben rechts, welche Strategie(n) genau ausgelöst haben. Alarm-Blöcke zeigen die jeweils letzten
     Signale je Coin (neu → alt) — bei Intervallen bis 30 Min zeitbasiert (30-Minuten-Fenster), bei größeren Intervallen
     kerzenbasiert (letzte 15 Kerzen), da ein festes Zeitfenster dort zu schnell leerläuft. Ältere Signale bleiben trotzdem
@@ -334,21 +334,24 @@
     </div>
   </div>
   <div class="footnote">
-    Live berechnet aus den geladenen Kerzendaten des aktuell gewählten Coins/Zeitrahmens. EMA-Trend vergleicht EMA9
-    mit EMA50, RSI/MACD in Standardeinstellung (14 bzw. 12/26/9). RSI-Chart: gestrichelte Linien bei 30/70, blau
+    Live berechnet aus den geladenen Kerzendaten des aktuell gewählten Coins/Zeitrahmens. EMA-Trend vergleicht den
+    Stack aus EMA9/20/50 (nur bei sauberer Reihenfolge 9&gt;20&gt;50 bzw. 9&lt;20&lt;50 "Bullisch"/"Bärisch", sonst
+    "Gemischt"), RSI/MACD in Standardeinstellung (14 bzw. 12/26/9). RSI-Chart: gestrichelte Linien bei 30/70, blau
     hinterlegtes Band 40-60 als neutraler Bereich. MACD-Chart: blaue Linie = MACD, orange = Signallinie, Balken =
     Histogramm (MACD − Signal). Volumen-Balken grün/rot je nach Kerzenrichtung (Close ≥/&lt; Open). "24h" bezieht
-    sich auf die letzten 24 Stunden Handelszeit, unabhängig vom gewählten Kerzen-Intervall.
+    sich auf die letzten 24 Stunden Handelszeit, unabhängig vom gewählten Kerzen-Intervall. Marktphase nutzt ADX(14)
+    (Wilder) -- misst die Trendstärke unabhängig von der Richtung: ab 25 gilt der Markt als "Trend", unter 20 als
+    "Seitwärts", dazwischen "Übergang". Reine Heuristik, keine Anlageberatung.
   </div>
 </div>
 
 <div class="bottom-note">
   Live-Kerzenchart über die öffentliche Binance-API (BTCEUR / ETHEUR / SOLEUR) mit Fadenkreuz-Cursor, EMAs, Fair-Value-Gaps
-  und Fibonacci-Retracement. Standardmäßig laufen die 9 Strategien immer long ODER short, Ausstieg = nächstes Gegensignal
+  und Fibonacci-Retracement. Standardmäßig laufen die 10 Strategien immer long ODER short, Ausstieg = nächstes Gegensignal
   (reine Annahme, keine echte Exit-Logik). Über das Exit-Strategie-Banner unter dem Chart lässt sich das für alle 8
   Strategien gemeinsam auf ein fixes Stop-Loss/Take-Profit, einen ATR-Trailing-Stop oder ein Zeitlimit umstellen — dann
   kann eine Position auch zwischenzeitlich flach sein. Der Chart zeigt
-  standardmäßig die Signale aller 9 Strategien gleichzeitig (per Dropdown auf eine einzelne Strategie einschränkbar); das
+  standardmäßig die Signale aller 10 Strategien gleichzeitig (per Dropdown auf eine einzelne Strategie einschränkbar); das
   Hover-Banner oben rechts nennt beim Darüberfahren die genauen auslösenden Strategien. Die drei Alarm-Blöcke scannen
   alle neun Strategien je Coin auf dem eingestellten Zeitrahmen: bei Intervallen bis 30 Minuten zeitbasiert (30-Min-Fenster),
   bei größeren Intervallen kerzenbasiert (letzte 15 Kerzen), jeweils mit Uhrzeit, neueste zuerst. Live-Preis läuft über
@@ -372,7 +375,7 @@
   <div class="exit-banner">
     <div class="exit-banner-row">
       <div>
-        <label>Exit-Strategie (gilt für alle 9 Strategien)</label>
+        <label>Exit-Strategie (gilt für alle 10 Strategien)</label>
         <select id="exitModeSelect"></select>
       </div>
       <div id="exitParamWrap" style="display:none">
@@ -418,7 +421,7 @@
       — welcher Zeitrahmen als "höher" gilt, ist per Select frei wählbar (Standard: deutlich größerer Sprung statt
       nur der nächstgrößeren Kerze, damit der Trend dort wirklich unabhängig ist). Swing-Breakout: Wechsel nur bei
       Schlusskurs jenseits des letzten Swing-Hochs/-Tiefs, statt nur einer Indikator-Schwelle. Alle Filter einzeln
-      an/abschaltbar, kombinierbar, gelten für alle 9 Strategien.
+      an/abschaltbar, kombinierbar, gelten für alle 10 Strategien.
     </div>
   </div>
 </div>
@@ -463,7 +466,7 @@
       </div>
     </div>
     <div class="exit-banner-desc" id="optimizerResult">
-      Testet alle 9 Entry-Strategien × 5 Exit-Strategien (Standard-Parameter je Exit-Modus) für den aktuell
+      Testet alle 10 Entry-Strategien × 5 Exit-Strategien (Standard-Parameter je Exit-Modus) für den aktuell
       gewählten Coin/Zeitrahmen über die letzten N Kerzen und übernimmt die beste Kombination direkt in
       Chart-Overlay und Exit-Strategie. Ist „Filter mit verfeinern" aktiv, wird zusätzlich für genau diese
       Gewinner-Kombination die beste Einstellung der vier Entry-Filter gesucht (zweistufige Suche, siehe unten).
@@ -548,7 +551,7 @@
     unten) — Tests/Änderungen im Analyse-Tab wirken sich nicht mehr auf die laufende Automatik aus. Ein
     Strategie-/Zeitrahmen-Wechsel hier betrifft nur <strong>neue</strong> Einstiege — eine bereits offene Position
     bleibt bis zu ihrem Ausstieg an die Strategie/den Zeitrahmen "eingefroren", mit der/dem sie eröffnet wurde. Im
-    Modus <strong>„Trendscore"</strong> steuert statt einer Einzelstrategie der gewichtete Konsens aller 9 Strategien
+    Modus <strong>„Trendscore"</strong> steuert statt einer Einzelstrategie der gewichtete Konsens aller 10 Strategien
     (siehe Trendscore-Button/-Kästchen im Analyse-Tab) Ein- und Ausstieg; eine so eröffnete Position bleibt ebenfalls
     an dieses Konsens-Signal "eingefroren", auch wenn der Modus später gewechselt wird. Prüft
     alle 30 Sekunden (und sofort beim Zurückkehren in den Tab) für alle aktiven Coins, ob die maßgebliche
@@ -567,7 +570,7 @@
   <div class="exit-banner">
     <div class="exit-banner-row">
       <div>
-        <label>Exit-Strategie (gilt für alle 9 Strategien, nur Automatik)</label>
+        <label>Exit-Strategie (gilt für alle 10 Strategien, nur Automatik)</label>
         <select id="autoExitModeSelect"></select>
       </div>
       <div id="autoExitParamWrap" style="display:none">
@@ -699,7 +702,7 @@
   <div class="exit-banner-desc">
     Fragt alle 30 Sekunden die öffentlichen, offenen Perp-Positionen der angegebenen Hyperliquid-Wallet ab
     (<code>clearinghouseState</code> — öffentlich einsehbar, kein API-Key nötig) und bildet neu auftauchende bzw.
-    verschwindende Positionen als eigenständige Paper-Trades nach, komplett unabhängig von den 9 Strategien oben.
+    verschwindende Positionen als eigenständige Paper-Trades nach, komplett unabhängig von den 10 Strategien oben.
     Die Rendite bei Schließung ist eine <strong>Näherung</strong> aus dem zuletzt bekannten unrealisierten
     Gewinn/Verlust der Wallet (unrealizedPnl ÷ Positionswert), nicht der exakte Fill-Preis. Reine Beobachtung,
     keine echte Order-Ausführung, kein Bezug zu einem eigenen Bitvavo-/Binance-/Hyperliquid-Konto. Vergangene
@@ -794,7 +797,8 @@ const STRAT_LABELS = {
   stoch:      "Stochastic Osc.",
   donchian:   "Donchian-Breakout",
   supertrend: "Supertrend",
-  pattern:    "Muster-Erkennung"
+  pattern:    "Muster-Erkennung",
+  emastack:   "EMA-Trend (9/20/50)"
 };
 const STRAT_LABELS_FULL = {
   sma:        "SMA-Crossover (Trendfolge)",
@@ -805,7 +809,8 @@ const STRAT_LABELS_FULL = {
   stoch:      "Stochastic Oscillator (Mean-Reversion)",
   donchian:   "Donchian-Breakout",
   supertrend: "Supertrend (ATR-Trendfolge)",
-  pattern:    "Muster-Erkennung (Candlestick + Dreiecke)"
+  pattern:    "Muster-Erkennung (Candlestick + Dreiecke)",
+  emastack:   "EMA-Trend (9/20/50-Stack, Trendfolge)"
 };
 const EMA_CONFIGS = [
   {period:9,   color:'#ffe9a8', label:'EMA 9'},
@@ -960,7 +965,7 @@ let autoCoinPaused = {};    // coin -> true, wenn die Automatik für diesen Coin
 // Strategien über ein Vergleichsfenster die beste rollierende Rendite erzielt hat, und bei ausreichendem
 // Vorsprung + Mindesthaltezeit dorthin rotiert. Bewusst mit Sicherheitsbremsen gegen Overfitting/Whipsaw --
 // siehe runAutoTradeDynamicForCoin(). "Trendscore"-Modus: nutzt statt einer Einzelstrategie den gewichteten
-// Konsens aus allen 9 Strategien (siehe computeTrendScoreResult()) als Entry/Exit-Signal -- siehe
+// Konsens aus allen 10 Strategien (siehe computeTrendScoreResult()) als Entry/Exit-Signal -- siehe
 // runAutoTradeTrendScoreForCoin().
 let autoTradeMode = 'fixed';        // 'fixed' | 'dynamic' | 'trendscore'
 let autoDynamicWindow = 100;        // Vergleichsfenster in Kerzen für den rollierenden Rendite-Vergleich
@@ -989,7 +994,7 @@ const AUTO_TRADE_LS_KEYS = {
 };
 
 // ---------- Wallet-Copy-Trading (Hyperliquid, experimentell) ----------
-// Eigenständiges, von den 9 Strategien komplett unabhängiges Paper-Trading-Modul: fragt periodisch die
+// Eigenständiges, von den 10 Strategien komplett unabhängiges Paper-Trading-Modul: fragt periodisch die
 // öffentlichen offenen Positionen einer Hyperliquid-Wallet ab (kein API-Key nötig, siehe hlFetchClearinghouseState)
 // und bildet Positions-Änderungen als Trades nach. Läuft nur, wenn hlWalletCopyEnabled true ist und eine
 // syntaktisch gültige Adresse eingetragen wurde.
@@ -1312,6 +1317,55 @@ function atr(highs, lows, closes, period){
   for(let i=0;i<n;i++){
     if(i<period){ sum+=tr[i]; if(i===period-1) out[i]=sum/period; }
     else { out[i] = (out[i-1]*(period-1)+tr[i])/period; }
+  }
+  return out;
+}
+// ADX (Average Directional Index, nach Wilder) -- misst die STÄRKE eines Trends UNABHÄNGIG von seiner Richtung
+// (anders als z.B. der EMA-Stack, der Richtung, aber nicht Stärke/Sauberkeit des Trends ausdrückt). Klassische
+// Schwellen: ADX > 25 = trendet, ADX < 20 = Seitwärts/Range, dazwischen Übergang. Nutzt dieselbe kausale
+// Wilder-Glättung wie rsi()/atr() (kein Blick in die Zukunft) -- braucht wegen der zweistufigen Glättung
+// (TR/DM, dann DX) ca. 2×period Kerzen Vorlauf, bevor der erste Wert erscheint.
+function adx(highs, lows, closes, period){
+  const n = closes.length;
+  const tr = new Array(n).fill(0), plusDM = new Array(n).fill(0), minusDM = new Array(n).fill(0);
+  for(let i=1;i<n;i++){
+    tr[i] = Math.max(highs[i]-lows[i], Math.abs(highs[i]-closes[i-1]), Math.abs(lows[i]-closes[i-1]));
+    const upMove = highs[i]-highs[i-1], downMove = lows[i-1]-lows[i];
+    plusDM[i] = (upMove>downMove && upMove>0) ? upMove : 0;
+    minusDM[i] = (downMove>upMove && downMove>0) ? downMove : 0;
+  }
+  const smoothTR = new Array(n).fill(null), smoothPlusDM = new Array(n).fill(null), smoothMinusDM = new Array(n).fill(null);
+  let sumTR=0, sumPlus=0, sumMinus=0;
+  for(let i=1;i<n;i++){
+    if(i<=period){
+      sumTR+=tr[i]; sumPlus+=plusDM[i]; sumMinus+=minusDM[i];
+      if(i===period){ smoothTR[i]=sumTR; smoothPlusDM[i]=sumPlus; smoothMinusDM[i]=sumMinus; }
+    } else {
+      smoothTR[i] = smoothTR[i-1] - smoothTR[i-1]/period + tr[i];
+      smoothPlusDM[i] = smoothPlusDM[i-1] - smoothPlusDM[i-1]/period + plusDM[i];
+      smoothMinusDM[i] = smoothMinusDM[i-1] - smoothMinusDM[i-1]/period + minusDM[i];
+    }
+  }
+  const dx = new Array(n).fill(null);
+  for(let i=period;i<n;i++){
+    if(smoothTR[i]==null || smoothTR[i]===0) continue;
+    const plusDI = 100*smoothPlusDM[i]/smoothTR[i];
+    const minusDI = 100*smoothMinusDM[i]/smoothTR[i];
+    const sumDI = plusDI+minusDI;
+    dx[i] = sumDI===0 ? 0 : 100*Math.abs(plusDI-minusDI)/sumDI;
+  }
+  const out = new Array(n).fill(null);
+  let sumDX=0, avgDX=null, count=0;
+  for(let i=period;i<n;i++){
+    if(dx[i]==null) continue;
+    count++;
+    if(count<=period){
+      sumDX+=dx[i];
+      if(count===period){ avgDX=sumDX/period; out[i]=avgDX; }
+    } else {
+      avgDX = (avgDX*(period-1)+dx[i])/period;
+      out[i]=avgDX;
+    }
   }
   return out;
 }
@@ -1868,6 +1922,21 @@ function buildStrategiesCore(coin, interval, key){
     }
     strategies.pattern = finalizeStrategy(applyEntryFilters(position, entryCtx), highs, lows, closes, exitCtx);
   }
+  // 10. EMA-Trend (9/20/50-Stack) -- nutzt dieselbe Klassifikation wie die Marktphase-Kachel im Indikator-Panel
+  // (computeEmaStackSignal): nur bei sauber gestapelten EMAs (9>20>50 bzw. 9<20<50) gibt es ein eindeutiges
+  // Signal, bei "mixed" (EMAs überkreuzt) wird die letzte Position beibehalten (carry-forward wie bei den
+  // anderen Strategien).
+  {
+    const e9 = ema(closes,9), e20 = ema(closes,20), e50 = ema(closes,50);
+    const position = new Array(n).fill(0);
+    for(let i=1;i<n;i++){
+      const stack = computeEmaStackSignal(e9[i], e20[i], e50[i]);
+      if(stack === 'bullish') position[i] = 1;
+      else if(stack === 'bearish') position[i] = -1;
+      else position[i] = position[i-1];
+    }
+    strategies.emastack = finalizeStrategy(applyEntryFilters(position, entryCtx), highs, lows, closes, exitCtx);
+  }
 
   strategyCache[key] = strategies;
   return strategies;
@@ -2089,8 +2158,8 @@ function describePattern(patterns){
   return { title: 'Kein Muster erkannt', text: 'Weder ein Candlestick-Muster an der letzten Kerze noch ein Dreiecksmuster in den letzten bestätigten Swing-Punkten.' };
 }
 
-// ---------- Trendscore: gewichteter Konsens aus allen 9 Strategien ----------
-// Bewusst KEINE 10. Strategie/kein Dropdown-Eintrag -- eine rein additive Zusammenfassung der bereits über
+// ---------- Trendscore: gewichteter Konsens aus allen 10 Strategien ----------
+// Bewusst KEINE 11. Strategie/kein Dropdown-Eintrag -- eine rein additive Zusammenfassung der bereits über
 // buildStrategies() vorhandenen Ergebnisse, nur über einen eigenen Chart-Overlay-Button sichtbar/aktivierbar.
 // Gewichtung nach eigener Backtest-Performance: jede Strategie zählt proportional zu 1 + ihrer Überrendite
 // gegenüber Buy&Hold im selben (bereits geladenen) Zeitraum -- eine Strategie, die exakt wie Buy&Hold abschneidet,
@@ -2121,7 +2190,7 @@ function computeTrendScoreSeries(strategies, weights, n){
   return score;
 }
 // Wandelt den kontinuierlichen Score in eine diskrete Long/Short/Flach-Position um (carry-forward wie bei den
-// 9 Einzelstrategien) -- erst über der Schwelle zählt der Konsens als eindeutig genug für einen Einstieg.
+// 10 Einzelstrategien) -- erst über der Schwelle zählt der Konsens als eindeutig genug für einen Einstieg.
 function discretizeTrendScore(scoreSeries, threshold){
   const n = scoreSeries.length;
   const position = new Array(n).fill(0);
@@ -2135,7 +2204,7 @@ function discretizeTrendScore(scoreSeries, threshold){
 // Baut denselben exitCtx (ATR/Swing-Punkte fürs Trailing-/Struktur-Exit) wie buildStrategiesCore() für den
 // Trendscore nach, da buildStrategiesCore() seinen internen exitCtx nicht nach außen gibt -- liest bewusst die
 // aktuell aktiven exitMode/exitParam/structureAtrSafetyMult-Globals, damit computeTrendScoreResult() (siehe
-// unten) exakt denselben Exit-Modus anwendet wie die 9 Einzelstrategien, statt fest auf "Exit = nächstes
+// unten) exakt denselben Exit-Modus anwendet wie die 10 Einzelstrategien, statt fest auf "Exit = nächstes
 // Gegensignal" zu bestehen.
 function computeTrendScoreExitResult(position, highs, lows, closes){
   const needsAtr = exitMode === 'trailing' || (exitMode === 'structure' && structureAtrSafetyMult > 0);
@@ -2910,7 +2979,7 @@ function computeOverlayData(){
   const allStrategies = buildStrategies(activeCoin, activeInterval);
   const n = closes.length;
 
-  // "all" = Sammelanzeige: Signale ALLER 9 Strategien werden gemeinsam eingezeichnet, statt nur der einen
+  // "all" = Sammelanzeige: Signale ALLER 10 Strategien werden gemeinsam eingezeichnet, statt nur der einen
   // im Dropdown gewählten. Pro Kerze wird zusätzlich gemerkt, welche Strategie(n) dort ausgelöst haben, damit
   // das Hover-Banner das transparent macht.
   const keysToShow = stratKey === 'all' ? Object.keys(allStrategies) : stratKey === 'none' ? [] : [stratKey];
@@ -3088,7 +3157,7 @@ async function runReliabilityMatrix(){
     catch(e){ console.warn('Reliability-Matrix: Kerzendaten für', iv, 'nicht ladbar:', e); }
   }
   if(statusEl) statusEl.textContent = 'Berechne…';
-  // 'trendscore' (gewichteter Konsens aller 9 Strategien) läuft als zusätzliche Zeile mit -- computeSignalReliability
+  // 'trendscore' (gewichteter Konsens aller 10 Strategien) läuft als zusätzliche Zeile mit -- computeSignalReliability
   // kennt diesen Sonderfall (siehe dort) und wertet computeTrendScoreResult().position statt einer der 9
   // buildStrategies()-Positionen aus.
   const stratKeys = [...Object.keys(STRAT_LABELS), 'trendscore'];
@@ -3694,7 +3763,7 @@ function runAutoTradeFixedForCoin(coin){
   if(desiredDir) openAutoPosition(coin, desiredDir, price, time, autoTradeStratKey, autoTradeInterval, lastIdx);
   return true;
 }
-// Trendscore-Modus: nutzt statt einer Einzelstrategie den gewichteten Konsens aus allen 9 Strategien
+// Trendscore-Modus: nutzt statt einer Einzelstrategie den gewichteten Konsens aus allen 10 Strategien
 // (computeTrendScoreResult, Profil 'auto' -> eigenständige Automatik-Filter/Exit-Einstellungen) als Entry/Exit-
 // Signal. stratKey wird bewusst als literal 'trendscore' eingefroren (kein echter Strategie-Key), damit
 // determineAutoModeForCoin() eine so eröffnete Position immer wieder hierhin routet, unabhängig vom aktuell
@@ -4263,14 +4332,14 @@ function updateTrendScoreExplainUI(){
   el.style.display = '';
   el.innerHTML = `<strong>Trendscore: ${desc.title}</strong> — Trendlinie: <span style="color:${TREND_SCORE_LONG_COLOR}">blau = long-Konsens</span>, ` +
     `<span style="color:${TREND_SCORE_SHORT_COLOR}">orange = short-Konsens</span>, grau = neutral. Rauten-Marker mit „L"/„S" markieren die ` +
-    `Einstiege des Konsens-Signals. Gewichteter Konsens aus allen 9 Strategien ` +
+    `Einstiege des Konsens-Signals. Gewichteter Konsens aus allen 10 Strategien ` +
     `(Gewicht = 1 + eigene Überrendite ggü. Buy&Hold, mind. 0,02): ${weightList}. Historische Rendite dieses ` +
     `Konsens-Signals im geladenen Zeitraum: ${fmtPct(ts.totalReturn)}, Trefferquote ${ts.winRate!=null ? (ts.winRate*100).toFixed(0)+'%' : '—'}. ` +
     `Reine Heuristik, keine Anlageberatung — über Backtest-Fenster/-Länge lässt sich die Aussagekraft wie bei den ` +
-    `9 Einzelstrategien selbst prüfen.`;
+    `10 Einzelstrategien selbst prüfen.`;
 }
 
-// ---------- Exit-Strategie-Auswahl (global für alle 9 Strategien) ----------
+// ---------- Exit-Strategie-Auswahl (global für alle 10 Strategien) ----------
 function applyExitModeChange(){
   strategyCache = {}; // Backtest ist exit-abhängig -> für alle Coins/Intervalle neu berechnen
   Object.keys(COINS).forEach(c=>{
@@ -4913,7 +4982,7 @@ function populateAutoModeUI(){
   [
     {v:'fixed', label:'Feste Strategie'},
     {v:'dynamic', label:'Dynamisch: beste Strategie der letzten N Kerzen'},
-    {v:'trendscore', label:'Trendscore: gewichteter Konsens aller 9 Strategien'}
+    {v:'trendscore', label:'Trendscore: gewichteter Konsens aller 10 Strategien'}
   ].forEach(o=>{
     const opt = document.createElement('option');
     opt.value = o.v; opt.textContent = o.label;
@@ -5171,7 +5240,7 @@ function computeCombinedEquityCurve(perCoin){
 }
 // ---------- Markt-Indikatoren-Panel (Analyse-Tab, unter dem Preis-Chart) ----------
 // Rein deskriptiv, live berechnet aus den bereits geladenen Kerzendaten des aktuell gewählten Coins/Zeitrahmens --
-// unabhängig von den 9 Strategien/Exit-Filtern oben (die verändern hier nichts).
+// unabhängig von den 10 Strategien/Exit-Filtern oben (die verändern hier nichts).
 function fmtVolume(x, coin){
   if(x==null || isNaN(x)) return '—';
   const short = coin && COINS[coin] ? COINS[coin].short : '';
@@ -5182,13 +5251,14 @@ function computeIndicatorSnapshot(coin, interval){
   if(!data || data.closes.length < 30) return null;
   const closes = data.closes, highs = data.highs, lows = data.lows, opens = data.opens,
         volumes = data.volumes, times = data.times;
-  const ema9 = ema(closes, 9), ema50 = ema(closes, 50);
+  const ema9 = ema(closes, 9), ema20 = ema(closes, 20), ema50 = ema(closes, 50);
   const rsiArr = rsi(closes, 14);
   const emaFast = ema(closes, 12), emaSlow = ema(closes, 26);
   const macdArr = closes.map((_, i) => (emaFast[i] != null && emaSlow[i] != null) ? emaFast[i] - emaSlow[i] : null);
   const macdFilled = macdArr.map(v => v == null ? 0 : v);
   const signalArr = ema(macdFilled, 9);
   const histArr = macdArr.map((v, i) => (v != null && signalArr[i] != null) ? v - signalArr[i] : null);
+  const adxArr = adx(highs, lows, closes, 14);
   const volSma20 = sma(volumes, 20);
   const lastTime = times[times.length - 1];
   const dayMs = 24 * 60 * 60 * 1000;
@@ -5203,7 +5273,24 @@ function computeIndicatorSnapshot(coin, interval){
   if(!isFinite(dayLow)) dayLow = lows[lows.length - 1];
   const patterns = computePatternMeta(highs, lows, closes, opens, closes.length - 1);
   const trendScore = computeTrendScoreResult(coin, interval);
-  return { closes, highs, lows, opens, volumes, times, ema9, ema50, rsiArr, macdArr, signalArr, histArr, volSma20, dayVol, dayHigh, dayLow, patterns, trendScore };
+  return { closes, highs, lows, opens, volumes, times, ema9, ema20, ema50, rsiArr, macdArr, signalArr, histArr, adxArr, volSma20, dayVol, dayHigh, dayLow, patterns, trendScore };
+}
+// Vergleicht die drei EMAs (9/20/50) am letzten Kerzen-Index: sauber "gestapelt" (9>20>50 bzw. 9<20<50) gilt als
+// klares Richtungssignal, alles andere (z.B. 9>50 aber 20 dazwischen unsortiert) als "gemischt" -- bewusst
+// strenger als der bisherige reine 9-vs-50-Vergleich, weniger anfällig für kurze Fehlausschläge einer einzelnen EMA.
+function computeEmaStackSignal(ema9Val, ema20Val, ema50Val){
+  if(ema9Val==null || ema20Val==null || ema50Val==null) return null;
+  if(ema9Val > ema20Val && ema20Val > ema50Val) return 'bullish';
+  if(ema9Val < ema20Val && ema20Val < ema50Val) return 'bearish';
+  return 'mixed';
+}
+// Klassifiziert die Marktphase anhand von ADX(14): klassische Schwellen 25/20, dazwischen "Übergang" (weder
+// eindeutig trendend noch eindeutig seitwärts -- lieber ehrlich unklar als eine der beiden Seiten erzwingen).
+function classifyMarketPhase(adxVal){
+  if(adxVal==null) return null;
+  if(adxVal >= 25) return 'trending';
+  if(adxVal < 20) return 'ranging';
+  return 'transition';
 }
 function setupMiniCanvas(id){
   const canvas = document.getElementById(id);
@@ -5371,11 +5458,13 @@ function renderIndicatorPanel(){
   }
   const n = snap.closes.length;
   const lastClose = snap.closes[n - 1];
-  const lastEma9 = snap.ema9[n - 1], lastEma50 = snap.ema50[n - 1];
-  const trendUp = (lastEma9 != null && lastEma50 != null) ? lastEma9 > lastEma50 : null;
+  const lastEma9 = snap.ema9[n - 1], lastEma20 = snap.ema20[n - 1], lastEma50 = snap.ema50[n - 1];
+  const emaStack = computeEmaStackSignal(lastEma9, lastEma20, lastEma50);
   const lastRsi = snap.rsiArr[n - 1];
   const lastMacd = snap.macdArr[n - 1], lastSignal = snap.signalArr[n - 1];
   const macdBullish = (lastMacd != null && lastSignal != null) ? lastMacd > lastSignal : null;
+  const lastAdx = snap.adxArr[n - 1];
+  const marketPhase = classifyMarketPhase(lastAdx);
   const lastVol = snap.volumes[n - 1], lastVolSma = snap.volSma20[n - 1];
   const volRatio = lastVolSma ? (lastVol / lastVolSma) : null;
   const patternDesc = describePattern(snap.patterns);
@@ -5386,8 +5475,12 @@ function renderIndicatorPanel(){
   function box(label, valueHtml){
     return `<div class="stat-box"><div class="stat-label">${label}</div><div class="stat-value">${valueHtml}</div></div>`;
   }
+  const emaStackLabel = emaStack==null ? '—' : emaStack==='bullish' ? 'Bullisch ↑' : emaStack==='bearish' ? 'Bärisch ↓' : 'Gemischt';
+  const emaStackClass = emaStack==='bullish' ? 'pos' : emaStack==='bearish' ? 'neg' : '';
+  const phaseLabel = marketPhase==null ? '—' : marketPhase==='trending' ? 'Trend' : marketPhase==='ranging' ? 'Seitwärts' : 'Übergang';
+  const phaseClass = marketPhase==='trending' ? 'pos' : marketPhase==='ranging' ? 'neg' : '';
   rowEl.innerHTML = [
-    box('EMA-Trend (9/50)', trendUp == null ? '—' : `<span class="${trendUp ? 'pos' : 'neg'}">${trendUp ? 'Bullisch ↑' : 'Bärisch ↓'}</span>`),
+    box('EMA-Trend (9/20/50)', emaStack == null ? '—' : `<span class="${emaStackClass}">${emaStackLabel}</span>`),
     box('RSI (14)', lastRsi == null ? '—' : `<span class="${lastRsi > 70 ? 'neg' : (lastRsi < 30 ? 'pos' : '')}">${lastRsi.toFixed(1)}</span>`),
     box('MACD (12/26/9)', macdBullish == null ? '—' : `<span class="${macdBullish ? 'pos' : 'neg'}">${macdBullish ? 'Bullisch' : 'Bärisch'}</span>`),
     box('Volumen vs. Ø20', volRatio == null ? '—' : `${(volRatio * 100).toFixed(0)}%`),
@@ -5395,7 +5488,8 @@ function renderIndicatorPanel(){
     box('Aktueller Kurs', fmtEUR(lastClose)),
     box('24h Hoch/Tief', `${fmtEUR(snap.dayHigh)} / ${fmtEUR(snap.dayLow)}`),
     box('Muster', `<span class="${patternClass}">${patternDesc.title}</span>`),
-    box('Trendscore', `<span class="${trendScoreClass}">${trendScoreDesc.title}</span>`)
+    box('Trendscore', `<span class="${trendScoreClass}">${trendScoreDesc.title}</span>`),
+    box('Marktphase (ADX 14)', marketPhase == null ? '—' : `<span class="${phaseClass}">${phaseLabel}${lastAdx!=null ? ' ('+lastAdx.toFixed(0)+')' : ''}</span>`)
   ].join('');
 
   drawRsiChart(snap);
