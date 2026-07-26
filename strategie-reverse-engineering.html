@@ -302,6 +302,36 @@
       <span class="status" id="liveTickerStatus">lade…</span>
     </div>
   </div>
+
+  <div class="card" id="marketIndicatorsCard" style="margin:10px 0 0">
+    <h2 style="font-size:13px;margin:0 0 8px">Markt-Indikatoren — <span id="indicatorCoinLabel">Bitcoin</span></h2>
+    <div class="stats-row" id="indicatorStatsRow"></div>
+    <div class="row" style="margin-top:10px;gap:10px;align-items:stretch">
+      <div style="flex:1;min-width:260px">
+        <label>RSI (14)</label>
+        <div class="equity-wrap" style="height:140px"><canvas id="rsiChartCanvas"></canvas></div>
+      </div>
+      <div style="flex:1;min-width:260px">
+        <label>MACD (12/26/9)</label>
+        <div class="equity-wrap" style="height:140px"><canvas id="macdChartCanvas"></canvas></div>
+      </div>
+      <div style="flex:1;min-width:260px">
+        <label>Volumen</label>
+        <div class="equity-wrap" style="height:140px"><canvas id="volumeChartCanvas"></canvas></div>
+      </div>
+    </div>
+    <div class="footnote">
+      Live berechnet aus den geladenen Kerzendaten des aktuell gewählten Coins/Zeitrahmens. EMA-Trend vergleicht den
+      Stack aus EMA9/20/50 (nur bei sauberer Reihenfolge 9&gt;20&gt;50 bzw. 9&lt;20&lt;50 "Bullisch"/"Bärisch", sonst
+      "Gemischt"), RSI/MACD in Standardeinstellung (14 bzw. 12/26/9). RSI-Chart: gestrichelte Linien bei 30/70, blau
+      hinterlegtes Band 40-60 als neutraler Bereich. MACD-Chart: blaue Linie = MACD, orange = Signallinie, Balken =
+      Histogramm (MACD − Signal). Volumen-Balken grün/rot je nach Kerzenrichtung (Close ≥/&lt; Open). "24h" bezieht
+      sich auf die letzten 24 Stunden Handelszeit, unabhängig vom gewählten Kerzen-Intervall. Marktphase nutzt ADX(14)
+      (Wilder) -- misst die Trendstärke unabhängig von der Richtung: ab 25 gilt der Markt als "Trend", unter 20 als
+      "Seitwärts", dazwischen "Übergang". Reine Heuristik, keine Anlageberatung.
+    </div>
+  </div>
+
   <div class="footnote">
     Blaues Dreieck unten = Long-Einstieg, oranges Dreieck oben = Short-Einstieg. Hohler Kreis = Ausstieg. Standardmäßig zeigt
     der Chart die Signale <strong>aller</strong> 10 Strategien gleichzeitig (Overlay „Alle Strategien"); beim Darüberfahren
@@ -316,44 +346,15 @@
   <div class="alert-blocks" id="alertBlocksWrap"></div>
 </div>
 
-<div class="card" id="marketIndicatorsCard">
-  <h2 style="font-size:13px;margin:0 0 8px">Markt-Indikatoren — <span id="indicatorCoinLabel">Bitcoin</span></h2>
-  <div class="stats-row" id="indicatorStatsRow"></div>
-  <div class="row" style="margin-top:10px;gap:10px;align-items:stretch">
-    <div style="flex:1;min-width:260px">
-      <label>RSI (14)</label>
-      <div class="equity-wrap" style="height:140px"><canvas id="rsiChartCanvas"></canvas></div>
-    </div>
-    <div style="flex:1;min-width:260px">
-      <label>MACD (12/26/9)</label>
-      <div class="equity-wrap" style="height:140px"><canvas id="macdChartCanvas"></canvas></div>
-    </div>
-    <div style="flex:1;min-width:260px">
-      <label>Volumen</label>
-      <div class="equity-wrap" style="height:140px"><canvas id="volumeChartCanvas"></canvas></div>
-    </div>
-  </div>
-  <div class="footnote">
-    Live berechnet aus den geladenen Kerzendaten des aktuell gewählten Coins/Zeitrahmens. EMA-Trend vergleicht den
-    Stack aus EMA9/20/50 (nur bei sauberer Reihenfolge 9&gt;20&gt;50 bzw. 9&lt;20&lt;50 "Bullisch"/"Bärisch", sonst
-    "Gemischt"), RSI/MACD in Standardeinstellung (14 bzw. 12/26/9). RSI-Chart: gestrichelte Linien bei 30/70, blau
-    hinterlegtes Band 40-60 als neutraler Bereich. MACD-Chart: blaue Linie = MACD, orange = Signallinie, Balken =
-    Histogramm (MACD − Signal). Volumen-Balken grün/rot je nach Kerzenrichtung (Close ≥/&lt; Open). "24h" bezieht
-    sich auf die letzten 24 Stunden Handelszeit, unabhängig vom gewählten Kerzen-Intervall. Marktphase nutzt ADX(14)
-    (Wilder) -- misst die Trendstärke unabhängig von der Richtung: ab 25 gilt der Markt als "Trend", unter 20 als
-    "Seitwärts", dazwischen "Übergang". Reine Heuristik, keine Anlageberatung.
-  </div>
-</div>
-
 <div class="bottom-note">
   Live-Kerzenchart über die öffentliche Binance-API (BTCEUR / ETHEUR / SOLEUR) mit Fadenkreuz-Cursor, EMAs, Fair-Value-Gaps
   und Fibonacci-Retracement. Standardmäßig laufen die 10 Strategien immer long ODER short, Ausstieg = nächstes Gegensignal
-  (reine Annahme, keine echte Exit-Logik). Über das Exit-Strategie-Banner unter dem Chart lässt sich das für alle 8
+  (reine Annahme, keine echte Exit-Logik). Über das Exit-Strategie-Banner unter dem Chart lässt sich das für alle 10
   Strategien gemeinsam auf ein fixes Stop-Loss/Take-Profit, einen ATR-Trailing-Stop oder ein Zeitlimit umstellen — dann
   kann eine Position auch zwischenzeitlich flach sein. Der Chart zeigt
   standardmäßig die Signale aller 10 Strategien gleichzeitig (per Dropdown auf eine einzelne Strategie einschränkbar); das
-  Hover-Banner oben rechts nennt beim Darüberfahren die genauen auslösenden Strategien. Die drei Alarm-Blöcke scannen
-  alle neun Strategien je Coin auf dem eingestellten Zeitrahmen: bei Intervallen bis 30 Minuten zeitbasiert (30-Min-Fenster),
+  Hover-Banner oben rechts nennt beim Darüberfahren die genauen auslösenden Strategien. Die Alarm-Blöcke scannen
+  alle 10 Strategien je Coin auf dem eingestellten Zeitrahmen: bei Intervallen bis 30 Minuten zeitbasiert (30-Min-Fenster),
   bei größeren Intervallen kerzenbasiert (letzte 15 Kerzen), jeweils mit Uhrzeit, neueste zuerst. Live-Preis läuft über
   einen Binance-WebSocket (Fallback: Polling) und färbt sich grün/rot je nach Kursrichtung. Zoom per Mausrad oder Buttons
   hält die neueste Kerze am rechten Rand fest. Historie wird beim Zurückscrollen/-zoomen automatisch im Hintergrund
@@ -5485,7 +5486,6 @@ function renderIndicatorPanel(){
     box('MACD (12/26/9)', macdBullish == null ? '—' : `<span class="${macdBullish ? 'pos' : 'neg'}">${macdBullish ? 'Bullisch' : 'Bärisch'}</span>`),
     box('Volumen vs. Ø20', volRatio == null ? '—' : `${(volRatio * 100).toFixed(0)}%`),
     box('24h Volumen', fmtVolume(snap.dayVol, activeCoin)),
-    box('Aktueller Kurs', fmtEUR(lastClose)),
     box('24h Hoch/Tief', `${fmtEUR(snap.dayHigh)} / ${fmtEUR(snap.dayLow)}`),
     box('Muster', `<span class="${patternClass}">${patternDesc.title}</span>`),
     box('Trendscore', `<span class="${trendScoreClass}">${trendScoreDesc.title}</span>`),
