@@ -118,7 +118,7 @@
      der Text kurz oder lang ist; kürzerer Text lässt einfach Leerraum, längerer Text scrollt intern. Box-Höhe
      bleibt dadurch in jedem Zustand identisch. */
   #hoverSignal{white-space:normal;line-height:1.35;display:block;height:2.7em;overflow-y:auto}
-  .bottom-note{color:var(--muted);font-size:10.5px;margin-top:16px;line-height:1.6;max-width:900px}
+  .bottom-note{color:var(--muted);font-size:10.5px;margin-top:16px;line-height:1.6}
   .exit-banner{background:#12161c;border:1px solid var(--border);border-radius:7px;padding:8px 10px;margin-top:8px}
   .exit-banner-row{display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap}
   .exit-banner-row input[type=number]{width:80px}
@@ -127,6 +127,13 @@
   .view-tab{padding:7px 14px;border-radius:7px;border:1px solid var(--border);background:var(--panel);color:var(--muted);cursor:pointer;font-size:12.5px;font-weight:600}
   .view-tab.active{background:var(--accent);color:#0e1117;border-color:var(--accent)}
   .auto-live-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-left:6px;animation:pulse 1.6s infinite;vertical-align:middle}
+  /* Marktphasen-Gauge: horizontales Grün-Rot-Farbband (Grün=bullisch/Score+1 links, Rot=bärisch/Score-1 rechts,
+     wie im übrigen Tool per --green/--amber/--red), mit einem Marker, der die Position des über alle 11
+     Zeitrahmen (1m-1M) gemittelten Trendscores anzeigt. */
+  .trend-gauge-wrap{position:relative;height:20px;margin-top:6px}
+  .trend-gauge-bar{position:absolute;inset:0;border-radius:10px;background:linear-gradient(to right, var(--green), var(--amber) 50%, var(--red))}
+  .trend-gauge-marker{position:absolute;top:-5px;width:4px;height:30px;background:#fff;border-radius:2px;box-shadow:0 0 4px rgba(0,0,0,.6);transform:translateX(-50%);left:50%;transition:left .3s}
+  .trend-gauge-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:4px}
   .stats-row{display:flex;gap:10px;flex-wrap:wrap}
   .stat-box{background:#12161c;border:1px solid var(--border);border-radius:7px;padding:8px 12px;min-width:110px}
   .stat-box .stat-label{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}
@@ -142,6 +149,13 @@
   .percoin-controls{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
   button.small{padding:3px 7px;font-size:10.5px}
 
+  /* Überschrift + View-Tab-Leiste liegen VOR #simpleModeView im HTML (gemeinsamer Kopfbereich aller Tabs) und
+     werden deshalb nicht von #simpleModeView{margin:0 auto} zentriert. Body-Klasse "simple-view" wird nur
+     gesetzt, solange Simple-Mode aktiv ist (siehe switchView()) -- Nutzeranforderung: Überschrift + Tab-Buttons
+     sollen dort mittiger sitzen als in den übrigen (breiteren) Tabs. */
+  body.simple-view h1{text-align:center}
+  body.simple-view .view-tabs{justify-content:center}
+
   /* ---------- Simple-Mode: schmale, für Handydisplays ausgelegte Einzelspalte ---------- */
   #simpleModeView{max-width:900px;margin:0 auto}
   #simpleModeView .row{flex-direction:column;align-items:stretch}
@@ -154,7 +168,9 @@
      Analyse-Modus bleibt bei seinem eigenen, bereits abgestimmten Wert (siehe .ticker weiter oben im CSS). */
   #simpleModeView .ticker{bottom:calc(100% - 27px)}
   #simpleModeView .stats-row{gap:8px}
-  #simpleModeView .stat-box{flex:1 1 45%;min-width:0}
+  /* Drei Kacheln pro Zeile (statt zwei) -- explizite Nutzeranforderung. calc() zieht 2 der 3 Gaps (8px) anteilig
+     von der Breite ab, damit die dritte Kachel nicht in die nächste Zeile umbricht. */
+  #simpleModeView .stat-box{flex:1 1 calc(33.333% - 6px);min-width:90px}
   #simpleModeView #marketIndicatorsCard .row{flex-direction:column}
   #simpleModeView #marketIndicatorsCard .equity-wrap{height:170px}
   #simpleModeView #exitFilterCard .exit-banner-row{flex-direction:column;align-items:stretch;gap:10px}
@@ -169,6 +185,10 @@
      kompakt und linksbündig -- macht Platz für das Hover-Info-Banner, das rechts daneben schwebt. */
   #simpleModeView #simpleTrendScoreSlot{display:flex;justify-content:flex-start}
   #simpleModeView #simpleTrendScoreSlot button{width:auto;padding:8px 16px;font-size:12.5px}
+  /* Zoom/EMA/FVG/S-R/Ichimoku-Buttons über dem Chart: wie beim Trendscore-Button bewusst NICHT die sonst
+     geltende volle Breite, sondern kompakt und nebeneinander (mit Umbruch auf schmalen Displays). */
+  #simpleModeView #simpleChartToolsSlot{display:flex;flex-direction:row;flex-wrap:wrap;gap:6px}
+  #simpleModeView #simpleChartToolsSlot button{width:auto;padding:8px 12px;font-size:12px}
   /* Flex-Rahmen um Dropdown-Zeile + Trendscore-Button (linke Spalte) und das große Hover-Info-Banner (rechte
      Spalte, landet per JS in simpleHoverSlot): sitzen dadurch nebeneinander, keine Überlappung möglich (bewusst
      KEIN position:absolute -- siehe .hover-overlay im CSS weiter oben). Bricht auf schmalen Displays dank
@@ -328,7 +348,28 @@
       Histogramm (MACD − Signal). Volumen-Balken grün/rot je nach Kerzenrichtung (Close ≥/&lt; Open). "24h" bezieht
       sich auf die letzten 24 Stunden Handelszeit, unabhängig vom gewählten Kerzen-Intervall. Marktphase nutzt ADX(14)
       (Wilder) -- misst die Trendstärke unabhängig von der Richtung: ab 25 gilt der Markt als "Trend", unter 20 als
-      "Seitwärts", dazwischen "Übergang". Reine Heuristik, keine Anlageberatung.
+      "Seitwärts", dazwischen "Übergang". Zeitrahmen-Trend zeigt für jeden der 11 Zeitrahmen (1m-1M) die
+      Trendscore-Richtung (grün=bullisch, rot=bärisch, weiß=neutral, grau=noch nicht geladen). Reine Heuristik,
+      keine Anlageberatung.
+    </div>
+  </div>
+
+  <div class="card" id="trendGaugeCard" style="margin:10px 0 0">
+    <h2 style="font-size:13px;margin:0 0 8px">Marktphase über alle Zeitrahmen — <span id="trendGaugeCoinLabel">Bitcoin</span></h2>
+    <div class="trend-gauge-wrap">
+      <div class="trend-gauge-bar"></div>
+      <div class="trend-gauge-marker" id="trendGaugeMarker"></div>
+    </div>
+    <div class="trend-gauge-labels">
+      <span>Bullisch</span>
+      <span>Neutral</span>
+      <span>Bärisch</span>
+    </div>
+    <div class="status" id="trendGaugeStatus" style="margin-top:6px">Lade…</div>
+    <div class="footnote">
+      Mittelwert des Trendscores (gewichteter Konsens aller 10 Strategien, siehe Trendscore-Overlay) über alle
+      11 Zeitrahmen von 1 Minute bis 1 Monat, jeweils für den gerade aktiven Coin. Reine Heuristik zur
+      Einordnung der aktuellen Gesamtlage über kurze bis lange Sicht hinweg, keine Anlageberatung.
     </div>
   </div>
 
@@ -344,31 +385,6 @@
   <div class="exit-banner-desc" id="trendScoreExplain" style="display:none"></div>
 
   <div class="alert-blocks" id="alertBlocksWrap"></div>
-</div>
-
-<div class="bottom-note">
-  Live-Kerzenchart über die öffentliche Binance-API (BTCEUR / ETHEUR / SOLEUR) mit Fadenkreuz-Cursor, EMAs, Fair-Value-Gaps
-  und Fibonacci-Retracement. Standardmäßig laufen die 10 Strategien immer long ODER short, Ausstieg = nächstes Gegensignal
-  (reine Annahme, keine echte Exit-Logik). Über das Exit-Strategie-Banner unter dem Chart lässt sich das für alle 10
-  Strategien gemeinsam auf ein fixes Stop-Loss/Take-Profit, einen ATR-Trailing-Stop oder ein Zeitlimit umstellen — dann
-  kann eine Position auch zwischenzeitlich flach sein. Der Chart zeigt
-  standardmäßig die Signale aller 10 Strategien gleichzeitig (per Dropdown auf eine einzelne Strategie einschränkbar); das
-  Hover-Banner oben rechts nennt beim Darüberfahren die genauen auslösenden Strategien. Die Alarm-Blöcke scannen
-  alle 10 Strategien je Coin auf dem eingestellten Zeitrahmen: bei Intervallen bis 30 Minuten zeitbasiert (30-Min-Fenster),
-  bei größeren Intervallen kerzenbasiert (letzte 15 Kerzen), jeweils mit Uhrzeit, neueste zuerst. Live-Preis läuft über
-  einen Binance-WebSocket (Fallback: Polling) und färbt sich grün/rot je nach Kursrichtung. Zoom per Mausrad oder Buttons
-  hält die neueste Kerze am rechten Rand fest. Historie wird beim Zurückscrollen/-zoomen automatisch im Hintergrund
-  nachgeladen (unbegrenzt weit zurück), der Button funktioniert weiterhin manuell. Zusätzliche Overlays: Ichimoku-Wolke
-  (Senkou A/B ohne Vorwärtsprojektion über den letzten Kerzenindex hinaus), Swing-Hochs/-Tiefs sowie geclusterte
-  Support-/Widerstandszonen aus denselben Pivots. Vier zusätzliche, einzeln an/abschaltbare Entry-/Exit-Filter im
-  Banner unter dem Chart: Volumen-Filter (Einstieg nur bei überdurchschnittlichem Kerzenvolumen), Multi-Timeframe-
-  Bestätigung (Einstieg nur wenn der nächsthöhere Zeitrahmen zustimmt), Swing-Breakout-Bestätigung (Einstieg erst bei
-  echtem Ausbruch über/unter das letzte Swing-Level statt nur Indikator-Schwelle) und ein ATR-Sicherheitsnetz für den
-  Marktstruktur-Exit. Reine Analyse — keine Order-Ausführung, keine API-Keys, keine Wallet-Verbindung. Mehrere
-  unabhängige Instanzen dieser Datei gleichzeitig laufen lassen (z.B. verschiedene Automatik-Strategien parallel
-  testen): an die URL <code>?instance=NAME</code> anhängen (z.B. <code>...html?instance=eth</code>) — jede Instanz
-  bekommt dann ihren eigenen, isolierten Automatik-Speicher (Positionen/Log/Einstellungen), ohne sich gegenseitig
-  zu überschreiben. Ohne diesen Parameter bleibt alles wie gewohnt.
 </div>
 
 <div class="card" id="exitFilterCard">
@@ -425,6 +441,31 @@
       an/abschaltbar, kombinierbar, gelten für alle 10 Strategien.
     </div>
   </div>
+</div>
+
+<div class="bottom-note">
+  Live-Kerzenchart über die öffentliche Binance-API (BTCEUR / ETHEUR / SOLEUR) mit Fadenkreuz-Cursor, EMAs, Fair-Value-Gaps
+  und Fibonacci-Retracement. Standardmäßig laufen die 10 Strategien immer long ODER short, Ausstieg = nächstes Gegensignal
+  (reine Annahme, keine echte Exit-Logik). Über das Exit-Strategie-Banner unter dem Chart lässt sich das für alle 10
+  Strategien gemeinsam auf ein fixes Stop-Loss/Take-Profit, einen ATR-Trailing-Stop oder ein Zeitlimit umstellen — dann
+  kann eine Position auch zwischenzeitlich flach sein. Der Chart zeigt
+  standardmäßig die Signale aller 10 Strategien gleichzeitig (per Dropdown auf eine einzelne Strategie einschränkbar); das
+  Hover-Banner oben rechts nennt beim Darüberfahren die genauen auslösenden Strategien. Die Alarm-Blöcke scannen
+  alle 10 Strategien je Coin auf dem eingestellten Zeitrahmen: bei Intervallen bis 30 Minuten zeitbasiert (30-Min-Fenster),
+  bei größeren Intervallen kerzenbasiert (letzte 15 Kerzen), jeweils mit Uhrzeit, neueste zuerst. Live-Preis läuft über
+  einen Binance-WebSocket (Fallback: Polling) und färbt sich grün/rot je nach Kursrichtung. Zoom per Mausrad oder Buttons
+  hält die neueste Kerze am rechten Rand fest. Historie wird beim Zurückscrollen/-zoomen automatisch im Hintergrund
+  nachgeladen (unbegrenzt weit zurück), der Button funktioniert weiterhin manuell. Zusätzliche Overlays: Ichimoku-Wolke
+  (Senkou A/B ohne Vorwärtsprojektion über den letzten Kerzenindex hinaus), Swing-Hochs/-Tiefs sowie geclusterte
+  Support-/Widerstandszonen aus denselben Pivots. Vier zusätzliche, einzeln an/abschaltbare Entry-/Exit-Filter im
+  Banner unter dem Chart: Volumen-Filter (Einstieg nur bei überdurchschnittlichem Kerzenvolumen), Multi-Timeframe-
+  Bestätigung (Einstieg nur wenn der nächsthöhere Zeitrahmen zustimmt), Swing-Breakout-Bestätigung (Einstieg erst bei
+  echtem Ausbruch über/unter das letzte Swing-Level statt nur Indikator-Schwelle) und ein ATR-Sicherheitsnetz für den
+  Marktstruktur-Exit. Reine Analyse — keine Order-Ausführung, keine API-Keys, keine Wallet-Verbindung. Mehrere
+  unabhängige Instanzen dieser Datei gleichzeitig laufen lassen (z.B. verschiedene Automatik-Strategien parallel
+  testen): an die URL <code>?instance=NAME</code> anhängen (z.B. <code>...html?instance=eth</code>) — jede Instanz
+  bekommt dann ihren eigenen, isolierten Automatik-Speicher (Positionen/Log/Einstellungen), ohne sich gegenseitig
+  zu überschreiben. Ohne diesen Parameter bleibt alles wie gewohnt.
 </div>
 
 </div>
@@ -716,11 +757,13 @@
 <div id="simpleModeView" style="display:none">
 <!--
   Simple-Mode zeigt bewusst nur eine schlanke Auswahl: keine Coin-Tabs, keine 4.-Coin-Auswahl, keine
-  Alarm-Blöcke, kein Zoom/EMA/FVG/Ichimoku/Swings/S-R/Muster, kein Backtest/Automatik/Wallet. Statt alles doppelt
-  zu bauen (und dadurch zwei unabhängige, potenziell auseinanderlaufende Chart-/Filter-Implementierungen zu
-  riskieren), werden hier die echten, bereits existierenden Elemente aus dem Analyse-Tab per JS in diese Slots
-  hinein- und beim Verlassen wieder zurückverschoben (siehe moveToSimpleMode()/moveHomeFromSimpleMode() weiter
-  unten im Script): dieselbe Chart-Instanz, dieselben Event-Listener, garantiert kein Zustands-Drift.
+  Alarm-Blöcke, kein Fibonacci/Swings/Muster/Prognose, kein Backtest/Automatik/Wallet. Zoom, EMAs, FVG,
+  S/R-Zonen und Ichimoku-Wolke sind dagegen (auf Nutzerwunsch) auch hier über simpleChartToolsSlot verfügbar.
+  Statt alles doppelt zu bauen (und dadurch zwei unabhängige, potenziell auseinanderlaufende Chart-/Filter-
+  Implementierungen zu riskieren), werden hier die echten, bereits existierenden Elemente aus dem Analyse-Tab
+  per JS in diese Slots hinein- und beim Verlassen wieder zurückverschoben (siehe
+  moveToSimpleMode()/moveHomeFromSimpleMode() weiter unten im Script): dieselbe Chart-Instanz, dieselben
+  Event-Listener, garantiert kein Zustands-Drift.
 -->
 <div class="card" id="simpleModeCard">
   <div id="simpleControlsWrap">
@@ -733,6 +776,7 @@
     </div>
     <div id="simpleHoverSlot"></div>
   </div>
+  <div class="toolgroup" id="simpleChartToolsSlot" style="margin-bottom:8px"></div>
   <div id="simpleChartSlot"></div>
 </div>
 <div id="simpleIndicatorSlot"></div>
@@ -1119,7 +1163,7 @@ function renderHlWalletUI(){
     } else if(hlWalletLastError){
       statusEl.innerHTML = `<span class="neg">Letzter Abruf fehlgeschlagen: ${hlWalletLastError}</span>`;
     } else {
-      statusEl.innerHTML = `<span class="pos">Aktiv</span> · letztes Update: ${hlWalletLastUpdate ? fmtClock(hlWalletLastUpdate) : '—'}`;
+      statusEl.innerHTML = `<span class="pos">Aktiv</span> · letztes Update: ${hlWalletLastUpdate ? fmtDateTime(hlWalletLastUpdate) : '—'}`;
     }
   }
   const gridEl = document.getElementById('hlWalletOpenGrid');
@@ -1146,7 +1190,7 @@ function renderHlWalletUI(){
             <h3>${coin}</h3>
             <div class="percoin-live">
               <strong class="${p.direction==='long'?'pos':'neg'}">${p.direction==='long'?'LONG':'SHORT'}</strong>
-              seit ${fmtClock(p.openedAt)}<br>Entry ${p.entryPx} · aktuell ${livePct!=null ? fmtPct(livePct) : '—'}
+              seit ${fmtDateTime(p.openedAt)}<br>Entry ${p.entryPx} · aktuell ${livePct!=null ? fmtPct(livePct) : '—'}
             </div>
           </div>`;
         }).join('');
@@ -1161,8 +1205,8 @@ function renderHlWalletUI(){
         <td class="${t.direction==='long'?'pos':'neg'}">${t.direction==='long'?'LONG':'SHORT'}</td>
         <td>${t.entryPx}</td>
         <td>${t.pnlPctApprox!=null ? fmtPct(t.pnlPctApprox/100) : '—'}</td>
-        <td>${fmtClock(t.openedAt)}</td>
-        <td>${fmtClock(t.closedAt)}</td>
+        <td>${fmtDateTime(t.openedAt)}</td>
+        <td>${fmtDateTime(t.closedAt)}</td>
       </tr>`).join('');
     if(emptyEl) emptyEl.style.display = hlWalletLog.length ? 'none' : '';
   }
@@ -1179,13 +1223,26 @@ function fmtEUR(x){
   const decimals = val < 1 ? 6 : val < 100 ? 4 : 2;
   return new Intl.NumberFormat('de-DE', {style:'currency', currency, minimumFractionDigits:decimals, maximumFractionDigits:decimals}).format(val);
 }
-function fmtPct(x){
+// decimals=1 bleibt der Standard für alle bisherigen Aufrufstellen (Trade-Zeilen, Live-PnL etc., wo eine
+// Nachkommastelle genug Auflösung hat). Für "Ø PnL / Trade" im Automatik-Tab reicht 1 Nachkommastelle dagegen
+// nicht: bei z.B. 300 Trades mit 38% Trefferquote, Ø Gewinn +0.4%/Ø Verlust -0.2% liegt der echte Mittelwert bei
+// nur ~+0.01-0.03% -- rundet mit 1 Nachkommastelle IMMER zu "+0.0%", obwohl real ein (kleiner) positiver
+// Erwartungswert besteht. Das sah wie ein Bug aus, ist aber nur fehlende Anzeige-Auflösung.
+function fmtPct(x, decimals=1){
   if(x==null) return "—";
-  const pct = (x*100).toFixed(1)+"%";
+  const pct = (x*100).toFixed(decimals)+"%";
   return `<span class="${x>=0?'pos':'neg'}">${x>=0?'+':''}${pct}</span>`;
 }
 function fmtClock(ts){
   return new Date(ts).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+}
+// Datum + Uhrzeit (statt nur Uhrzeit) -- explizite Nutzeranforderung fürs Wallet-Copy-Trading, wo Positionen
+// auch mal tagelang offen bleiben können und die reine Uhrzeit dann nicht mehr eindeutig ist. Bewusst NICHT
+// fmtClock() selbst geändert, da das an vielen anderen, platzknappen Stellen (Alarm-Blöcke, Automatik-Tab)
+// weiterhin nur die Uhrzeit zeigen soll.
+function fmtDateTime(ts){
+  if(ts==null) return '—';
+  return new Date(ts).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'});
 }
 
 // ---------- Data fetching (Binance public REST + WebSocket, no key required) ----------
@@ -3336,6 +3393,69 @@ async function ensureOtherTimeframesLoaded(coin){
     catch(e){ /* leise -- naechster Coin-/Timeframe-Wechsel oder App-Neustart versucht es erneut */ }
   }
 }
+
+// ---------- Marktphasen-Gauge: gemittelter Trendscore über ALLE Zeitrahmen (1m-1M), nicht nur die 7
+// RELIABILITY_TIMEFRAMES -- explizite Nutzeranforderung ("von 1 min bis 1 monat"), deshalb bewusst eine eigene,
+// von ensureOtherTimeframesLoaded()/RELIABILITY_TIMEFRAMES getrennte Lade-Funktion, nur für den aktiven Coin
+// (nicht alle Coins gleichzeitig -- die Gauge zeigt ohnehin nur den gerade aktiven Coin).
+function computeMultiTimeframeTrendGauge(coin){
+  const perTf = [];
+  INTERVALS.forEach(({value: iv, label})=>{
+    const data = ohlcCache[coin+'::'+iv];
+    if(!data || data.closes.length < 5) return;
+    let ts;
+    try{ ts = computeTrendScoreResult(coin, iv); }catch(e){ return; }
+    if(ts && ts.lastScore!=null) perTf.push({ interval: iv, label, score: ts.lastScore });
+  });
+  if(perTf.length === 0) return null;
+  const avgScore = perTf.reduce((s,p)=>s+p.score,0) / perTf.length;
+  return { avgScore, perTf, loaded: perTf.length, total: INTERVALS.length };
+}
+// Kompakter Zeitrahmen-Strip für die Indikator-Kachel: alle 11 Zeitrahmen (1m-1M) hintereinander, jeweils per
+// Trendscore-Richtung eingefärbt -- grün (.pos, bullisch), rot (.neg, bärisch), weiß/Standardtextfarbe (neutral,
+// bewusst KEINE eigene Klasse), grau (--muted, noch nicht geladen). Nutzt dieselbe TREND_SCORE_THRESHOLD-
+// Klassifikation wie describeTrendScore(), nur pro einzelnem Zeitrahmen statt gemittelt (siehe dazu die
+// Marktphasen-Gauge weiter unten, die genau diesen Durchschnitt bildet).
+function buildTimeframeStripHtml(coin){
+  return INTERVALS.map(({value: iv})=>{
+    const data = ohlcCache[coin+'::'+iv];
+    if(!data || data.closes.length < 5) return `<span style="color:var(--muted)">${iv}</span>`;
+    let ts;
+    try{ ts = computeTrendScoreResult(coin, iv); }catch(e){ return `<span style="color:var(--muted)">${iv}</span>`; }
+    if(!ts || ts.lastScore==null) return `<span style="color:var(--muted)">${iv}</span>`;
+    const cls = ts.lastScore > TREND_SCORE_THRESHOLD ? 'pos' : ts.lastScore < -TREND_SCORE_THRESHOLD ? 'neg' : '';
+    return cls ? `<span class="${cls}">${iv}</span>` : `<span>${iv}</span>`;
+  }).join(' / ');
+}
+async function ensureAllTimeframesLoadedForGauge(coin){
+  for(const {value: iv} of INTERVALS){
+    if(iv === activeInterval) continue; // wird ohnehin schon normal geladen/aktuell gehalten
+    if(ohlcCache[coin+'::'+iv]) continue;
+    try{ await ensureData(coin, iv); if(coin===activeCoin) renderTrendGauge(); }
+    catch(e){ /* leise -- naechster Coin-/Timeframe-Wechsel oder App-Neustart versucht es erneut */ }
+  }
+}
+// score=+1 (maximal bullisch, alle Zeitrahmen einig) -> ganz links (grün, 0%); score=-1 (maximal bärisch) ->
+// ganz rechts (rot, 100%) -- passend zum Farbverlauf "grün nach rot" in .trend-gauge-bar.
+function renderTrendGauge(){
+  const markerEl = document.getElementById('trendGaugeMarker');
+  const statusEl = document.getElementById('trendGaugeStatus');
+  const labelEl = document.getElementById('trendGaugeCoinLabel');
+  if(!markerEl || !statusEl) return;
+  if(labelEl) labelEl.textContent = COINS[activeCoin] ? COINS[activeCoin].label : activeCoin;
+  const g = computeMultiTimeframeTrendGauge(activeCoin);
+  if(!g){
+    markerEl.style.left = '50%';
+    statusEl.textContent = 'Noch keine Daten für eine zeitrahmenübergreifende Einschätzung geladen.';
+    return;
+  }
+  const pos = ((1 - g.avgScore) / 2) * 100;
+  markerEl.style.left = pos.toFixed(1) + '%';
+  const label = g.avgScore > TREND_SCORE_THRESHOLD ? 'Bullisch' : g.avgScore < -TREND_SCORE_THRESHOLD ? 'Bärisch' : 'Neutral';
+  const cls = g.avgScore > TREND_SCORE_THRESHOLD ? 'pos' : g.avgScore < -TREND_SCORE_THRESHOLD ? 'neg' : '';
+  statusEl.innerHTML = `<strong class="${cls}">${label}</strong> (Score ${(g.avgScore*100).toFixed(0)}) · ` +
+    `basiert auf ${g.loaded} von ${g.total} Zeitrahmen (1m–1M)${g.loaded < g.total ? ' · weitere laden im Hintergrund nach' : ''}`;
+}
 function kickOffOtherTimeframeMonitoring(){
   Object.keys(COINS).forEach(c => ensureOtherTimeframesLoaded(c));
 }
@@ -3349,6 +3469,7 @@ function switchToInterval(iv){
   refreshHigherTFSelect(document.getElementById('mtfHigherTfSelect'), document.getElementById('mtfHigherTfLabel'), activeInterval);
   loadAndRender();
   kickOffOtherTimeframeMonitoring();
+  ensureAllTimeframesLoadedForGauge(activeCoin);
 }
 // Wie switchToInterval(), wechselt aber ZUSÄTZLICH auch den aktiven Coin -- gebraucht für den "Neues Signal auf
 // X gefunden"-Zusatzhinweis: der klickt sich ja aus dem Alarm-Block eines BESTIMMTEN Coins heraus, der nicht
@@ -3367,6 +3488,7 @@ function switchToCoinAndInterval(coin, iv){
   loadAndRender();
   startTicker();
   kickOffOtherTimeframeMonitoring();
+  ensureAllTimeframesLoadedForGauge(activeCoin);
 }
 
 async function loadAndRender(){
@@ -3995,6 +4117,7 @@ async function selectCoin(coin){
   }
   startTicker();
   kickOffOtherTimeframeMonitoring();
+  ensureAllTimeframesLoadedForGauge(activeCoin);
 }
 
 // Baut die Coin-Tabs komplett neu aus dem aktuellen COINS-Objekt auf (statt einmalig fest verdrahtet) -- wird
@@ -4121,6 +4244,7 @@ async function setCustomCoin(newKey){
   renderAutoTradeUI();
   if(autoTradeEnabled) runAutoTrade();
   kickOffOtherTimeframeMonitoring(); // neuer 4. Coin soll ebenfalls auf anderen Zeitrahmen mitüberwacht werden
+  ensureAllTimeframesLoadedForGauge(activeCoin);
 }
 function populateExtraCoinUI(){
   const sel = document.getElementById('extraCoinSelect');
@@ -4844,6 +4968,16 @@ const SIMPLE_MODE_MOVES = [
   {elId:'intervalSelectWrap',  slotId:'simpleIntervalSlot'},
   {elId:'stratSelectWrap',     slotId:'simpleStratSlot'},
   {elId:'toggleTrendScoreBtn', slotId:'simpleTrendScoreSlot'},
+  // Zoom/EMA/FVG/S-R/Ichimoku-Buttons: explizite Nutzeranforderung, dass diese auch im Simple-Mode über dem
+  // Chart verfügbar sind (Fibonacci/Swings/Muster/Prognose bewusst NICHT -- die bleiben Analyse-Tab-exklusiv).
+  // Landen alle im selben Slot, Reihenfolge im Array = Reihenfolge im Slot.
+  {elId:'zoomInBtn',          slotId:'simpleChartToolsSlot'},
+  {elId:'zoomOutBtn',         slotId:'simpleChartToolsSlot'},
+  {elId:'resetZoomBtn',       slotId:'simpleChartToolsSlot'},
+  {elId:'toggleEmaBtn',       slotId:'simpleChartToolsSlot'},
+  {elId:'toggleFvgBtn',       slotId:'simpleChartToolsSlot'},
+  {elId:'toggleSRBtn',        slotId:'simpleChartToolsSlot'},
+  {elId:'toggleIchimokuBtn',  slotId:'simpleChartToolsSlot'},
   {elId:'chartWrapEl',         slotId:'simpleChartSlot'},
   {elId:'marketIndicatorsCard', slotId:'simpleIndicatorSlot'},
   {elId:'exitFilterCard',      slotId:'simpleFilterSlot'},
@@ -4894,6 +5028,10 @@ function switchView(view){
   document.getElementById('viewTabAuto').classList.toggle('active', view==='auto');
   document.getElementById('viewTabWallet').classList.toggle('active', view==='wallet');
   document.getElementById('viewTabSimple').classList.toggle('active', view==='simple');
+  // Überschrift + View-Tab-Leiste sitzen AUSSERHALB von #simpleModeView (gemeinsamer Kopfbereich aller Tabs) --
+  // werden per Body-Klasse zentriert, nur solange Simple-Mode aktiv ist (Nutzeranforderung). Guard, weil ältere
+  // Test-Mocks kein document.body kennen.
+  if(document.body) document.body.classList.toggle('simple-view', view==='simple');
 
   if(view==='simple' && currentView!=='simple') moveToSimpleMode();
   else if(view!=='simple' && currentView==='simple') moveHomeFromSimpleMode();
@@ -5053,7 +5191,7 @@ function renderAutoStatsRow(){
   el.innerHTML = `
     <div class="stat-box"><div class="stat-label">Trades</div><div class="stat-value">${s.total}</div></div>
     <div class="stat-box"><div class="stat-label">Trefferquote</div><div class="stat-value">${(s.winRate*100).toFixed(0)}%</div></div>
-    <div class="stat-box"><div class="stat-label">Ø PnL / Trade</div><div class="stat-value">${fmtPct(s.avgPnl/100)}</div></div>
+    <div class="stat-box"><div class="stat-label">Ø PnL / Trade</div><div class="stat-value">${fmtPct(s.avgPnl/100, 2)}</div></div>
     <div class="stat-box"><div class="stat-label">Ø Gewinn</div><div class="stat-value">${fmtPct(s.avgWin/100)}</div></div>
     <div class="stat-box"><div class="stat-label">Ø Verlust</div><div class="stat-value">${fmtPct(s.avgLoss/100)}</div></div>
     <div class="stat-box"><div class="stat-label">Profit-Faktor</div><div class="stat-value">${pfText}</div></div>
@@ -5455,6 +5593,7 @@ function renderIndicatorPanel(){
   if(!snap){
     rowEl.innerHTML = '<div class="status">Lade Daten…</div>';
     clearMiniCharts();
+    renderTrendGauge(); // hängt nicht am aktiven Intervall-Snapshot, sondern an ALLEN geladenen Zeitrahmen
     return;
   }
   const n = snap.closes.length;
@@ -5480,21 +5619,25 @@ function renderIndicatorPanel(){
   const emaStackClass = emaStack==='bullish' ? 'pos' : emaStack==='bearish' ? 'neg' : '';
   const phaseLabel = marketPhase==null ? '—' : marketPhase==='trending' ? 'Trend' : marketPhase==='ranging' ? 'Seitwärts' : 'Übergang';
   const phaseClass = marketPhase==='trending' ? 'pos' : marketPhase==='ranging' ? 'neg' : '';
+  // Reihenfolge auf explizite Nutzeranforderung angepasst: EMA-Trend, RSI, MACD, Volumen, Marktphase,
+  // Zeitrahmen-Trend, 24h-Volumen, 24h Hoch/Tief, Muster, Trendscore.
   rowEl.innerHTML = [
     box('EMA-Trend (9/20/50)', emaStack == null ? '—' : `<span class="${emaStackClass}">${emaStackLabel}</span>`),
     box('RSI (14)', lastRsi == null ? '—' : `<span class="${lastRsi > 70 ? 'neg' : (lastRsi < 30 ? 'pos' : '')}">${lastRsi.toFixed(1)}</span>`),
     box('MACD (12/26/9)', macdBullish == null ? '—' : `<span class="${macdBullish ? 'pos' : 'neg'}">${macdBullish ? 'Bullisch' : 'Bärisch'}</span>`),
     box('Volumen vs. Ø20', volRatio == null ? '—' : `${(volRatio * 100).toFixed(0)}%`),
+    box('Marktphase (ADX 14)', marketPhase == null ? '—' : `<span class="${phaseClass}">${phaseLabel}${lastAdx!=null ? ' ('+lastAdx.toFixed(0)+')' : ''}</span>`),
+    box('Zeitrahmen-Trend (1m–1M)', `<span style="font-size:13px;font-weight:600;white-space:normal">${buildTimeframeStripHtml(activeCoin)}</span>`),
     box('24h Volumen', fmtVolume(snap.dayVol, activeCoin)),
     box('24h Hoch/Tief', `${fmtEUR(snap.dayHigh)} / ${fmtEUR(snap.dayLow)}`),
     box('Muster', `<span class="${patternClass}">${patternDesc.title}</span>`),
-    box('Trendscore', `<span class="${trendScoreClass}">${trendScoreDesc.title}</span>`),
-    box('Marktphase (ADX 14)', marketPhase == null ? '—' : `<span class="${phaseClass}">${phaseLabel}${lastAdx!=null ? ' ('+lastAdx.toFixed(0)+')' : ''}</span>`)
+    box('Trendscore', `<span class="${trendScoreClass}">${trendScoreDesc.title}</span>`)
   ].join('');
 
   drawRsiChart(snap);
   drawMacdChart(snap);
   drawVolumeChart(snap);
+  renderTrendGauge();
 }
 let indicatorChartListenerAttached = false;
 function attachIndicatorChartResizeListener(){
