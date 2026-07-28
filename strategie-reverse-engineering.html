@@ -275,6 +275,7 @@
         <div id="stratSelectWrap">
           <label>Chart-Overlay: Strategiesignale</label>
           <select id="stratSelect"></select>
+          <div id="syncModeStatus" class="status" style="margin-top:3px"></div>
         </div>
         <div id="status" class="status">Lade Kerzendaten…</div>
       </div>
@@ -503,15 +504,17 @@
         <label>Out-of-Sample-Anteil</label>
         <select id="optimizerOosSelect"></select>
       </div>
-      <div>
-        <button id="optimizerBtn">Beste Kombination finden &amp; aktivieren</button>
+      <div class="toolgroup">
+        <button id="optimizerBtn">Beste Kombination finden</button>
+        <button class="secondary" id="optimizerActivateBtn" style="display:none">Aktivieren</button>
       </div>
     </div>
     <div class="exit-banner-desc" id="optimizerResult">
       Testet alle 10 Entry-Strategien × 5 Exit-Strategien (Standard-Parameter je Exit-Modus) für den aktuell
-      gewählten Coin/Zeitrahmen über die letzten N Kerzen und übernimmt die beste Kombination direkt in
-      Chart-Overlay und Exit-Strategie. Ist „Filter mit verfeinern" aktiv, wird zusätzlich für genau diese
-      Gewinner-Kombination die beste Einstellung der vier Entry-Filter gesucht (zweistufige Suche, siehe unten).
+      gewählten Coin/Zeitrahmen über die letzten N Kerzen und zeigt die beste Kombination an. Sie wird NICHT
+      automatisch übernommen — dafür erst auf „Aktivieren" klicken. Ist „Filter mit verfeinern" aktiv, wird
+      zusätzlich für genau diese Gewinner-Kombination die beste Einstellung der vier Entry-Filter gesucht
+      (zweistufige Suche, siehe unten).
     </div>
     <div class="exit-banner-desc">
       <strong>Walk-Forward:</strong> Ohne diese Option wird die "beste Kombination" auf genau dem Fenster gesucht,
@@ -889,6 +892,10 @@ const EXIT_MODES = {
 let exitMode = 'reversal';
 let exitParam = null;
 let entryConfirmBars = 2; // Fakeout-Filter für Einstiege: 0 = aus (Rohsignal ungefiltert), sonst N Bestätigungskerzen
+// Sync-Modus (stratSelect === 'sync'): merkt sich, auf welche konkrete Strategie das Chart-Overlay gerade
+// automatisch aufgelöst wurde (siehe applyStrategySyncIfActive()) -- das Dropdown selbst bleibt dabei auf "sync"
+// stehen, computeOverlayData() löst diesen Wert bei Bedarf in den echten stratKey auf.
+let syncedStratKey = null;
 
 let ohlcCache = {};      // "coin::interval" -> {times[],opens[],highs[],lows[],closes[]}  (aufsteigend sortiert)
 let strategyCache = {};  // "coin::interval" -> {stratKey -> result}
@@ -3031,9 +3038,13 @@ function attachChartInteraction(canvas){
 
 // ---------- Chart rendering ----------
 function computeOverlayData(){
+  applyStrategySyncIfActive(); // muss VOR buildStrategies() laufen -- kann exitMode/exitParam/strategyCache aendern
   const key = activeCoin+'::'+activeInterval;
   const {times, opens, highs, lows, closes} = ohlcCache[key];
-  const stratKey = document.getElementById('stratSelect').value;
+  const rawStratKey = document.getElementById('stratSelect').value;
+  // Im Sync-Modus zeigt das Dropdown weiterhin "sync" -- hier auf die aktuell ermittelte konkrete Strategie
+  // aufloesen (fehlt sie noch, z.B. mangels Daten, faellt es auf "kein Signalfilter" zurueck statt zu crashen).
+  const stratKey = rawStratKey === 'sync' ? (syncedStratKey || 'none') : rawStratKey;
   const allStrategies = buildStrategies(activeCoin, activeInterval);
   const n = closes.length;
 
@@ -3301,6 +3312,84 @@ async function runReliabilityBestComboPerTimeframe(){
     wrapEl.innerHTML = `<table><thead><tr><th>Zeitrahmen</th><th>Beste Strategie</th><th>Bester Exit</th><th>Score</th><th>Signale</th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
   }
   if(statusEl) statusEl.textContent = `${COINS[coin].label} — beste Entry+Exit-Kombination je Zeitrahmen nach Reliability-Score. Aktuelle Einstellungen unverändert.`;
+}
+
+// Backtest-Reliability-Kachel im Indikator-Panel: liefert für GENAU den aktuell angezeigten Coin+Zeitrahmen
+// (1) wie zuverlässig das Trendscore-Konsens-Signal dort ist, und (2) welche einzelne Entry-Strategie + welcher
+// Exit-Modus (über alle STRAT_LABELS × EXIT_MODES) dort aktuell den höchsten Reliability-Score erreicht --
+// exakt dieselbe Suchlogik wie runReliabilityBestComboPerTimeframe(), nur auf EINEN Zeitrahmen beschränkt.
+// Bewusst rein synchron und ohne eigene ensureData()-Ladephase: nutzt nur bereits geladene ohlcCache-Daten,
+// damit die Kachel ohne spürbare Verzögerung bei jedem renderIndicatorPanel()-Aufruf (also bei jedem
+// Coin-/Zeitrahmenwechsel) automatisch mitläuft, statt einen eigenen Ladezyklus anzustoßen.
+function computeCurrentTimeframeReliabilitySummary(coin, interval){
+  const data = ohlcCache[coin+'::'+interval];
+  if(!data || data.closes.length < 5) return null;
+
+  const trendscoreR = computeSignalReliability(coin, interval, 'trendscore');
+
+  const savedExitMode = exitMode, savedExitParam = exitParam, savedCache = strategyCache;
+  let best = null;
+  try{
+    Object.entries(EXIT_MODES).forEach(([modeKey, cfg])=>{
+      exitMode = modeKey;
+      exitParam = cfg.paramDefault;
+      strategyCache = {}; // exit-abhängig -> muss pro Exit-Modus neu berechnet werden
+      Object.keys(STRAT_LABELS).forEach(stratKey=>{
+        const r = computeSignalReliability(coin, interval, stratKey);
+        if(!r || r.score==null) return;
+        if(!best || r.score > best.score || (r.score === best.score && r.total > best.total)){
+          best = { stratKey, exitModeKey: modeKey, score: r.score, total: r.total };
+        }
+      });
+    });
+  } finally {
+    // Ausgangszustand exakt wiederherstellen (Referenz auf den ORIGINALEN strategyCache, nicht bloß ein neues
+    // leeres Objekt) -- diese Funktion läuft bei jedem Render mit und darf die echten Analyse-Einstellungen
+    // und den davor aufgebauten Cache niemals sichtbar verändern.
+    exitMode = savedExitMode; exitParam = savedExitParam; strategyCache = savedCache;
+  }
+
+  return { trendscore: trendscoreR, best };
+}
+function reliabilityScoreClass(score){
+  if(score==null) return 'reliability-na';
+  return score>=60 ? 'reliability-high' : score>=40 ? 'reliability-mid' : 'reliability-low';
+}
+
+// Sync-Modus des Chart-Overlays (stratSelect === 'sync'): statt einer fest gewählten Strategie wird bei jeder
+// Neuberechnung (computeOverlayData(), also bei jedem Coin-/Zeitrahmenwechsel + der 30s-Aktualisierung) erneut
+// die aktuell zuverlässigste Entry-Strategie + der zuverlässigste Exit-Modus für den gerade angezeigten
+// Coin/Zeitrahmen ermittelt (dieselbe Suche wie computeCurrentTimeframeReliabilitySummary()/die Backtest-
+// Reliability-Kachel) und ECHT übernommen -- anders als die reine Anzeige-Kachel verändert diese Funktion also
+// bewusst und dauerhaft die globalen exitMode/exitParam-Einstellungen (wirkt sich damit auch auf Backtest-Tab
+// und Automatik-Trading aus, solange der Sync-Modus aktiv ist). Bleibt exitMode unverändert (schon optimal),
+// passiert nichts -- so wird nicht bei jedem Aufruf grundlos der Strategie-Cache geleert.
+function applyStrategySyncIfActive(){
+  const stratEl = document.getElementById('stratSelect');
+  const statusEl = document.getElementById('syncModeStatus');
+  if(!stratEl || stratEl.value !== 'sync'){
+    if(statusEl) statusEl.textContent = ''; // Sync-Modus verlassen -> alten Status-Text nicht stehen lassen
+    return;
+  }
+  const summary = computeCurrentTimeframeReliabilitySummary(activeCoin, activeInterval);
+  if(!summary || !summary.best){
+    syncedStratKey = null;
+    if(statusEl) statusEl.textContent = 'Sync-Modus: noch keine auswertbare Kombination für diesen Zeitrahmen gefunden.';
+    return;
+  }
+  syncedStratKey = summary.best.stratKey;
+  const modeKey = summary.best.exitModeKey;
+  if(exitMode !== modeKey){
+    exitMode = modeKey;
+    exitParam = EXIT_MODES[modeKey].paramDefault;
+    strategyCache = {}; // Exit-Modus geändert -> Backtest ist exit-abhängig, für alle Coins/Intervalle neu berechnen
+    const exitSelEl = document.getElementById('exitModeSelect');
+    if(exitSelEl) exitSelEl.value = modeKey;
+    if(typeof refreshExitParamUI === 'function') refreshExitParamUI();
+  }
+  if(statusEl){
+    statusEl.textContent = `Sync aktiv: ${STRAT_LABELS[syncedStratKey]} + ${EXIT_MODES[modeKey].label} (Score ${summary.best.score})`;
+  }
 }
 
 // ---------- Alarm-Blöcke: 3 Coins nebeneinander, Signale der letzten 30 Min, neu->alt, mit Uhrzeit ----------
@@ -4314,6 +4403,12 @@ function populateControls(){
   const noneOpt = document.createElement('option');
   noneOpt.value = 'none'; noneOpt.textContent = 'Kein Signalfilter (keine Marker)';
   stratEl.appendChild(noneOpt);
+  // Sync-Modus: statt einer fest gewählten Strategie wird bei jeder Neuberechnung automatisch die aktuell
+  // zuverlässigste Entry-Strategie + der zuverlässigste Exit-Modus für den gerade angezeigten Coin/Zeitrahmen
+  // ermittelt (dieselbe Suche wie die "Backtest-Reliability"-Kachel) und übernommen -- siehe applyStrategySyncIfActive().
+  const syncOpt = document.createElement('option');
+  syncOpt.value = 'sync'; syncOpt.textContent = '🔄 Sync-Modus (bestes Signal + bester Exit, automatisch)';
+  stratEl.appendChild(syncOpt);
   Object.entries(STRAT_LABELS_FULL).forEach(([key,label])=>{
     const opt = document.createElement('option');
     opt.value = key; opt.textContent = label;
@@ -4584,11 +4679,16 @@ function computeComboSearchResults(coin, interval, data, scoreBounds){
   results.sort((a,b)=> b.totalReturn - a.totalReturn);
   return results;
 }
+// Hält das Ergebnis der letzten Suche vor, bis der Nutzer explizit auf "Aktivieren" klickt (siehe
+// activateComboOptimizerResult()) -- die Suche selbst verändert die laufenden Analyse-Einstellungen bewusst NICHT
+// mehr dauerhaft (frühere Version aktivierte automatisch, explizite Nutzeranforderung, das zu entkoppeln).
+let lastOptimizerResult = null;
 async function runComboOptimizer(){
   const key = activeCoin+'::'+activeInterval;
   const data = ohlcCache[key];
   const resultEl = document.getElementById('optimizerResult');
   const btn = document.getElementById('optimizerBtn');
+  const activateBtn = document.getElementById('optimizerActivateBtn');
   if(!data || data.closes.length < 30){
     resultEl.textContent = 'Noch zu wenig Kerzendaten geladen für diesen Coin/Zeitrahmen.';
     return;
@@ -4598,8 +4698,13 @@ async function runComboOptimizer(){
   const refineFilters = document.getElementById('optimizerRefineFilters').checked;
   const walkForwardOn = document.getElementById('optimizerWalkForward').checked;
   btn.disabled = true;
+  lastOptimizerResult = null;
+  if(activateBtn){ activateBtn.style.display = 'none'; activateBtn.disabled = true; }
   resultEl.textContent = `Teste alle Entry×Exit-Kombinationen für ${COINS[activeCoin].label} / ${INTERVALS.find(t=>t.value===activeInterval).label}…`;
   await new Promise(r=>setTimeout(r, 20)); // UI kurz atmen lassen, bevor die Rechenschleife den Thread blockiert
+  // Werden am Ende IMMER (Erfolg oder Fehler) wiederhergestellt -- die Suche selbst darf die laufenden
+  // Analyse-Einstellungen nicht dauerhaft verändern, obwohl buildStrategies() intern zwingend die echten Globals
+  // liest (siehe computeComboSearchResults()/refineFiltersForBest()).
   const savedExitMode = exitMode, savedExitParam = exitParam;
   const savedFilters = { entryConfirmBars, volumeFilterMult, swingBreakoutBars, mtfFilterOn };
   try{
@@ -4620,32 +4725,31 @@ async function runComboOptimizer(){
     const results = computeComboSearchResults(activeCoin, activeInterval, data, scoreBounds);
     const best = results[0];
 
+    // exitMode/exitParam müssen für die nachfolgende Filtersuche/Walk-Forward-Kontrolle kurzzeitig auf die
+    // Gewinner-Exit-Strategie gesetzt sein (buildStrategies() liest ausschließlich die echten Globals) --
+    // werden im finally-Block unten in jedem Fall zurückgesetzt, NICHT ins UI übernommen.
     exitMode = best.exitModeKey;
     exitParam = best.exitParam;
-    document.getElementById('exitModeSelect').value = best.exitModeKey;
-    refreshExitParamUI();
-    document.getElementById('stratSelect').value = best.stratKey;
 
     let filterLine = '';
+    let foundFilters = null;
     if(refineFilters){
       resultEl.textContent = `Beste Entry/Exit-Kombi gefunden (${STRAT_LABELS[best.stratKey]} + ${EXIT_MODES[best.exitModeKey].label}) — verfeinere jetzt die Filtereinstellungen…`;
       await new Promise(r=>setTimeout(r, 20));
       const bestFilter = await refineFiltersForBest(best.stratKey, data, windowSize, oosOn ? scoreBounds : null);
+      foundFilters = { entryConfirmBars: bestFilter.entryConfirmBars, volumeFilterMult: bestFilter.volumeFilterMult, swingBreakoutBars: bestFilter.swingBreakoutBars, mtfFilterOn: bestFilter.mtfFilterOn };
       filterLine = `<br>Beste Filter dafür: Signalfilter ${bestFilter.entryConfirmBars===0?'aus':bestFilter.entryConfirmBars+' Kerzen'},
         Volumen ${bestFilter.volumeFilterMult===0?'aus':'≥'+String(bestFilter.volumeFilterMult).replace('.',',')+'× Ø'},
         Swing-Breakout ${bestFilter.swingBreakoutBars===0?'aus':bestFilter.swingBreakoutBars+' Kerzen'},
         Multi-Timeframe ${bestFilter.mtfFilterOn?'an':'aus'} — Rendite mit diesen Filtern: ${fmtPct(bestFilter.totalReturn)}
         (zweistufige Suche: erst Entry+Exit, dann Filter für den Gewinner — keine vollständige Joint-Suche über alles zugleich).`;
-    } else {
-      strategyCache = {};
     }
 
-    // Walk-Forward-Kontrolle: die FERTIGE Gewinner-Kombination (Entry+Exit+ggf. verfeinerte Filter, alles bereits
-    // in den globalen Einstellungen aktiv) auf dem Out-of-Sample-Teil bewerten -- diese Kerzen ist beim Suchen nie
-    // gesehen worden. Erst danach applyExitModeChange(), damit diese Kontroll-Berechnung nicht selbst nochmal den
-    // Cache verändert, bevor sie fertig ist.
+    // Walk-Forward-Kontrolle: die gefundene Gewinner-Kombination (Entry+Exit+ggf. verfeinerte Filter, aktuell in
+    // den Globals gesetzt) auf dem Out-of-Sample-Teil bewerten -- diese Kerzen wurden beim Suchen nie gesehen.
     let walkForwardLine = '';
     if(oosOn){
+      strategyCache = {};
       const finalR = buildStrategies(activeCoin, activeInterval)[best.stratKey];
       const oosScore = scoreRange(finalR.position, data.closes, isEnd, n);
       const isScore = scoreRange(finalR.position, data.closes, winStart, isEnd);
@@ -4655,25 +4759,76 @@ async function runComboOptimizer(){
         ${weakened ? '⚠️ Deutlich schwächer als im Optimierungsfenster — Vorsicht, das riecht nach Überanpassung statt einer robusten Kombination.' : 'Hält sich in etwa auch außerhalb des Optimierungsfensters — spricht für eine robustere Kombination.'}`;
     }
 
-    applyExitModeChange();
-
     const rankLine = results.slice(0,3).map((r,idx)=>
       `${idx+1}. ${STRAT_LABELS[r.stratKey]} + ${EXIT_MODES[r.exitModeKey].label}: ${fmtPct(r.totalReturn)}`
     ).join(' · ');
-    resultEl.innerHTML = `<strong>Beste Kombination aktiviert:</strong> ${STRAT_LABELS_FULL[best.stratKey]} + ${EXIT_MODES[best.exitModeKey].label} —
+    const summaryHtml = `<strong>Beste Kombination gefunden (noch nicht aktiv):</strong> ${STRAT_LABELS_FULL[best.stratKey]} + ${EXIT_MODES[best.exitModeKey].label} —
       Rendite (${best.windowSize} ${oosOn?'In-Sample-':''}Kerzen): ${fmtPct(best.totalReturn)}, vs. Buy&amp;Hold: ${fmtPct(best.totalReturn-best.buyHold)},
-      Max DD: ${fmtPct(best.maxDD)}, Trades: ${best.trades}.<br>Top 3 Entry+Exit: ${rankLine}${filterLine}${walkForwardLine}`;
+      Max DD: ${fmtPct(best.maxDD)}, Trades: ${best.trades}.<br>Top 3 Entry+Exit: ${rankLine}${filterLine}${walkForwardLine}
+      <br>Klicke auf „Aktivieren", um diese Kombination in Chart-Overlay/Exit-Strategie zu übernehmen.`;
+
+    lastOptimizerResult = {
+      coin: activeCoin, interval: activeInterval,
+      stratKey: best.stratKey, exitModeKey: best.exitModeKey, exitParam: best.exitParam,
+      filters: foundFilters, summaryHtml
+    };
+    resultEl.innerHTML = summaryHtml;
+    if(activateBtn){ activateBtn.style.display = ''; activateBtn.disabled = false; }
   } catch(e){
+    resultEl.textContent = 'Fehler beim Testen der Kombinationen: ' + e.message;
+  } finally {
+    // IMMER zurücksetzen, egal ob Erfolg oder Fehler -- die Suche selbst darf die laufenden Analyse-Einstellungen
+    // nicht verändern (siehe Kommentar bei lastOptimizerResult oben). UI-Selects der Filter (werden von
+    // refineFiltersForBest() direkt gesetzt) auf den wiederhergestellten Stand zurückdrehen.
     exitMode = savedExitMode; exitParam = savedExitParam;
     entryConfirmBars = savedFilters.entryConfirmBars;
     volumeFilterMult = savedFilters.volumeFilterMult;
     swingBreakoutBars = savedFilters.swingBreakoutBars;
     mtfFilterOn = savedFilters.mtfFilterOn;
     strategyCache = {};
-    resultEl.textContent = 'Fehler beim Testen der Kombinationen: ' + e.message;
-  } finally {
+    const efs = document.getElementById('entryFilterSelect'); if(efs) efs.value = String(entryConfirmBars);
+    const vfs = document.getElementById('volumeFilterSelect'); if(vfs) vfs.value = String(volumeFilterMult);
+    const sbs = document.getElementById('swingBreakoutSelect'); if(sbs) sbs.value = String(swingBreakoutBars);
+    const mfs = document.getElementById('mtfFilterSelect'); if(mfs) mfs.value = mtfFilterOn ? 'on' : 'off';
     btn.disabled = false;
   }
+}
+// Übernimmt das zuletzt gefundene Optimierer-Ergebnis (siehe lastOptimizerResult) tatsächlich in die laufenden
+// Analyse-Einstellungen -- explizit per Klick, nicht mehr automatisch nach der Suche.
+function activateComboOptimizerResult(){
+  const resultEl = document.getElementById('optimizerResult');
+  if(!lastOptimizerResult || !resultEl) return;
+  const r = lastOptimizerResult;
+
+  exitMode = r.exitModeKey;
+  exitParam = r.exitParam;
+  document.getElementById('exitModeSelect').value = r.exitModeKey;
+  refreshExitParamUI();
+  document.getElementById('stratSelect').value = r.stratKey;
+
+  if(r.filters){
+    entryConfirmBars = r.filters.entryConfirmBars;
+    volumeFilterMult = r.filters.volumeFilterMult;
+    swingBreakoutBars = r.filters.swingBreakoutBars;
+    mtfFilterOn = r.filters.mtfFilterOn;
+    document.getElementById('entryFilterSelect').value = String(entryConfirmBars);
+    document.getElementById('volumeFilterSelect').value = String(volumeFilterMult);
+    document.getElementById('swingBreakoutSelect').value = String(swingBreakoutBars);
+    document.getElementById('mtfFilterSelect').value = mtfFilterOn ? 'on' : 'off';
+  }
+
+  applyExitModeChange();
+
+  // Coin/Zeitrahmen könnten seit der Suche gewechselt worden sein -- die Einstellungen gelten trotzdem global
+  // (wie bei manueller Auswahl aus den Dropdowns), aber der Hinweis macht transparent, wofür die angezeigten
+  // Kennzahlen ursprünglich berechnet wurden.
+  const mismatch = (r.coin !== activeCoin || r.interval !== activeInterval);
+  const mismatchNote = mismatch
+    ? `<br><span class="status">Hinweis: gefunden für ${COINS[r.coin] ? COINS[r.coin].label : r.coin} / ${INTERVALS.find(t=>t.value===r.interval).label} — jetzt global (für alle Coins) auf den aktuellen Zeitrahmen angewendet.</span>`
+    : '';
+  resultEl.innerHTML = r.summaryHtml
+    .replace('Beste Kombination gefunden (noch nicht aktiv):', 'Beste Kombination aktiviert:')
+    .replace(/<br>Klicke auf „Aktivieren".*$/s, '') + mismatchNote;
 }
 
 function populateExitBanner(){
@@ -5611,6 +5766,7 @@ function renderIndicatorPanel(){
   const patternClass = patternDirectionClass(snap.patterns);
   const trendScoreDesc = describeTrendScore(snap.trendScore);
   const trendScoreClass = trendScoreDirectionClass(snap.trendScore);
+  const relSummary = computeCurrentTimeframeReliabilitySummary(activeCoin, activeInterval);
 
   function box(label, valueHtml){
     return `<div class="stat-box"><div class="stat-label">${label}</div><div class="stat-value">${valueHtml}</div></div>`;
@@ -5631,7 +5787,12 @@ function renderIndicatorPanel(){
     box('24h Volumen', fmtVolume(snap.dayVol, activeCoin)),
     box('24h Hoch/Tief', `${fmtEUR(snap.dayHigh)} / ${fmtEUR(snap.dayLow)}`),
     box('Muster', `<span class="${patternClass}">${patternDesc.title}</span>`),
-    box('Trendscore', `<span class="${trendScoreClass}">${trendScoreDesc.title}</span>`)
+    box('Trendscore', `<span class="${trendScoreClass}">${trendScoreDesc.title}</span>`),
+    box('Backtest-Reliability (' + activeInterval + ')', relSummary == null ? '—' : `<span style="font-size:13px;font-weight:600;white-space:normal;line-height:1.5">
+      Trendscore-Signal: <span class="${reliabilityScoreClass(relSummary.trendscore && relSummary.trendscore.score)}">${(relSummary.trendscore && relSummary.trendscore.score!=null) ? relSummary.trendscore.score : '—'}</span><br>
+      Bestes Signal: ${relSummary.best ? `<span class="${reliabilityScoreClass(relSummary.best.score)}">${STRAT_LABELS[relSummary.best.stratKey]} (${relSummary.best.score})</span>` : '—'}<br>
+      Bester Exit: ${relSummary.best ? EXIT_MODES[relSummary.best.exitModeKey].label : '—'}
+    </span>`)
   ].join('');
 
   drawRsiChart(snap);
@@ -5744,6 +5905,7 @@ document.addEventListener('DOMContentLoaded', () => {
   populateSwingBreakoutUI();
   populateOptimizerWalkForwardUI();
   document.getElementById('optimizerBtn').addEventListener('click', runComboOptimizer);
+  document.getElementById('optimizerActivateBtn').addEventListener('click', activateComboOptimizerResult);
   document.getElementById('reliabilityMatrixBtn').addEventListener('click', runReliabilityMatrix);
   document.getElementById('reliabilityBestComboBtn').addEventListener('click', runReliabilityBestComboPerTimeframe);
   attachIndicatorChartResizeListener();
