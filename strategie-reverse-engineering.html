@@ -556,7 +556,7 @@
   </div>
   <div id="reliabilityBestComboWrap"></div>
   <div class="footnote">
-    Testet zusätzlich alle 5 Exit-Modi (nicht nur den oben aktuell eingestellten) je Strategie und Zeitrahmen und
+    Testet zusätzlich alle 6 Exit-Modi (nicht nur den oben aktuell eingestellten) je Strategie und Zeitrahmen und
     zeigt pro Zeitrahmen, welche Entry+Exit-Kombination den höchsten Reliability-Score erreicht. Verändert dabei
     NICHT die aktuell aktiven Einstellungen (Exit-Modus/Chart-Overlay bleiben unangetastet) — reine Übersicht.
   </div>
@@ -887,7 +887,9 @@ const EXIT_MODES = {
   time: { label:'Zeitbasiert (max. N Kerzen)', paramLabel:'Max. Kerzen in Position', paramDefault:10, min:1, max:200, step:1,
     desc:'Ausstieg spätestens nach N Kerzen, unabhängig vom weiteren Kursverlauf — oder früher bei einem Gegensignal.' },
   structure: { label:'Marktstruktur (Higher-Lows / Lower-Highs)', paramLabel:'Pivot-Fenster (Kerzen je Seite)', paramDefault:3, min:1, max:10, step:1,
-    desc:'Hält die Position, solange die Struktur intakt bleibt, statt bei jeder kurzen Gegenbewegung auszusteigen. Bei Long gilt das letzte bestätigte Swing-Tief (Higher-Low) als Referenz — erst ein Schlusskurs darunter bricht die Struktur und löst den Exit aus; bei Short entsprechend über dem letzten Swing-Hoch (Lower-High). Kurze Fakeouts, die dieses Niveau nicht durchbrechen, werden ignoriert und die Position bleibt offen. Ein Pivot gilt erst nach N Kerzen auf beiden Seiten als bestätigt (kein Blick in die Zukunft) — größeres Fenster = robustere, aber trägere Struktur.' }
+    desc:'Hält die Position, solange die Struktur intakt bleibt, statt bei jeder kurzen Gegenbewegung auszusteigen. Bei Long gilt das letzte bestätigte Swing-Tief (Higher-Low) als Referenz — erst ein Schlusskurs darunter bricht die Struktur und löst den Exit aus; bei Short entsprechend über dem letzten Swing-Hoch (Lower-High). Kurze Fakeouts, die dieses Niveau nicht durchbrechen, werden ignoriert und die Position bleibt offen. Ein Pivot gilt erst nach N Kerzen auf beiden Seiten als bestätigt (kein Blick in die Zukunft) — größeres Fenster = robustere, aber trägere Struktur.' },
+  reversalpattern: { label:'Reversal-Muster + Struktur (Früherkennung)', paramLabel:'Pivot-Fenster fürs Struktur-Sicherheitsnetz', paramDefault:3, min:1, max:10, step:1,
+    desc:'Steigt schon aus, sobald sich EIN frühes Warnsignal zeigt — nicht erst, wenn der Kurs die alte Struktur tatsächlich durchbricht: ein Candlestick-Umkehrmuster (z.B. Shooting Star/Bearish Engulfing gegen eine Long-Position, Hammer/Bullish Engulfing gegen Short) oder ein Dreiecks-Ausbruch gegen die Position (dieselbe Erkennung wie die "Muster"-Strategie), oder eine RSI-Erschöpfung (RSI dreht aus dem überkauften/überverkauften Bereich bereits wieder zurück). Jeder dieser Auslöser zählt schon am Entstehungs-Kerzenschluss, nicht erst mit zusätzlicher Verzögerung. Löst keines davon rechtzeitig aus, greift als Sicherheitsnetz zusätzlich derselbe Struktur-Stop wie beim reinen Marktstruktur-Exit (Pivot-Fenster wie dort einstellbar) — die Position wird also nie unbegrenzt gehalten.' }
 };
 let exitMode = 'reversal';
 let exitParam = null;
@@ -1647,6 +1649,8 @@ function simulateExits(signal, highs, lows, closes, ctx, mode, param, reentryCoo
   const atrArr = ctx && ctx.atrArr;
   const swingHighAt = ctx && ctx.swingHighAt;
   const swingLowAt = ctx && ctx.swingLowAt;
+  const patternDirAt = ctx && ctx.patternDirAt; // nur für mode 'reversalpattern' befüllt
+  const rsiArrForExit = ctx && ctx.rsiArr;      // nur für mode 'reversalpattern' befüllt
   const structBars = Math.max(1, Math.round(param || 1));
   const cooldown = reentryCooldown || 0;
 
@@ -1657,7 +1661,7 @@ function simulateExits(signal, highs, lows, closes, ctx, mode, param, reentryCoo
   };
 
   for(let i=1;i<n;i++){
-    if(mode === 'structure' && swingHighAt && swingLowAt){
+    if((mode === 'structure' || mode === 'reversalpattern') && swingHighAt && swingLowAt){
       // Ein an Index (i-structBars) geformter Pivot ist erst jetzt (structBars Kerzen später) bestätigt.
       const confirmIdx = i - structBars;
       if(confirmIdx >= 0){
@@ -1710,6 +1714,29 @@ function simulateExits(signal, highs, lows, closes, ctx, mode, param, reentryCoo
           if(stopLevel == null || atrStop < stopLevel) stopLevel = atrStop; // engerer (niedrigerer) der beiden Stops gilt
         }
         if(stopLevel != null && closes[i] > stopLevel) customExit = true;
+      }
+    } else if(mode === 'reversalpattern'){
+      // 1) Frühester Trigger: Reversal-Muster (Candlestick-Umkehr ODER Dreiecks-Ausbruch) GEGEN die aktuelle
+      //    Position -- exakt dieselbe Erkennung wie die "Muster"-Strategie, hier als Exit statt als Entry genutzt.
+      const patDir = patternDirAt ? patternDirAt[i] : null;
+      // 2) RSI-Erschöpfung: nach einem Extremwert dreht der RSI schon wieder Richtung Mitte -- oft ein frühes
+      //    Warnsignal, BEVOR der Kurs selbst die Struktur bricht.
+      const rNow = rsiArrForExit ? rsiArrForExit[i] : null, rPrev = rsiArrForExit ? rsiArrForExit[i-1] : null;
+      const rsiTurnDown = rNow!=null && rPrev!=null && rPrev>=70 && rNow<rPrev;
+      const rsiTurnUp   = rNow!=null && rPrev!=null && rPrev<=30 && rNow>rPrev;
+      if(posType === 'long'){
+        if(patDir === -1 || rsiTurnDown) customExit = true;
+      } else {
+        if(patDir === 1 || rsiTurnUp) customExit = true;
+      }
+      // 3) Sicherheitsnetz: bricht weder ein Muster noch RSI-Erschöpfung rechtzeitig aus, greift trotzdem
+      //    derselbe Struktur-Stop wie beim reinen Marktstruktur-Exit -- die Position wird nie unbegrenzt gehalten.
+      if(!customExit){
+        if(posType === 'long'){
+          if(lastSwingLow != null && closes[i] < lastSwingLow) customExit = true;
+        } else {
+          if(lastSwingHigh != null && closes[i] > lastSwingHigh) customExit = true;
+        }
       }
     }
 
@@ -1856,8 +1883,13 @@ function buildStrategiesCore(coin, interval, key){
   const strategies = {};
   const needsAtr = exitMode === 'trailing' || (exitMode === 'structure' && structureAtrSafetyMult > 0);
   const atrForExit = needsAtr ? atr(highs, lows, closes, 14) : null;
-  const swingForExit = exitMode === 'structure' ? findSwingPoints(highs, lows, Math.max(1, Math.round(exitParam || 3))) : null;
-  const exitCtx = { atrArr: atrForExit, swingHighAt: swingForExit && swingForExit.swingHighAt, swingLowAt: swingForExit && swingForExit.swingLowAt };
+  // 'reversalpattern' braucht die Swing-Punkte ebenfalls -- als Sicherheitsnetz, falls weder Muster noch
+  // RSI-Erschöpfung rechtzeitig auslösen (siehe simulateExits()).
+  const needsSwing = exitMode === 'structure' || exitMode === 'reversalpattern';
+  const swingForExit = needsSwing ? findSwingPoints(highs, lows, Math.max(1, Math.round(exitParam || 3))) : null;
+  const patternDirForExit = exitMode === 'reversalpattern' ? computePatternDirSeries(opens, highs, lows, closes) : null;
+  const rsiForExit = exitMode === 'reversalpattern' ? rsi(closes, 14) : null;
+  const exitCtx = { atrArr: atrForExit, swingHighAt: swingForExit && swingForExit.swingHighAt, swingLowAt: swingForExit && swingForExit.swingLowAt, patternDirAt: patternDirForExit, rsiArr: rsiForExit };
   const entryCtx = { times, highs, lows, closes, volumes, higherTF: computeHigherTFTrend(coin, interval) };
 
   // 1. SMA Crossover
@@ -1972,18 +2004,10 @@ function buildStrategiesCore(coin, interval, key){
   }
   // 9. Muster-Erkennung (Candlestick + Chart-Muster/Dreiecke)
   {
-    const { swingHighAt, swingLowAt } = findSwingPoints(highs, lows, PATTERN_LOOKBACK_BARS);
+    const dirAt = computePatternDirSeries(opens, highs, lows, closes);
     const position = new Array(n).fill(0);
     for(let i=1;i<n;i++){
-      let dir = null;
-      const candle = computeCandlePatternAt(opens, highs, lows, closes, i);
-      if(candle && candle.direction !== 0) dir = candle.direction;
-      if(dir == null){
-        const tri = detectTriangleAt(highs, lows, closes, swingHighAt, swingLowAt, i, PATTERN_LOOKBACK_BARS, PATTERN_LOOKBACK_WINDOW);
-        if(tri && tri.breakout === 'up') dir = 1;
-        else if(tri && tri.breakout === 'down') dir = -1;
-      }
-      position[i] = dir != null ? dir : position[i-1];
+      position[i] = dirAt[i] != null ? dirAt[i] : position[i-1];
     }
     strategies.pattern = finalizeStrategy(applyEntryFilters(position, entryCtx), highs, lows, closes, exitCtx);
   }
@@ -2189,6 +2213,28 @@ const TRIANGLE_EXPLANATIONS = {
   descending: 'Waagerechter Support unten, fallende Hochs oben (fallende Trendlinie). Gilt klassisch als eher bärische Fortsetzungs-/Ausbruchsformation.',
   symmetrical: 'Fallende Hochs UND steigende Tiefs (die Trendlinien konvergieren). Neutral, bis der Kurs in eine Richtung ausbricht.'
 };
+// Liefert für JEDE Kerze die Richtung eines erkannten Reversal-/Ausbruchsmusters (Candlestick-Muster ODER
+// Dreiecks-Ausbruch, whichever zuerst greift) -- exakt dieselbe Erkennung wie früher direkt inline in der
+// "Muster"-Strategie (#9), jetzt als eigene Funktion ausgelagert, damit sie sowohl dort als ENTRY-Signal als
+// auch im neuen Exit-Modus 'reversalpattern' (simulateExits) als EXIT-Trigger wiederverwendet werden kann,
+// statt dieselbe Logik zweimal zu pflegen. null = an dieser Kerze kein Muster erkannt.
+function computePatternDirSeries(opens, highs, lows, closes){
+  const n = closes.length;
+  const { swingHighAt, swingLowAt } = findSwingPoints(highs, lows, PATTERN_LOOKBACK_BARS);
+  const dirAt = new Array(n).fill(null);
+  for(let i=1;i<n;i++){
+    let dir = null;
+    const candle = computeCandlePatternAt(opens, highs, lows, closes, i);
+    if(candle && candle.direction !== 0) dir = candle.direction;
+    if(dir == null){
+      const tri = detectTriangleAt(highs, lows, closes, swingHighAt, swingLowAt, i, PATTERN_LOOKBACK_BARS, PATTERN_LOOKBACK_WINDOW);
+      if(tri && tri.breakout === 'up') dir = 1;
+      else if(tri && tri.breakout === 'down') dir = -1;
+    }
+    dirAt[i] = dir;
+  }
+  return dirAt;
+}
 // Bündelt Candlestick- + Dreieckserkennung für einen bestimmten Zeitpunkt (asOfIdx) -- wird sowohl für die Live-
 // Anzeige (asOfIdx = letzte Kerze) als auch, Index für Index, für den Backtest der 9. Strategie genutzt.
 function computePatternMeta(highs, lows, closes, opens, asOfIdx){
@@ -2271,11 +2317,14 @@ function discretizeTrendScore(scoreSeries, threshold){
 // aktuell aktiven exitMode/exitParam/structureAtrSafetyMult-Globals, damit computeTrendScoreResult() (siehe
 // unten) exakt denselben Exit-Modus anwendet wie die 10 Einzelstrategien, statt fest auf "Exit = nächstes
 // Gegensignal" zu bestehen.
-function computeTrendScoreExitResult(position, highs, lows, closes){
+function computeTrendScoreExitResult(position, highs, lows, closes, opens){
   const needsAtr = exitMode === 'trailing' || (exitMode === 'structure' && structureAtrSafetyMult > 0);
   const atrForExit = needsAtr ? atr(highs, lows, closes, 14) : null;
-  const swingForExit = exitMode === 'structure' ? findSwingPoints(highs, lows, Math.max(1, Math.round(exitParam || 3))) : null;
-  const exitCtx = { atrArr: atrForExit, swingHighAt: swingForExit && swingForExit.swingHighAt, swingLowAt: swingForExit && swingForExit.swingLowAt };
+  const needsSwing = exitMode === 'structure' || exitMode === 'reversalpattern';
+  const swingForExit = needsSwing ? findSwingPoints(highs, lows, Math.max(1, Math.round(exitParam || 3))) : null;
+  const patternDirForExit = (exitMode === 'reversalpattern' && opens) ? computePatternDirSeries(opens, highs, lows, closes) : null;
+  const rsiForExit = exitMode === 'reversalpattern' ? rsi(closes, 14) : null;
+  const exitCtx = { atrArr: atrForExit, swingHighAt: swingForExit && swingForExit.swingHighAt, swingLowAt: swingForExit && swingForExit.swingLowAt, patternDirAt: patternDirForExit, rsiArr: rsiForExit };
   return finalizeStrategy(position, highs, lows, closes, exitCtx);
 }
 // profile='analyse' (Standard) nutzt die Analyse-Tab-Strategien/-Filter (für Chart-Overlay + Indikator-Panel);
@@ -2291,20 +2340,20 @@ function computeTrendScoreResult(coin, interval, profile='analyse'){
   const n = data.closes.length;
   const scoreSeries = computeTrendScoreSeries(strategies, weights, n);
   const position = discretizeTrendScore(scoreSeries, TREND_SCORE_THRESHOLD);
-  const { highs, lows, closes } = data;
+  const { highs, lows, closes, opens } = data;
   let result;
   if(profile === 'auto'){
     const saved = { exitMode, exitParam, entryConfirmBars, structureAtrSafetyMult };
     exitMode = autoExitMode; exitParam = autoExitParam; entryConfirmBars = autoEntryConfirmBars;
     structureAtrSafetyMult = autoStructureAtrSafetyMult;
     try{
-      result = computeTrendScoreExitResult(position, highs, lows, closes);
+      result = computeTrendScoreExitResult(position, highs, lows, closes, opens);
     } finally {
       exitMode = saved.exitMode; exitParam = saved.exitParam; entryConfirmBars = saved.entryConfirmBars;
       structureAtrSafetyMult = saved.structureAtrSafetyMult;
     }
   } else {
-    result = computeTrendScoreExitResult(position, highs, lows, closes);
+    result = computeTrendScoreExitResult(position, highs, lows, closes, opens);
   }
   return {
     weights, scoreSeries, position: result.position, trades: result.trades, exits: result.exits,
@@ -2608,7 +2657,7 @@ function drawSwings(ctx, swings, d, iFrom, iTo, scaleX, scaleY, layout){
       ctx.beginPath(); ctx.moveTo(x,y+9); ctx.lineTo(x-4,y+3); ctx.lineTo(x+4,y+3); ctx.closePath(); ctx.fill();
     }
   }
-  if(exitMode === 'structure'){
+  if(exitMode === 'structure' || exitMode === 'reversalpattern'){
     ctx.setLineDash([5,4]);
     if(lastSwingLow!=null){
       const y = scaleY(lastSwingLow);
@@ -3104,7 +3153,7 @@ function computeChartMeta(d){
   };
   const ichi = ichimoku(d.highs, d.lows, d.closes);
   // Pivot-Fenster für Swings/S-R: greift den Marktstruktur-Exit-Parameter auf, wenn der aktiv ist, sonst Standard 5.
-  const structBars = exitMode === 'structure' ? Math.max(1, Math.round(exitParam || 3)) : 5;
+  const structBars = (exitMode === 'structure' || exitMode === 'reversalpattern') ? Math.max(1, Math.round(exitParam || 3)) : 5;
   const swings = computeSwingMeta(d.highs, d.lows, structBars);
   const srZones = detectSRZones(d.highs, d.lows, structBars);
   const patterns = computePatternMeta(d.highs, d.lows, d.closes, d.opens, d.closes.length - 1);
@@ -3253,7 +3302,7 @@ async function runReliabilityMatrix(){
   if(btn) btn.disabled = false;
 }
 
-// Wie runReliabilityMatrix(), testet aber zusätzlich alle 5 EXIT_MODES statt nur den gerade aktiven -- pro
+// Wie runReliabilityMatrix(), testet aber zusätzlich alle 6 EXIT_MODES statt nur den gerade aktiven -- pro
 // Zeitrahmen wird über stratKeys × EXIT_MODES gesucht, welche Entry+Exit-Kombination den höchsten
 // Reliability-Score erreicht (Tie-Break: mehr ausgewertete Signale n gewinnt). Mutiert exitMode/exitParam/
 // strategyCache waehrend der Suche wie computeComboSearchResults(), stellt am Ende aber den Ausgangszustand
