@@ -556,7 +556,7 @@
   </div>
   <div id="reliabilityBestComboWrap"></div>
   <div class="footnote">
-    Testet zusätzlich alle 6 Exit-Modi (nicht nur den oben aktuell eingestellten) je Strategie und Zeitrahmen und
+    Testet zusätzlich alle 7 Exit-Modi (nicht nur den oben aktuell eingestellten) je Strategie und Zeitrahmen und
     zeigt pro Zeitrahmen, welche Entry+Exit-Kombination den höchsten Reliability-Score erreicht. Verändert dabei
     NICHT die aktuell aktiven Einstellungen (Exit-Modus/Chart-Overlay bleiben unangetastet) — reine Übersicht.
   </div>
@@ -889,7 +889,9 @@ const EXIT_MODES = {
   structure: { label:'Marktstruktur (Higher-Lows / Lower-Highs)', paramLabel:'Pivot-Fenster (Kerzen je Seite)', paramDefault:3, min:1, max:10, step:1,
     desc:'Hält die Position, solange die Struktur intakt bleibt, statt bei jeder kurzen Gegenbewegung auszusteigen. Bei Long gilt das letzte bestätigte Swing-Tief (Higher-Low) als Referenz — erst ein Schlusskurs darunter bricht die Struktur und löst den Exit aus; bei Short entsprechend über dem letzten Swing-Hoch (Lower-High). Kurze Fakeouts, die dieses Niveau nicht durchbrechen, werden ignoriert und die Position bleibt offen. Ein Pivot gilt erst nach N Kerzen auf beiden Seiten als bestätigt (kein Blick in die Zukunft) — größeres Fenster = robustere, aber trägere Struktur.' },
   reversalpattern: { label:'Reversal-Muster + Struktur (Früherkennung)', paramLabel:'Pivot-Fenster fürs Struktur-Sicherheitsnetz', paramDefault:3, min:1, max:10, step:1,
-    desc:'Steigt schon aus, sobald sich EIN frühes Warnsignal zeigt — nicht erst, wenn der Kurs die alte Struktur tatsächlich durchbricht: ein Candlestick-Umkehrmuster (z.B. Shooting Star/Bearish Engulfing gegen eine Long-Position, Hammer/Bullish Engulfing gegen Short) oder ein Dreiecks-Ausbruch gegen die Position (dieselbe Erkennung wie die "Muster"-Strategie), oder eine RSI-Erschöpfung (RSI dreht aus dem überkauften/überverkauften Bereich bereits wieder zurück). Jeder dieser Auslöser zählt schon am Entstehungs-Kerzenschluss, nicht erst mit zusätzlicher Verzögerung. Löst keines davon rechtzeitig aus, greift als Sicherheitsnetz zusätzlich derselbe Struktur-Stop wie beim reinen Marktstruktur-Exit (Pivot-Fenster wie dort einstellbar) — die Position wird also nie unbegrenzt gehalten.' }
+    desc:'Steigt schon aus, sobald sich EIN frühes Warnsignal zeigt — nicht erst, wenn der Kurs die alte Struktur tatsächlich durchbricht: ein Candlestick-Umkehrmuster (z.B. Shooting Star/Bearish Engulfing gegen eine Long-Position, Hammer/Bullish Engulfing gegen Short) oder ein Dreiecks-Ausbruch gegen die Position (dieselbe Erkennung wie die "Muster"-Strategie), oder eine RSI-Erschöpfung (RSI dreht aus dem überkauften/überverkauften Bereich bereits wieder zurück). Jeder dieser Auslöser zählt schon am Entstehungs-Kerzenschluss, nicht erst mit zusätzlicher Verzögerung. Löst keines davon rechtzeitig aus, greift als Sicherheitsnetz zusätzlich derselbe Struktur-Stop wie beim reinen Marktstruktur-Exit (Pivot-Fenster wie dort einstellbar) — die Position wird also nie unbegrenzt gehalten.' },
+  adaptive: { label:'Adaptiver Profit-Protect-Exit (Trailing + Breakeven + Reversal)', paramLabel:'ATR-Multiplikator (Trailing-Phase)', paramDefault:3, min:0.5, max:8, step:0.1,
+    desc:'Gestaffelter Exit in drei Phasen, gedacht speziell fürs unbeaufsichtigte Automatik-Trading: (1) direkt nach dem Einstieg schützt nur ein ganz normaler ATR-Trailing-Stop (X × ATR(14)) gegen eine sofortige Fehlbewegung — frühe Reversal-Muster werden hier bewusst ignoriert, das ist zu diesem Zeitpunkt meist nur Rauschen um den Einstieg. (2) Sobald der Trade um mindestens 1×ATR im Plus liegt, wird der Stop mindestens auf Breakeven angehoben — ab hier ist der Trade abgesichert, ein Fehlschlag kostet höchstens noch Gebühren/Slippage. (3) Ist dieser Breakeven-Schutz erreicht UND taucht danach ein Candlestick-Umkehrmuster, ein Dreiecks-Ausbruch gegen die Position oder eine RSI-Erschöpfung auf, wird SOFORT ausgestiegen, statt auf den nachlaufenden Trailing-Stop zu warten — genau das soll verhindern, dass bereits erzielter Gewinn erst wieder komplett abgegeben wird, bevor der Exit reagiert. Der ATR-Trailing-Stop selbst läuft die ganze Zeit als letztes Sicherheitsnetz mit.' }
 };
 let exitMode = 'reversal';
 let exitParam = null;
@@ -1645,17 +1647,19 @@ function simulateExits(signal, highs, lows, closes, ctx, mode, param, reentryCoo
   const position = new Array(n).fill(0);
   let posType = null, entryPrice = null, entryIdx = null, trailStop = null;
   let lastSwingLow = null, lastSwingHigh = null;
+  let entryAtr = null, breakevenLocked = false; // nur für mode 'adaptive' genutzt
   let cooldownUntil = -1;
   const atrArr = ctx && ctx.atrArr;
   const swingHighAt = ctx && ctx.swingHighAt;
   const swingLowAt = ctx && ctx.swingLowAt;
-  const patternDirAt = ctx && ctx.patternDirAt; // nur für mode 'reversalpattern' befüllt
-  const rsiArrForExit = ctx && ctx.rsiArr;      // nur für mode 'reversalpattern' befüllt
+  const patternDirAt = ctx && ctx.patternDirAt; // nur für mode 'reversalpattern'/'adaptive' befüllt
+  const rsiArrForExit = ctx && ctx.rsiArr;      // nur für mode 'reversalpattern'/'adaptive' befüllt
   const structBars = Math.max(1, Math.round(param || 1));
   const cooldown = reentryCooldown || 0;
 
   const openTrade = (i, type) => {
     posType = type; entryPrice = closes[i]; entryIdx = i; trailStop = null;
+    entryAtr = (atrArr && atrArr[i] != null) ? atrArr[i] : null; breakevenLocked = false;
     trades.push({i, type});
     position[i] = type === 'long' ? 1 : -1;
   };
@@ -1737,6 +1741,44 @@ function simulateExits(signal, highs, lows, closes, ctx, mode, param, reentryCoo
         } else {
           if(lastSwingHigh != null && closes[i] > lastSwingHigh) customExit = true;
         }
+      }
+    } else if(mode === 'adaptive'){
+      // Phase 1: ganz normaler ATR-Trailing-Stop, läuft ab dem ersten Moment nach dem Einstieg mit -- das ist
+      // gleichzeitig das Sicherheitsnetz, das JEDEN Trade irgendwann garantiert beendet.
+      const a = (atrArr && atrArr[i] != null) ? atrArr[i] : 0;
+      if(posType === 'long'){
+        const candidate = closes[i] - param*a;
+        trailStop = trailStop == null ? candidate : Math.max(trailStop, candidate);
+      } else {
+        const candidate = closes[i] + param*a;
+        trailStop = trailStop == null ? candidate : Math.min(trailStop, candidate);
+      }
+      // Phase 2: sobald der Trade um mind. 1×ATR (bei Entry gemessen) im Plus liegt, Stop mindestens auf
+      // Breakeven anheben -- ab hier gilt der Trade als abgesichert.
+      const entryFav = posType === 'long' ? (closes[i]-entryPrice)/entryPrice : (entryPrice-closes[i])/entryPrice;
+      const breakevenTrigger = (entryAtr != null && entryAtr > 0) ? entryAtr/entryPrice : 0.01;
+      if(!breakevenLocked && entryFav >= breakevenTrigger) breakevenLocked = true;
+      if(breakevenLocked){
+        if(posType === 'long') trailStop = Math.max(trailStop, entryPrice);
+        else trailStop = Math.min(trailStop, entryPrice);
+      }
+      // Phase 3: NUR wenn der Trade bereits abgesichert ist (breakevenLocked), löst ein Reversal-Candlestick-
+      // Muster/Dreiecks-Ausbruch GEGEN die Position oder eine RSI-Erschöpfung den SOFORTIGEN Ausstieg aus, statt
+      // auf den nachlaufenden Trailing-Stop zu warten -- genau das verhindert, dass bereits gesicherter Gewinn
+      // erst wieder komplett abgegeben wird. Vor Erreichen des Breakeven wird ein frühes Muster bewusst
+      // ignoriert (zu diesem Zeitpunkt meist nur Rauschen direkt um den Einstieg).
+      if(breakevenLocked){
+        const patDir = patternDirAt ? patternDirAt[i] : null;
+        const rNow = rsiArrForExit ? rsiArrForExit[i] : null, rPrev = rsiArrForExit ? rsiArrForExit[i-1] : null;
+        const rsiTurnDown = rNow!=null && rPrev!=null && rPrev>=70 && rNow<rPrev;
+        const rsiTurnUp   = rNow!=null && rPrev!=null && rPrev<=30 && rNow>rPrev;
+        if(posType === 'long' && (patDir === -1 || rsiTurnDown)) customExit = true;
+        if(posType === 'short' && (patDir === 1 || rsiTurnUp)) customExit = true;
+      }
+      // Letzte Instanz: der (ggf. auf Breakeven angehobene) ATR-Trailing-Stop selbst.
+      if(!customExit){
+        if(posType === 'long' && closes[i] < trailStop) customExit = true;
+        if(posType === 'short' && closes[i] > trailStop) customExit = true;
       }
     }
 
@@ -1846,6 +1888,90 @@ function computeSignalReliability(coin, interval, stratKey, lookforward=RELIABIL
   return {total, hitRate, avgMagnitude, score};
 }
 
+// ---------- Exit-Capture-Score: Ergänzung zu computeSignalReliability() ----------
+// computeSignalReliability() bewertet bewusst NUR die rohen Entry-Signale, unabhängig vom Exit-Modus (siehe
+// Kommentar oben) -- das hat einen Nebeneffekt: bei "Signalumkehr" bleibt die Position NIE flach (0), ein neues
+// Entry-Signal zählt also nur bei einem echten Richtungswechsel des Indikators (seltene, meist saubere
+// Wendepunkte). Bei allen anderen Exit-Modi (Stop-Loss/Trailing/Zeitbasiert/Struktur/Reversal-Muster) geht die
+// Position zwischendurch auf 0 und steigt oft kurz danach wieder in dieselbe Richtung ein -- das zählt für
+// computeSignalReliability() als WEITERES neues Signal, ist aber oft ein Wiedereinstieg mitten im Rauschen kurz
+// nach einem Stop. Dadurch schneidet "Signalumkehr" in computeSignalReliability() strukturell fast immer am
+// besten ab, UNABHÄNGIG davon, wie viel Gewinn der jeweilige Exit tatsächlich einfängt.
+// Diese Funktion misst deshalb das GEGENTEIL: nicht die Entry-Qualität, sondern für jeden tatsächlich simulierten
+// Trade (mit dem AKTUELL eingestellten Exit-Modus), wie viel von der während der Haltedauer maximal verfügbaren
+// günstigen Kursbewegung (MFE zwischen Entry und dem tatsächlichen Exit-Zeitpunkt) auch wirklich realisiert
+// wurde ("Capture-Ratio"). 1.0 = Exit genau am besten Punkt, 0 = vom Gewinn nichts mitgenommen, <0 = mehr
+// verloren, als der beste Zwischenstand je wert war (Peak wurde komplett wieder abgegeben, plus).
+function computeExitCaptureScore(coin, interval, stratKey){
+  const data = ohlcCache[coin+'::'+interval];
+  if(!data) return null;
+  const { closes } = data;
+  let trades, exits;
+  if(stratKey === 'trendscore'){
+    let ts;
+    try{ ts = computeTrendScoreResult(coin, interval); }catch(e){ return null; }
+    if(!ts) return null;
+    trades = ts.trades; exits = ts.exits;
+  } else {
+    let strategies;
+    try{ strategies = buildStrategies(coin, interval); }catch(e){ return null; }
+    const r = strategies[stratKey];
+    if(!r) return null;
+    trades = r.trades; exits = r.exits;
+  }
+  if(!trades || trades.length === 0) return { total: 0, avgCapture: null, score: null };
+  let sum = 0, total = 0;
+  for(let t=0;t<trades.length;t++){
+    const entry = trades[t];
+    const ex = exits[t]; // exits[t] schließt trades[t] (siehe finalizeStrategy) -- fehlt es, ist der Trade noch offen
+    const exitIdx = ex ? ex.i : closes.length-1;
+    if(exitIdx <= entry.i) continue;
+    const entryPrice = closes[entry.i], exitPrice = closes[exitIdx];
+    // MFE hier bewusst auf Schlusskurs-Basis (nicht High/Low wie computeSignalReliability): der realisierte
+    // P&L basiert ebenfalls auf Schlusskursen (finalizeStrategy tradet nur zu closes[i]) -- nur so ist "wie viel
+    // vom bestmöglichen Ausstieg wurde erreicht" ueberhaupt fair mit dem tatsaechlichen P&L vergleichbar.
+    let mfe = -Infinity;
+    for(let j=entry.i+1;j<=exitIdx;j++){
+      const fav = entry.type==='long' ? (closes[j]-entryPrice)/entryPrice : (entryPrice-closes[j])/entryPrice;
+      if(fav > mfe) mfe = fav;
+    }
+    if(mfe <= 0) continue; // waehrend der gesamten Haltedauer nie eine guenstige Bewegung -> nicht auswertbar
+    const pnl = entry.type==='long' ? (exitPrice-entryPrice)/entryPrice : (entryPrice-exitPrice)/entryPrice;
+    const capture = pnl / mfe;
+    sum += Math.max(-1, Math.min(1, capture)); // Ausreisser kappen, sonst verzerrt ein Extremfall den Schnitt
+    total++;
+  }
+  if(total === 0) return { total: 0, avgCapture: null, score: null };
+  const avgCapture = sum / total;
+  const confidence = Math.min(1, total/10); // wenige abgeschlossene Trades -> gedaempfter Score
+  const score = Math.round(100 * Math.max(0, avgCapture) * confidence);
+  return { total, avgCapture, score };
+}
+
+// Kombiniert computeSignalReliability() (Entry-Signal-Qualität) mit computeExitCaptureScore() (wie viel vom
+// waehrend des Trades verfuegbaren Gewinn der AKTUELL eingestellte Exit-Modus tatsaechlich einfaengt) zu einem
+// gemeinsamen Score -- behebt genau die oben beschriebene strukturelle Bevorzugung von "Signalumkehr". Wird NUR
+// von den beiden "beste Kombination suchen"-Funktionen genutzt (computeCurrentTimeframeReliabilitySummary() für
+// Sync-Modus + Backtest-Reliability-Kachel, runReliabilityBestComboPerTimeframe()) -- die reine Reliability-
+// Matrix (EIN Score pro Zelle für den gerade aktiven Exit-Modus, kein Exit-Vergleich) bleibt bewusst bei
+// computeSignalReliability() allein, da sie gar keine Exit-Modi gegeneinander abwägt.
+function computeSignalQualityScore(coin, interval, stratKey){
+  const rel = computeSignalReliability(coin, interval, stratKey);
+  const cap = computeExitCaptureScore(coin, interval, stratKey);
+  const relScore = rel ? rel.score : null;
+  const capScore = cap ? cap.score : null;
+  let combined;
+  if(relScore == null && capScore == null) combined = null;
+  else if(capScore == null) combined = relScore;
+  else if(relScore == null) combined = capScore;
+  else combined = Math.round((relScore + capScore) / 2);
+  return {
+    total: rel ? rel.total : 0, hitRate: rel ? rel.hitRate : null, avgMagnitude: rel ? rel.avgMagnitude : null,
+    captureTotal: cap ? cap.total : 0, avgCapture: cap ? cap.avgCapture : null,
+    reliabilityScore: relScore, captureScore: capScore, score: combined
+  };
+}
+
 // Löscht den Strategie-Cache für ein coin/interval-Paar in BEIDEN Profilen (Analyse + Automatik) -- genutzt an
 // allen Stellen, die nur "irgendwas hat sich an den Rohdaten geändert" wissen, aber nicht, welches der beiden
 // Profile davon gerade betroffen ist (z.B. nach dem Nachladen neuer Kerzen). Günstiger als ein kompletter
@@ -1881,14 +2007,18 @@ function buildStrategiesCore(coin, interval, key){
   const {times, opens, highs, lows, closes, volumes} = ohlcCache[coin+'::'+interval];
   const n = closes.length;
   const strategies = {};
-  const needsAtr = exitMode === 'trailing' || (exitMode === 'structure' && structureAtrSafetyMult > 0);
+  // 'adaptive' braucht ATR fuer die eigene Trailing-Phase, genau wie 'trailing'.
+  const needsAtr = exitMode === 'trailing' || exitMode === 'adaptive' || (exitMode === 'structure' && structureAtrSafetyMult > 0);
   const atrForExit = needsAtr ? atr(highs, lows, closes, 14) : null;
   // 'reversalpattern' braucht die Swing-Punkte ebenfalls -- als Sicherheitsnetz, falls weder Muster noch
-  // RSI-Erschöpfung rechtzeitig auslösen (siehe simulateExits()).
+  // RSI-Erschöpfung rechtzeitig auslösen (siehe simulateExits()). 'adaptive' braucht KEINE Swing-Punkte (dessen
+  // Sicherheitsnetz ist der ATR-Trailing-Stop selbst, nicht die Marktstruktur).
   const needsSwing = exitMode === 'structure' || exitMode === 'reversalpattern';
   const swingForExit = needsSwing ? findSwingPoints(highs, lows, Math.max(1, Math.round(exitParam || 3))) : null;
-  const patternDirForExit = exitMode === 'reversalpattern' ? computePatternDirSeries(opens, highs, lows, closes) : null;
-  const rsiForExit = exitMode === 'reversalpattern' ? rsi(closes, 14) : null;
+  // 'adaptive' braucht Muster-/RSI-Erkennung fuer die Beschleunigungsphase (Phase 3), genau wie 'reversalpattern'.
+  const needsPatternDir = exitMode === 'reversalpattern' || exitMode === 'adaptive';
+  const patternDirForExit = needsPatternDir ? computePatternDirSeries(opens, highs, lows, closes) : null;
+  const rsiForExit = needsPatternDir ? rsi(closes, 14) : null;
   const exitCtx = { atrArr: atrForExit, swingHighAt: swingForExit && swingForExit.swingHighAt, swingLowAt: swingForExit && swingForExit.swingLowAt, patternDirAt: patternDirForExit, rsiArr: rsiForExit };
   const entryCtx = { times, highs, lows, closes, volumes, higherTF: computeHigherTFTrend(coin, interval) };
 
@@ -2318,12 +2448,13 @@ function discretizeTrendScore(scoreSeries, threshold){
 // unten) exakt denselben Exit-Modus anwendet wie die 10 Einzelstrategien, statt fest auf "Exit = nächstes
 // Gegensignal" zu bestehen.
 function computeTrendScoreExitResult(position, highs, lows, closes, opens){
-  const needsAtr = exitMode === 'trailing' || (exitMode === 'structure' && structureAtrSafetyMult > 0);
+  const needsAtr = exitMode === 'trailing' || exitMode === 'adaptive' || (exitMode === 'structure' && structureAtrSafetyMult > 0);
   const atrForExit = needsAtr ? atr(highs, lows, closes, 14) : null;
   const needsSwing = exitMode === 'structure' || exitMode === 'reversalpattern';
   const swingForExit = needsSwing ? findSwingPoints(highs, lows, Math.max(1, Math.round(exitParam || 3))) : null;
-  const patternDirForExit = (exitMode === 'reversalpattern' && opens) ? computePatternDirSeries(opens, highs, lows, closes) : null;
-  const rsiForExit = exitMode === 'reversalpattern' ? rsi(closes, 14) : null;
+  const needsPatternDir = (exitMode === 'reversalpattern' || exitMode === 'adaptive') && opens;
+  const patternDirForExit = needsPatternDir ? computePatternDirSeries(opens, highs, lows, closes) : null;
+  const rsiForExit = (exitMode === 'reversalpattern' || exitMode === 'adaptive') ? rsi(closes, 14) : null;
   const exitCtx = { atrArr: atrForExit, swingHighAt: swingForExit && swingForExit.swingHighAt, swingLowAt: swingForExit && swingForExit.swingLowAt, patternDirAt: patternDirForExit, rsiArr: rsiForExit };
   return finalizeStrategy(position, highs, lows, closes, exitCtx);
 }
@@ -3302,7 +3433,7 @@ async function runReliabilityMatrix(){
   if(btn) btn.disabled = false;
 }
 
-// Wie runReliabilityMatrix(), testet aber zusätzlich alle 6 EXIT_MODES statt nur den gerade aktiven -- pro
+// Wie runReliabilityMatrix(), testet aber zusätzlich alle 7 EXIT_MODES statt nur den gerade aktiven -- pro
 // Zeitrahmen wird über stratKeys × EXIT_MODES gesucht, welche Entry+Exit-Kombination den höchsten
 // Reliability-Score erreicht (Tie-Break: mehr ausgewertete Signale n gewinnt). Mutiert exitMode/exitParam/
 // strategyCache waehrend der Suche wie computeComboSearchResults(), stellt am Ende aber den Ausgangszustand
@@ -3331,7 +3462,10 @@ async function runReliabilityBestComboPerTimeframe(){
         exitParam = cfg.paramDefault;
         strategyCache = {}; // exit-abhängig -> muss pro Exit-Modus neu berechnet werden
         stratKeys.forEach(stratKey=>{
-          const r = computeSignalReliability(coin, iv, stratKey);
+          // computeSignalQualityScore() statt computeSignalReliability() allein -- sonst gewinnt hier strukturell
+          // fast immer "Signalumkehr", unabhängig davon, wie viel Gewinn der jeweilige Exit tatsächlich einfängt
+          // (siehe Kommentar bei computeExitCaptureScore()).
+          const r = computeSignalQualityScore(coin, iv, stratKey);
           if(!r || r.score==null) return;
           if(!best || r.score > best.score || (r.score === best.score && r.total > best.total)){
             best = { stratKey, exitModeKey: modeKey, score: r.score, total: r.total, hitRate: r.hitRate, avgMagnitude: r.avgMagnitude };
@@ -3364,9 +3498,10 @@ async function runReliabilityBestComboPerTimeframe(){
 }
 
 // Backtest-Reliability-Kachel im Indikator-Panel: liefert für GENAU den aktuell angezeigten Coin+Zeitrahmen
-// (1) wie zuverlässig das Trendscore-Konsens-Signal dort ist, und (2) welche einzelne Entry-Strategie + welcher
-// Exit-Modus (über alle STRAT_LABELS × EXIT_MODES) dort aktuell den höchsten Reliability-Score erreicht --
-// exakt dieselbe Suchlogik wie runReliabilityBestComboPerTimeframe(), nur auf EINEN Zeitrahmen beschränkt.
+// (1) wie zuverlässig + wie gut ausgebeutet das Trendscore-Konsens-Signal unter dem AKTUELLEN Exit-Modus ist,
+// und (2) welche einzelne Entry-Strategie + welcher Exit-Modus (über alle STRAT_LABELS × EXIT_MODES) dort
+// aktuell den höchsten kombinierten Score (computeSignalQualityScore(), siehe dort) erreicht -- exakt dieselbe
+// Suchlogik wie runReliabilityBestComboPerTimeframe(), nur auf EINEN Zeitrahmen beschränkt.
 // Bewusst rein synchron und ohne eigene ensureData()-Ladephase: nutzt nur bereits geladene ohlcCache-Daten,
 // damit die Kachel ohne spürbare Verzögerung bei jedem renderIndicatorPanel()-Aufruf (also bei jedem
 // Coin-/Zeitrahmenwechsel) automatisch mitläuft, statt einen eigenen Ladezyklus anzustoßen.
@@ -3374,7 +3509,7 @@ function computeCurrentTimeframeReliabilitySummary(coin, interval){
   const data = ohlcCache[coin+'::'+interval];
   if(!data || data.closes.length < 5) return null;
 
-  const trendscoreR = computeSignalReliability(coin, interval, 'trendscore');
+  const trendscoreR = computeSignalQualityScore(coin, interval, 'trendscore');
 
   const savedExitMode = exitMode, savedExitParam = exitParam, savedCache = strategyCache;
   let best = null;
@@ -3384,7 +3519,11 @@ function computeCurrentTimeframeReliabilitySummary(coin, interval){
       exitParam = cfg.paramDefault;
       strategyCache = {}; // exit-abhängig -> muss pro Exit-Modus neu berechnet werden
       Object.keys(STRAT_LABELS).forEach(stratKey=>{
-        const r = computeSignalReliability(coin, interval, stratKey);
+        // computeSignalQualityScore() statt computeSignalReliability() allein -- sonst gewinnt hier strukturell
+        // fast immer "Signalumkehr" (siehe Kommentar bei computeExitCaptureScore()), egal wie viel Gewinn der
+        // jeweilige Exit tatsächlich einfängt. Betrifft direkt sowohl diese Kachel als auch den Sync-Modus
+        // (applyStrategySyncIfActive() ruft genau diese Funktion auf).
+        const r = computeSignalQualityScore(coin, interval, stratKey);
         if(!r || r.score==null) return;
         if(!best || r.score > best.score || (r.score === best.score && r.total > best.total)){
           best = { stratKey, exitModeKey: modeKey, score: r.score, total: r.total };
