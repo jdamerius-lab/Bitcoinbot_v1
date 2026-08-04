@@ -237,6 +237,7 @@
   <button class="view-tab" id="viewTabBacktest">Backtest</button>
   <button class="view-tab" id="viewTabAuto">Automatik-Trading<span class="auto-live-dot" id="autoLiveDot" style="display:none"></span></button>
   <button class="view-tab" id="viewTabWallet">Wallet Copy-Trading</button>
+  <button class="view-tab" id="viewTabScreening">Marktscreening</button>
   <button class="view-tab" id="viewTabSimple">Simple-Mode</button>
 </div>
 
@@ -752,6 +753,34 @@
     Gewinn/Verlust der Wallet (unrealizedPnl ÷ Positionswert), nicht der exakte Fill-Preis. Reine Beobachtung,
     keine echte Order-Ausführung, kein Bezug zu einem eigenen Bitvavo-/Binance-/Hyperliquid-Konto. Vergangene
     Performance einer Wallet ist keine Garantie für zukünftige Ergebnisse.
+  </div>
+</div>
+
+</div>
+
+<div id="screeningView" style="display:none">
+
+<div class="card">
+  <h2 style="font-size:13px;margin:0 0 8px">Marktscreening (alle EUR-Handelspaare auf Binance)</h2>
+  <div class="row" style="margin-bottom:8px">
+    <div id="screeningIntervalWrap">
+      <label>Zeitrahmen</label>
+      <select id="screeningIntervalSelect"></select>
+    </div>
+    <div class="toolgroup">
+      <button id="screeningStartBtn">Screening starten</button>
+    </div>
+    <div id="screeningStatus" class="status">Noch nicht gestartet.</div>
+  </div>
+  <div id="screeningResultsWrap"></div>
+  <div class="exit-banner-desc">
+    Lädt bei Klick auf "Screening starten" zunächst die aktuelle Liste aller auf Binance handelbaren EUR-Paare
+    (nicht nur die oben fest ausgewählten Coins) und wendet auf jedes einzelne dieselbe Ampel-Logik an wie die
+    "Ampel"-Kachel im Analyse-Tab. Nutzt dabei den aktuell im Backtest-Tab eingestellten Exit-Modus für die
+    Reliability-Bewertung. Die "Zeitrahmen-Mehrheit"-Stimme der Einzelcoin-Ampel fließt hier bewusst NICHT mit
+    ein (müsste sonst pro gescanntem Coin zusätzlich zum gewählten Zeitrahmen mehrere weitere laden — bei
+    teils über hundert Coins zu langsam), das Screening ist also etwas weniger streng als die Einzelcoin-Ampel.
+    Reine Beobachtung/Ausgangspunkt für eigene Recherche, keine Anlageberatung.
   </div>
 </div>
 
@@ -5365,11 +5394,13 @@ function switchView(view){
   document.getElementById('backtestView').style.display = view==='backtest' ? '' : 'none';
   document.getElementById('autoTradeView').style.display = view==='auto' ? '' : 'none';
   document.getElementById('walletView').style.display = view==='wallet' ? '' : 'none';
+  document.getElementById('screeningView').style.display = view==='screening' ? '' : 'none';
   document.getElementById('simpleModeView').style.display = view==='simple' ? '' : 'none';
   document.getElementById('viewTabAnalysis').classList.toggle('active', view==='analysis');
   document.getElementById('viewTabBacktest').classList.toggle('active', view==='backtest');
   document.getElementById('viewTabAuto').classList.toggle('active', view==='auto');
   document.getElementById('viewTabWallet').classList.toggle('active', view==='wallet');
+  document.getElementById('viewTabScreening').classList.toggle('active', view==='screening');
   document.getElementById('viewTabSimple').classList.toggle('active', view==='simple');
   // Überschrift + View-Tab-Leiste sitzen AUSSERHALB von #simpleModeView (gemeinsamer Kopfbereich aller Tabs) --
   // werden per Body-Klasse zentriert, nur solange Simple-Mode aktiv ist (Nutzeranforderung). Guard, weil ältere
@@ -5450,6 +5481,7 @@ function populateAutoTradeUI(){
   document.getElementById('viewTabBacktest').addEventListener('click', ()=> switchView('backtest'));
   document.getElementById('viewTabAuto').addEventListener('click', ()=> switchView('auto'));
   document.getElementById('viewTabWallet').addEventListener('click', ()=> switchView('wallet'));
+  document.getElementById('viewTabScreening').addEventListener('click', ()=> switchView('screening'));
   document.getElementById('viewTabSimple').addEventListener('click', ()=> switchView('simple'));
 }
 function updateAutoToggleBtn(){
@@ -5774,6 +5806,246 @@ function classifyMarketPhase(adxVal){
   if(adxVal < 20) return 'ranging';
   return 'transition';
 }
+
+// ---------- Signal-Ampel: fasst mehrere Marktindikator-Kriterien zu einer Long/Short/Neutral-Einschätzung
+// zusammen (Nutzeranforderung: "welche Zielwerte müssten erfüllt sein, dass man long/short gehen sollte") ----------
+// "mittlere bis höhere" Zeitrahmen für die Zeitrahmen-Mehrheits-Stimme -- bewusst ohne 1m/5m (zu verrauscht für
+// eine Richtungsentscheidung) und ohne die ganz hohen (1M zu träge/selten aktuell).
+const AMPEL_TIMEFRAMES = ['15m','30m','1h','4h','1d'];
+const AMPEL_RELIABILITY_MIN = 50; // Gate: unter diesem Trendscore-Reliability-Score bleibt die Ampel gelb
+
+// Prüft NUR bereits geladene Zeitrahmen (kein eigener Fetch) -- für den aktiven Coin sind AMPEL_TIMEFRAMES i.d.R.
+// schon da (Hintergrund-Ladevorgang der Marktphasen-Gauge/Zeitrahmen-Trend-Strip); im Marktscreening (viele Coins
+// gleichzeitig) wird diese Stimme bewusst übersprungen (siehe computeSignalAmpel()-Parameter), sonst müsste pro
+// gescanntem Coin zusätzlich zum Screening-Zeitrahmen noch 5 weitere geladen werden -- bei hunderten Coins zu
+// langsam. null = zu wenig Zeitrahmen geladen für eine sinnvolle Mehrheitsentscheidung.
+function computeAmpelTimeframeMajority(coin){
+  let bullish = 0, bearish = 0, loaded = 0;
+  AMPEL_TIMEFRAMES.forEach(iv=>{
+    const data = ohlcCache[coin+'::'+iv];
+    if(!data || data.closes.length < 5) return;
+    let ts;
+    try{ ts = computeTrendScoreResult(coin, iv); }catch(e){ return; }
+    if(!ts || ts.lastScore == null) return;
+    loaded++;
+    if(ts.lastScore > TREND_SCORE_THRESHOLD) bullish++;
+    else if(ts.lastScore < -TREND_SCORE_THRESHOLD) bearish++;
+  });
+  if(loaded < 3) return null;
+  if(bullish > bearish && bullish > loaded/2) return 'long';
+  if(bearish > bullish && bearish > loaded/2) return 'short';
+  return 'neutral';
+}
+
+// Kernfunktion der Ampel. ZWEI GATES müssen erfüllt sein, sonst automatisch 'yellow' -- unabhängig davon, wie
+// eindeutig die Richtungs-Stimmen ausfallen: (1) Marktphase muss "Trend" sein (ADX≥25), im Seitwärtsmarkt ist
+// jede Richtungswette schwach. (2) die Trendscore-Reliability auf diesem Zeitrahmen (computeSignalReliability(),
+// die schnelle Einzelabfrage -- NICHT die teure Multi-Exit-Suche computeSignalQualityScore(), die wäre fürs
+// Screening hunderter Coins zu langsam) muss mindestens AMPEL_RELIABILITY_MIN erreichen -- ein historisch
+// unzuverlässiges Setup soll nicht grün/rot leuchten, selbst wenn die Richtung stimmt.
+// Danach zählen bis zu 4 Richtungs-Stimmen (EMA-Stack, Trendscore, MACD, optional Zeitrahmen-Mehrheit):
+// mindestens (Stimmenzahl−1) davon müssen für EINE Richtung sprechen UND 0 für die Gegenrichtung, sonst bleibt
+// es bei 'yellow' (uneindeutig/gemischt). RSI-Range/Volumen/Muster fließen NICHT in die Farbe ein (das sind eher
+// Bestätigungs- als K.-o.-Kriterien, siehe Konversation), werden aber als "bonus" mitgeliefert.
+function computeSignalAmpel(coin, interval, opts={}){
+  const includeTfMajority = opts.includeTimeframeMajority !== false;
+  const snap = computeIndicatorSnapshot(coin, interval);
+  if(!snap) return null;
+  const n = snap.closes.length;
+  const lastEma9 = snap.ema9[n-1], lastEma20 = snap.ema20[n-1], lastEma50 = snap.ema50[n-1];
+  const emaStack = computeEmaStackSignal(lastEma9, lastEma20, lastEma50);
+  const lastRsi = snap.rsiArr[n-1];
+  const lastMacd = snap.macdArr[n-1], lastSignal = snap.signalArr[n-1];
+  const macdBullish = (lastMacd!=null && lastSignal!=null) ? lastMacd > lastSignal : null;
+  const lastAdx = snap.adxArr[n-1];
+  const marketPhase = classifyMarketPhase(lastAdx);
+  const lastVol = snap.volumes[n-1], lastVolSma = snap.volSma20[n-1];
+  const volRatio = lastVolSma ? (lastVol/lastVolSma) : null;
+  const trendScore = snap.trendScore ? snap.trendScore.lastScore : null;
+  const patternClass = patternDirectionClass(snap.patterns); // 'pos'|'neg'|''
+
+  const relResult = computeSignalReliability(coin, interval, 'trendscore');
+  const reliabilityScore = relResult ? relResult.score : null;
+
+  const gate1 = marketPhase === 'trending';
+  const gate2 = reliabilityScore != null && reliabilityScore >= AMPEL_RELIABILITY_MIN;
+  const gatesPassed = gate1 && gate2;
+
+  const votes = {
+    emaStack: emaStack === 'bullish' ? 'long' : emaStack === 'bearish' ? 'short' : 'neutral',
+    trendScore: trendScore == null ? 'neutral' : (trendScore > TREND_SCORE_THRESHOLD ? 'long' : trendScore < -TREND_SCORE_THRESHOLD ? 'short' : 'neutral'),
+    macd: macdBullish == null ? 'neutral' : (macdBullish ? 'long' : 'short'),
+  };
+  if(includeTfMajority){
+    const tfMajority = computeAmpelTimeframeMajority(coin);
+    votes.timeframeMajority = tfMajority || 'neutral';
+  }
+  const voteValues = Object.values(votes);
+  const longVotes = voteValues.filter(v=>v==='long').length;
+  const shortVotes = voteValues.filter(v=>v==='short').length;
+  const votesTotal = voteValues.length;
+  const strong = votesTotal - 1; // höchstens EINE der Stimmen darf neutral/fehlend sein
+
+  let color = 'yellow', direction = 'neutral';
+  if(gatesPassed){
+    if(longVotes >= strong && shortVotes === 0){ color = 'green'; direction = 'long'; }
+    else if(shortVotes >= strong && longVotes === 0){ color = 'red'; direction = 'short'; }
+  }
+
+  const bonus = {
+    rsiOk: lastRsi == null ? null : (direction === 'long' ? (lastRsi >= 45 && lastRsi <= 65) : direction === 'short' ? (lastRsi >= 35 && lastRsi <= 55) : null),
+    volumeOk: volRatio == null ? null : volRatio >= 1.0,
+    patternOk: direction === 'long' ? patternClass === 'pos' : direction === 'short' ? patternClass === 'neg' : null,
+  };
+
+  return {
+    color, direction, gatesPassed, gate1, gate2, votes, longVotes, shortVotes, votesTotal,
+    marketPhase, adx: lastAdx, reliabilityScore, trendScore, rsi: lastRsi, volRatio, lastClose: snap.closes[n-1],
+    bonus
+  };
+}
+function ampelEmoji(color){ return color==='green' ? '🟢' : color==='red' ? '🔴' : '🟡'; }
+function ampelDirectionLabel(direction){ return direction==='long' ? 'Long' : direction==='short' ? 'Short' : 'Neutral'; }
+
+// ---------- Marktscreening: Ampel für ALLE aktuell auf Binance handelbaren EUR-Paare, nicht nur die fest
+// ausgewählten Coins oben ---------- (Nutzeranforderung: eigener Tab, per Buttonklick)
+// Fragt Binances öffentliche exchangeInfo ab und filtert auf EUR-Handelspaare im Status TRADING -- das ist die
+// dynamische, immer aktuelle "alle Coins auf Binance"-Liste (statt der festen COINS/EXTRA_COIN_CHOICES-Auswahl
+// oben, die absichtlich klein gehalten ist). Bewusst NICHT die feste Coin-Liste erweitert: die würde dann auch
+// überall sonst mitwachsen (Coin-Tabs, Alarm-Blöcke, Automatik-Grid, Eigenkapitalkurve, ...), was dort NICHT
+// gewünscht ist -- das Screening läuft deshalb komplett eigenständig, ohne COINS/EXTRA_COIN_CHOICES anzufassen.
+async function fetchAllBinanceEurSymbols(){
+  const res = await fetch('https://api.binance.com/api/v3/exchangeInfo');
+  if(!res.ok) throw new Error(`Binance API-Fehler (${res.status})`);
+  const json = await res.json();
+  if(!json || !Array.isArray(json.symbols)) throw new Error('Unerwartetes Antwortformat von exchangeInfo');
+  return json.symbols
+    .filter(s => s.quoteAsset === 'EUR' && s.status === 'TRADING')
+    .map(s => s.symbol)
+    .sort();
+}
+// Wie ensureData(), aber OHNE COINS-Abhängigkeit -- nutzt direkt das rohe Binance-Symbol (z.B. "XRPEUR") als
+// ohlcCache-Schlüssel, damit Screening-Coins die komplette bestehende Strategie-/Trendscore-/Reliability-
+// Maschinerie (buildStrategies, computeTrendScoreResult, computeSignalReliability, computeSignalAmpel, ...)
+// unverändert mitnutzen können, ohne einen Eintrag in der globalen COINS-Registry zu benötigen. Absichtlich
+// kleineres limit als ensureData() (300 statt 1000 Kerzen) -- reicht für alle Indikatoren/den Trendscore-
+// Backtest locker aus und hält hunderte parallele Abrufe beim Screening leichter.
+async function ensureScreeningData(symbol, interval){
+  const key = symbol+'::'+interval;
+  if(ohlcCache[key]) return ohlcCache[key];
+  const candles = await fetchKlines(symbol, interval, {limit:300});
+  ohlcCache[key] = {
+    times:  candles.map(c=>c.time),
+    opens:  candles.map(c=>c.open),
+    highs:  candles.map(c=>c.high),
+    lows:   candles.map(c=>c.low),
+    closes: candles.map(c=>c.close),
+    volumes: candles.map(c=>c.volume)
+  };
+  return ohlcCache[key];
+}
+let marketScreeningResults = [];
+let marketScreeningRunning = false;
+async function runMarketScreening(){
+  if(marketScreeningRunning) return;
+  marketScreeningRunning = true;
+  const statusEl = document.getElementById('screeningStatus');
+  const btn = document.getElementById('screeningStartBtn');
+  const wrapEl = document.getElementById('screeningResultsWrap');
+  if(btn) btn.disabled = true;
+  if(wrapEl) wrapEl.innerHTML = '';
+  const intervalEl = document.getElementById('screeningIntervalSelect');
+  const interval = intervalEl ? intervalEl.value : '4h';
+  if(statusEl) statusEl.textContent = 'Lade Liste aller EUR-Handelspaare von Binance…';
+  let symbols;
+  try{
+    symbols = await fetchAllBinanceEurSymbols();
+  }catch(e){
+    if(statusEl) statusEl.textContent = 'Fehler beim Laden der Coin-Liste: ' + e.message;
+    if(btn) btn.disabled = false;
+    marketScreeningRunning = false;
+    return;
+  }
+  marketScreeningResults = [];
+  // mtfFilterOn MUSS für die Dauer des Screenings aus sein: computeHigherTFTrend() würde sonst versuchen,
+  // COINS[symbol].symbol nachzuschlagen -- Screening-Symbole stehen aber absichtlich NICHT in COINS (siehe
+  // Kommentar oben bei fetchAllBinanceEurSymbols()), das würde crashen. Andere Analyse-Einstellungen (exitMode
+  // etc.) bleiben bewusst unverändert -- das Screening soll ja genau den aktuell eingestellten Exit-Modus nutzen.
+  const savedMtf = mtfFilterOn;
+  mtfFilterOn = false;
+  const CONCURRENCY = 6;
+  let done = 0;
+  try{
+    for(let i=0;i<symbols.length;i+=CONCURRENCY){
+      const batch = symbols.slice(i, i+CONCURRENCY);
+      await Promise.all(batch.map(async symbol=>{
+        try{
+          await ensureScreeningData(symbol, interval);
+          const ampel = computeSignalAmpel(symbol, interval, {includeTimeframeMajority:false});
+          const data = ohlcCache[symbol+'::'+interval];
+          if(ampel) marketScreeningResults.push({ symbol, ampel, lastClose: data ? data.closes[data.closes.length-1] : null });
+        }catch(e){
+          console.warn('Marktscreening:', symbol, 'übersprungen:', e.message);
+        } finally {
+          done++;
+          if(statusEl) statusEl.textContent = `Prüfe Coins… (${done}/${symbols.length})`;
+        }
+      }));
+      renderMarketScreeningResults(); // laufend aktualisieren, nicht erst ganz am Ende -- fühlt sich responsiver an
+    }
+  } finally {
+    mtfFilterOn = savedMtf;
+    if(btn) btn.disabled = false;
+    marketScreeningRunning = false;
+  }
+  renderMarketScreeningResults();
+  if(statusEl) statusEl.textContent = `${marketScreeningResults.length} von ${symbols.length} Coins ausgewertet (Zeitrahmen ${interval}).`;
+}
+// Sortierung: Grün vor Rot vor Gelb, innerhalb einer Farbe nach Betrag des Trendscore absteigend (stärkste
+// Signale zuerst).
+function renderMarketScreeningResults(){
+  const wrapEl = document.getElementById('screeningResultsWrap');
+  if(!wrapEl) return;
+  const colorRank = { green:0, red:1, yellow:2 };
+  const sorted = [...marketScreeningResults].sort((a,b)=>{
+    const rankDiff = colorRank[a.ampel.color] - colorRank[b.ampel.color];
+    if(rankDiff !== 0) return rankDiff;
+    const scoreA = Math.abs(a.ampel.trendScore || 0), scoreB = Math.abs(b.ampel.trendScore || 0);
+    return scoreB - scoreA;
+  });
+  if(sorted.length === 0){
+    wrapEl.innerHTML = '<div class="status">Noch keine Ergebnisse.</div>';
+    return;
+  }
+  let html = '<table><thead><tr><th>Coin</th><th>Preis</th><th>Ampel</th><th>Kernkriterien</th><th>ADX</th><th>Trendscore</th><th>Reliability</th></tr></thead><tbody>';
+  sorted.forEach(r=>{
+    const a = r.ampel;
+    const cls = a.color==='green' ? 'pos' : a.color==='red' ? 'neg' : '';
+    const votesText = !a.gatesPassed ? (!a.gate1 ? 'kein Trend' : 'Reliability niedrig') : `${Math.max(a.longVotes,a.shortVotes)}/${a.votesTotal}`;
+    html += `<tr>
+      <td>${r.symbol}</td>
+      <td>${r.lastClose!=null ? r.lastClose.toFixed(4) : '—'}</td>
+      <td class="${cls}">${ampelEmoji(a.color)} ${ampelDirectionLabel(a.direction)}</td>
+      <td>${votesText}</td>
+      <td>${a.adx!=null ? a.adx.toFixed(0) : '—'}</td>
+      <td>${a.trendScore!=null ? (a.trendScore*100).toFixed(0) : '—'}</td>
+      <td>${a.reliabilityScore!=null ? a.reliabilityScore : '—'}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  wrapEl.innerHTML = html;
+}
+function populateScreeningIntervalUI(){
+  const sel = document.getElementById('screeningIntervalSelect');
+  if(!sel) return;
+  INTERVALS.forEach(iv=>{
+    const opt = document.createElement('option');
+    opt.value = iv.value; opt.textContent = iv.label;
+    if(iv.value === '4h') opt.selected = true; // sinnvoller Standard fürs Screening: schnell genug, nicht zu verrauscht
+    sel.appendChild(opt);
+  });
+}
+
 function setupMiniCanvas(id){
   const canvas = document.getElementById(id);
   if(!canvas || typeof canvas.getContext !== 'function') return null;
@@ -5955,6 +6227,7 @@ function renderIndicatorPanel(){
   const trendScoreDesc = describeTrendScore(snap.trendScore);
   const trendScoreClass = trendScoreDirectionClass(snap.trendScore);
   const relSummary = computeCurrentTimeframeReliabilitySummary(activeCoin, activeInterval);
+  const ampel = computeSignalAmpel(activeCoin, activeInterval);
 
   function box(label, valueHtml){
     return `<div class="stat-box"><div class="stat-label">${label}</div><div class="stat-value">${valueHtml}</div></div>`;
@@ -5980,6 +6253,10 @@ function renderIndicatorPanel(){
       Trendscore-Signal: <span class="${reliabilityScoreClass(relSummary.trendscore && relSummary.trendscore.score)}">${(relSummary.trendscore && relSummary.trendscore.score!=null) ? relSummary.trendscore.score : '—'}</span><br>
       Bestes Signal: ${relSummary.best ? `<span class="${reliabilityScoreClass(relSummary.best.score)}">${STRAT_LABELS[relSummary.best.stratKey]} (${relSummary.best.score})</span>` : '—'}<br>
       Bester Exit: ${relSummary.best ? EXIT_MODES[relSummary.best.exitModeKey].label : '—'}
+    </span>`),
+    box('Ampel (Long/Short-Signal)', ampel == null ? '—' : `<span style="font-size:13px;font-weight:600;white-space:normal;line-height:1.5">
+      <span class="${ampel.color==='green'?'pos':ampel.color==='red'?'neg':''}">${ampelEmoji(ampel.color)} ${ampelDirectionLabel(ampel.direction)}</span><br>
+      ${!ampel.gate1 ? 'Kein Trend (ADX ' + (ampel.adx!=null?ampel.adx.toFixed(0):'—') + ')' : !ampel.gate2 ? 'Reliability zu niedrig (' + (ampel.reliabilityScore!=null?ampel.reliabilityScore:'—') + ')' : `${Math.max(ampel.longVotes,ampel.shortVotes)}/${ampel.votesTotal} Kernkriterien`}
     </span>`)
   ].join('');
 
@@ -6098,6 +6375,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('reliabilityBestComboBtn').addEventListener('click', runReliabilityBestComboPerTimeframe);
   attachIndicatorChartResizeListener();
   clearMiniCharts();
+
+  populateScreeningIntervalUI();
+  document.getElementById('screeningStartBtn').addEventListener('click', runMarketScreening);
 
   loadAutoTradeState();
   populateAutoTradeUI();
