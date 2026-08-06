@@ -57,6 +57,19 @@
   .reliability-low{background:rgba(248,81,73,.15);color:var(--red)}
   .reliability-na{color:var(--muted);font-weight:400}
   .reliability-n{display:block;font-size:9px;font-weight:400;color:var(--muted)}
+  /* Marktscreening (Squeeze-Screener): Status-Punkte (Squeeze/teilweise/normal + 15m/4h/1d-Bestätigung) und
+     Bias-Badges (Bullish/Bearish/Neutral). */
+  .status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:middle}
+  .status-dot-squeeze{background:var(--green)}
+  .status-dot-partial{background:var(--amber)}
+  .status-dot-normal{background:var(--red)}
+  .status-dot-mtf-on{background:var(--green)}
+  .status-dot-mtf-off{background:transparent;border:1.5px solid var(--muted)}
+  .status-dot-super{background:#ffab70}
+  .bias-tag{display:inline-block;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:600}
+  .bias-bullish{background:rgba(63,185,80,.18);color:var(--green)}
+  .bias-bearish{background:rgba(248,81,73,.18);color:var(--red)}
+  .bias-neutral{background:rgba(139,148,158,.18);color:var(--muted)}
   code{background:#0d1117;padding:1px 5px;border-radius:4px;font-size:11px}
   .footnote{color:var(--muted);font-size:10.5px;margin-top:6px}
   /* Kleine Live-Kurs-Box: kompaktes Overlay direkt IM Chart (oben rechts), wie ursprünglich. Bewusst mit "bottom"
@@ -292,6 +305,7 @@
         </div>
         <div class="toolgroup">
           <button class="secondary" id="toggleEmaBtn">EMAs</button>
+          <button class="secondary" id="toggleBollBtn">Bollinger-Bänder</button>
           <button class="secondary" id="toggleFvgBtn">FVG</button>
           <button class="secondary" id="toggleFibBtn">Fibonacci</button>
           <button class="secondary" id="toggleIchimokuBtn">Ichimoku</button>
@@ -761,26 +775,47 @@
 <div id="screeningView" style="display:none">
 
 <div class="card">
-  <h2 style="font-size:13px;margin:0 0 8px">Marktscreening (alle EUR-Handelspaare auf Binance)</h2>
+  <h2 style="font-size:13px;margin:0 0 8px">Marktscreening (Squeeze-Screener für alle EUR-Handelspaare auf Binance)</h2>
   <div class="row" style="margin-bottom:8px">
     <div id="screeningIntervalWrap">
       <label>Zeitrahmen</label>
       <select id="screeningIntervalSelect"></select>
     </div>
     <div class="toolgroup">
-      <button id="screeningStartBtn">Screening starten</button>
+      <button id="screeningStartBtn">Aktualisieren</button>
     </div>
+    <label style="display:flex;align-items:center;gap:4px;margin:0;font-size:11px;color:var(--text)">
+      <input type="checkbox" id="screeningOnlyHitsCheckbox" style="margin:0"> Nur Treffer
+    </label>
     <div id="screeningStatus" class="status">Noch nicht gestartet.</div>
+  </div>
+  <div id="screeningLegend" style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-size:10.5px;color:var(--muted);margin-bottom:8px">
+    <span><span class="status-dot status-dot-squeeze"></span>Squeeze</span>
+    <span><span class="status-dot status-dot-partial"></span>teilweise</span>
+    <span><span class="status-dot status-dot-normal"></span>normale Volatilität</span>
+    <span>Bias:
+      <span class="bias-tag bias-bullish">Bullish</span>
+      <span class="bias-tag bias-bearish">Bearish</span>
+      <span class="bias-tag bias-neutral">Neutral</span>
+    </span>
+    <span><span class="status-dot status-dot-mtf-on"></span>15m/4h/1d: Squeeze auch dort</span>
+    <span><span class="status-dot status-dot-super"></span> = Squeeze auf allen 4 Zeitrahmen + steigendes Volumen</span>
   </div>
   <div id="screeningResultsWrap"></div>
   <div class="exit-banner-desc">
-    Lädt bei Klick auf "Screening starten" zunächst die aktuelle Liste aller auf Binance handelbaren EUR-Paare
-    (nicht nur die oben fest ausgewählten Coins) und wendet auf jedes einzelne dieselbe Ampel-Logik an wie die
-    "Ampel"-Kachel im Analyse-Tab. Nutzt dabei den aktuell im Backtest-Tab eingestellten Exit-Modus für die
-    Reliability-Bewertung. Die "Zeitrahmen-Mehrheit"-Stimme der Einzelcoin-Ampel fließt hier bewusst NICHT mit
-    ein (müsste sonst pro gescanntem Coin zusätzlich zum gewählten Zeitrahmen mehrere weitere laden — bei
-    teils über hundert Coins zu langsam), das Screening ist also etwas weniger streng als die Einzelcoin-Ampel.
-    Reine Beobachtung/Ausgangspunkt für eigene Recherche, keine Anlageberatung.
+    Lädt bei Klick auf "Aktualisieren" zunächst die aktuelle Liste aller auf Binance handelbaren EUR-Paare (nicht
+    nur die oben fest ausgewählten Coins) und berechnet je Coin eine reine Volatilitäts-Kompressions-Analyse
+    (klassisches "Squeeze-Screener"-Prinzip): BB %ile/ATR %ile = Perzentilrang der aktuellen Bollinger-Band-
+    Breite bzw. des ATR(14) innerhalb der letzten 126 Kerzen (niedrig = ungewöhnlich eng im Vergleich zur
+    eigenen Historie); Range 10/60 = Durchschnitts-Kerzenspanne der letzten 10 vs. letzten 60 Kerzen (Werte
+    unter 1× = zuletzt spürbar ruhiger als zuvor); Vol 5/20 = Durchschnittsvolumen der letzten 5 vs. letzten 20
+    Kerzen; Kompr. = ein aus BB-/ATR-Perzentil gebildeter 0-100-Score (höher = stärker komprimiert). "Bias" ist
+    eine grobe Richtungstendenz auf Basis des Trendscore-Konsenssignals, kein Einstiegssignal. "15m/4h/1d"
+    zeigt, ob auf diesen drei festen Zusatz-Zeitrahmen ebenfalls ein Squeeze vorliegt (unabhängig vom oben
+    gewählten Haupt-Zeitrahmen) — die spezielle Markierung springt an, sobald ALLE vier Zeitrahmen gleichzeitig
+    komprimiert sind UND das Volumen zuletzt anzieht. Spaltenüberschriften sind anklickbar und sortieren danach
+    (nochmaliger Klick kehrt die Richtung um). Reine Beobachtung/Ausgangspunkt für eigene Recherche, keine
+    Anlageberatung — ein Squeeze sagt nichts über die Richtung eines möglichen Ausbruchs aus.
   </div>
 </div>
 
@@ -953,6 +988,7 @@ let lastTickerOkAt = null;
 let lastPriceValue = null;
 let priceSocket = null;
 let showEMAs = false;
+let showBoll = false;
 let showFVG = false;
 let showFib = false;
 let showIchimoku = false;
@@ -1363,6 +1399,15 @@ function stdev(arr, period){
   }
   return out;
 }
+// Bollinger-Bänder: Mittelband = SMA(period), oberes/unteres Band = Mittelband ± mult × Standardabweichung.
+// Wird sowohl für den Chart-Overlay-Button (drawBollBands()) als auch für die Squeeze-Berechnung im
+// Marktscreening (computeSqueezeSeries()) genutzt -- ein Rechenweg für beide Stellen.
+function computeBollingerBands(closes, period=20, mult=2){
+  const mid = sma(closes, period), sd = stdev(closes, period);
+  const upper = mid.map((m,i)=> (m==null||sd[i]==null) ? null : m + mult*sd[i]);
+  const lower = mid.map((m,i)=> (m==null||sd[i]==null) ? null : m - mult*sd[i]);
+  return { mid, upper, lower };
+}
 function rsi(arr, period){
   const out = new Array(arr.length).fill(null);
   let gains=0, losses=0, avgG=null, avgL=null;
@@ -1476,6 +1521,81 @@ function stochasticK(highs, lows, closes, period){
     out[i] = hh===ll ? 50 : ((closes[i]-ll)/(hh-ll))*100;
   }
   return out;
+}
+
+// ---------- Volatilitäts-Kompression / "Squeeze-Screener"-Kennzahlen ----------
+// Perzentilrang eines aktuellen Werts innerhalb einer historischen Vergleichsreihe (0-100): wie viel Prozent
+// der Vergleichswerte liegen bei oder unter dem aktuellen Wert. Niedriger Perzentilrang bei Volatilitäts-
+// Kennzahlen (Bollinger-Band-Breite, ATR) bedeutet: ungewöhnlich RUHIG im Vergleich zur eigenen Historie --
+// genau das Prinzip, das Squeeze-Screener-Tools nutzen, um "zusammengezogene" Kerzen zu finden.
+function computePercentileRank(historicalArr, currentValue){
+  if(currentValue == null) return null;
+  const valid = historicalArr.filter(v => v != null);
+  if(valid.length === 0) return null;
+  const countBelowOrEqual = valid.filter(v => v <= currentValue).length;
+  return Math.round(100 * countBelowOrEqual / valid.length);
+}
+const COMPRESSION_LOOKBACK = 126; // Perzentil-Vergleichsfenster in Kerzen (unabhängig vom Zeitrahmen)
+// Kern-Kennzahlen für EINEN Coin/Zeitrahmen: BB-/ATR-Perzentilrang (Volatilitäts-Kompression relativ zur
+// eigenen Historie), Range 10/60 (Kerzenspanne zuletzt vs. länger zurück) und Vol 5/20 (Volumen zuletzt vs.
+// länger zurück) als zusätzliche, unmittelbar verständliche Rohwerte, sowie ein daraus gebildeter 0-100-
+// Kompressions-Score und eine 3-stufige Statuseinordnung. Nutzt ausschließlich bereits geladene ohlcCache-
+// Daten (kein eigener Ladevorgang), analog zu den übrigen Screening-Berechnungen.
+function computeCompressionMetrics(coin, interval){
+  const data = ohlcCache[coin+'::'+interval];
+  if(!data || data.closes.length < 70) return null; // braucht genug Historie für ein sinnvolles Perzentil-Fenster
+  const { highs, lows, closes, volumes } = data;
+  const n = closes.length;
+  const lastIdx = n - 1;
+
+  const bb = computeBollingerBands(closes, 20, 2);
+  const bbWidth = bb.mid.map((m,i)=> (m==null || bb.upper[i]==null) ? null : (bb.upper[i]-bb.lower[i]) / m);
+  const atrArr = atr(highs, lows, closes, 14);
+
+  const lookbackStart = Math.max(0, lastIdx - COMPRESSION_LOOKBACK + 1);
+  const bbPercentile = computePercentileRank(bbWidth.slice(lookbackStart, lastIdx), bbWidth[lastIdx]);
+  const atrPercentile = computePercentileRank(atrArr.slice(lookbackStart, lastIdx), atrArr[lastIdx]);
+
+  function avgOver(arrFn, period){
+    let sum = 0, cnt = 0;
+    for(let i = lastIdx - period + 1; i <= lastIdx; i++){
+      if(i < 0) continue;
+      sum += arrFn(i); cnt++;
+    }
+    return cnt ? sum/cnt : null;
+  }
+  const range10 = avgOver(i => highs[i]-lows[i], 10);
+  const range60 = avgOver(i => highs[i]-lows[i], 60);
+  const range10_60 = (range10 != null && range60) ? range10/range60 : null;
+
+  const hasVolume = Array.isArray(volumes);
+  const vol5 = hasVolume ? avgOver(i => volumes[i]||0, 5) : null;
+  const vol20 = hasVolume ? avgOver(i => volumes[i]||0, 20) : null;
+  const vol5_20 = (vol5 != null && vol20) ? vol5/vol20 : null;
+
+  let status = 'normal';
+  if(bbPercentile != null && atrPercentile != null){
+    if(bbPercentile <= 20 && atrPercentile <= 20) status = 'squeeze';
+    else if(bbPercentile <= 35 || atrPercentile <= 35) status = 'partial';
+  }
+  const kompression = (bbPercentile != null && atrPercentile != null)
+    ? Math.max(0, Math.min(100, Math.round(100 - (bbPercentile + atrPercentile)/2)))
+    : null;
+
+  const rsiArr = rsi(closes, 14);
+
+  return { bbPercentile, atrPercentile, range10_60, vol5_20, status, kompression, lastRsi: rsiArr[lastIdx] };
+}
+// Grobe Richtungstendenz (Bullish/Bearish/Neutral) auf Basis des bereits vorhandenen Trendscore-Konsenssignals
+// -- KEIN Einstiegssignal, nur eine leichte Einordnung dafür, in welche Richtung ein möglicher Ausbruch aus
+// dem Squeeze tendenziell laufen würde, falls der aktuelle Trend sich fortsetzt.
+function computeScreeningBias(coin, interval){
+  let ts;
+  try{ ts = computeTrendScoreResult(coin, interval); }catch(e){ return 'neutral'; }
+  if(!ts || ts.lastScore == null) return 'neutral';
+  if(ts.lastScore > TREND_SCORE_THRESHOLD) return 'bullish';
+  if(ts.lastScore < -TREND_SCORE_THRESHOLD) return 'bearish';
+  return 'neutral';
 }
 
 // ---------- Strategy engine (immer im Markt: 1 = long, -1 = short) ----------
@@ -2802,6 +2922,47 @@ function drawEMALines(ctx, emaSeries, iFrom, iTo, scaleX, scaleY){
   });
   ctx.restore();
 }
+// Zeichnet das Bollinger-Band als reine Fläche mit weichem Farbverlauf (KEINE Rand-Linien für oberes/unteres
+// Band mehr -- bewusst wie bei typischen Squeeze-Screener-Charts), plus einer gestrichelten Mittellinie (SMA 20).
+function drawBollBands(ctx, boll, iFrom, iTo, scaleX, scaleY){
+  ctx.save();
+  const upperPts = [], lowerPts = [];
+  for(let i=iFrom; i<=iTo; i++){
+    if(boll.upper[i]==null || boll.lower[i]==null) continue;
+    upperPts.push({x:scaleX(i), y:scaleY(boll.upper[i])});
+    lowerPts.push({x:scaleX(i), y:scaleY(boll.lower[i])});
+  }
+  if(upperPts.length){
+    const yTop = Math.min(...upperPts.map(p=>p.y));
+    const yBottom = Math.max(...lowerPts.map(p=>p.y));
+    // Farbverlauf: an den Rändern (obere/untere Extreme des Bands) etwas kräftiger, zur Mitte hin heller --
+    // wirkt wie eine weiche "Wolke" statt einer hart begrenzten Fläche.
+    const grad = ctx.createLinearGradient(0, yTop, 0, yBottom > yTop ? yBottom : yTop+1);
+    grad.addColorStop(0,   'rgba(158,140,255,0.20)');
+    grad.addColorStop(0.5, 'rgba(158,140,255,0.08)');
+    grad.addColorStop(1,   'rgba(158,140,255,0.20)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    upperPts.forEach((p,idx)=>{ if(idx===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y); });
+    for(let i=lowerPts.length-1;i>=0;i--) ctx.lineTo(lowerPts[i].x, lowerPts[i].y);
+    ctx.closePath();
+    ctx.fill();
+  }
+  // Nur noch die gestrichelte Mittellinie (SMA 20) als echte Linie -- keine Rand-Linien für oberes/unteres Band.
+  ctx.strokeStyle = 'rgba(148,158,168,0.6)'; ctx.lineWidth = 1;
+  ctx.setLineDash([3,3]);
+  ctx.beginPath();
+  let started = false;
+  for(let i=iFrom; i<=iTo; i++){
+    const v = boll.mid[i];
+    if(v==null){ started=false; continue; }
+    const x=scaleX(i), y=scaleY(v);
+    if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
 function drawSwings(ctx, swings, d, iFrom, iTo, scaleX, scaleY, layout){
   const { swingHighAt, swingLowAt, lastSwingLow, lastSwingHigh } = swings;
   ctx.save();
@@ -3087,6 +3248,13 @@ function drawChart(){
       }
     });
   }
+  if(showBoll && chart.$boll){
+    for(let i=view.start; i<=view.end; i++){
+      const u = chart.$boll.upper[i], l = chart.$boll.lower[i];
+      if(u!=null && u>hi) hi=u;
+      if(l!=null && l<lo) lo=l;
+    }
+  }
   if(forecastPoints){
     forecastPoints.forEach(p=>{
       [p.price1, p.price2, p.avg].forEach(v=>{ if(v<lo) lo=v; if(v>hi) hi=v; });
@@ -3113,6 +3281,7 @@ function drawChart(){
 
   drawCandles(ctx, d, iFrom, iTo, scaleX, scaleY, xStep, layout);
   if(showEMAs) drawEMALines(ctx, d.emaSeries, iFrom, iTo, scaleX, scaleY);
+  if(showBoll && chart.$boll) drawBollBands(ctx, chart.$boll, iFrom, iTo, scaleX, scaleY);
   if(showSwings && chart.$swings) drawSwings(ctx, chart.$swings, d, iFrom, iTo, scaleX, scaleY, layout);
   if(showPatterns && chart.$patterns) drawPatternOverlay(ctx, chart.$patterns, d, iFrom, iTo, scaleX, scaleY);
   if(showTrendScore && chart.$trendScore) drawTrendScoreOverlay(ctx, chart.$trendScore, d, iFrom, iTo, scaleX, scaleY);
@@ -3318,7 +3487,8 @@ function computeChartMeta(d){
   const srZones = detectSRZones(d.highs, d.lows, structBars);
   const patterns = computePatternMeta(d.highs, d.lows, d.closes, d.opens, d.closes.length - 1);
   const trendScore = computeTrendScoreResult(activeCoin, activeInterval);
-  return { fvg, markers, ichi, swings, srZones, patterns, trendScore };
+  const boll = computeBollingerBands(d.closes, 20, 2);
+  return { fvg, markers, ichi, swings, srZones, patterns, trendScore, boll };
 }
 
 function renderChart(){
@@ -3341,6 +3511,7 @@ function renderChart(){
     $srZones: meta.srZones,
     $patterns: meta.patterns,
     $trendScore: meta.trendScore,
+    $boll: meta.boll,
     $forecast: (showForecast && activeCoin==='bitcoin' && activeInterval==='1d') ? computeCycleForecast(forecastProjectionDays) : null,
     dragging: null,
     crosshairIdx: null,
@@ -3366,6 +3537,7 @@ function refreshChartDatasets(){
   chart.$srZones = meta.srZones;
   chart.$patterns = meta.patterns;
   chart.$trendScore = meta.trendScore;
+  chart.$boll = meta.boll;
   chart.$forecast = (showForecast && activeCoin==='bitcoin' && activeInterval==='1d') ? computeCycleForecast(forecastProjectionDays) : null;
   updatePatternExplainUI();
   updateTrendScoreExplainUI();
@@ -3544,6 +3716,12 @@ function computeCurrentTimeframeReliabilitySummary(coin, interval){
   let best = null;
   try{
     Object.entries(EXIT_MODES).forEach(([modeKey, cfg])=>{
+      // Zeitbasierter Exit ('time') wird hier bewusst NICHT mitgesucht: er kennt keine echte Marktlogik (steigt
+      // stur nach N Kerzen aus, egal wie der Kurs steht) und würde vom Sync-Modus daher nie sinnvoll automatisch
+      // gewählt werden sollen -- der Modus bleibt über das Exit-Dropdown weiterhin manuell wählbar, nur eben
+      // nicht als automatisches Ergebnis dieser Suche (die auch die "Bester Exit"-Anzeige in der Reliability-
+      // Kachel speist, siehe Kommentar oben bei applyStrategySyncIfActive()).
+      if(modeKey === 'time') return;
       exitMode = modeKey;
       exitParam = cfg.paramDefault;
       strategyCache = {}; // exit-abhängig -> muss pro Exit-Modus neu berechnet werden
@@ -4649,6 +4827,11 @@ function populateControls(){
   document.getElementById('toggleEmaBtn').addEventListener('click', (e)=>{
     showEMAs = !showEMAs;
     e.currentTarget.classList.toggle('active', showEMAs);
+    if(chart) drawChart();
+  });
+  document.getElementById('toggleBollBtn').addEventListener('click', (e)=>{
+    showBoll = !showBoll;
+    e.currentTarget.classList.toggle('active', showBoll);
     if(chart) drawChart();
   });
   document.getElementById('toggleFvgBtn').addEventListener('click', (e)=>{
@@ -5946,6 +6129,9 @@ async function ensureScreeningData(symbol, interval){
 }
 let marketScreeningResults = [];
 let marketScreeningRunning = false;
+// Feste Zusatz-Zeitrahmen für die Squeeze-Bestätigung (15m/4h/1d-Spalten) -- unabhängig vom oben gewählten
+// Haupt-Zeitrahmen, dieselbe Auswahl für jeden gescannten Coin.
+const SCREENING_MTF_INTERVALS = ['15m','4h','1d'];
 async function runMarketScreening(){
   if(marketScreeningRunning) return;
   marketScreeningRunning = true;
@@ -5970,7 +6156,7 @@ async function runMarketScreening(){
   // mtfFilterOn MUSS für die Dauer des Screenings aus sein: computeHigherTFTrend() würde sonst versuchen,
   // COINS[symbol].symbol nachzuschlagen -- Screening-Symbole stehen aber absichtlich NICHT in COINS (siehe
   // Kommentar oben bei fetchAllBinanceEurSymbols()), das würde crashen. Andere Analyse-Einstellungen (exitMode
-  // etc.) bleiben bewusst unverändert -- das Screening soll ja genau den aktuell eingestellten Exit-Modus nutzen.
+  // etc.) bleiben bewusst unverändert.
   const savedMtf = mtfFilterOn;
   mtfFilterOn = false;
   const CONCURRENCY = 6;
@@ -5981,9 +6167,28 @@ async function runMarketScreening(){
       await Promise.all(batch.map(async symbol=>{
         try{
           await ensureScreeningData(symbol, interval);
-          const ampel = computeSignalAmpel(symbol, interval, {includeTimeframeMajority:false});
+          const compression = computeCompressionMetrics(symbol, interval);
+          if(!compression) return; // zu wenig Historie für ein sinnvolles Perzentil-Fenster -- Coin überspringen
+          const bias = computeScreeningBias(symbol, interval);
+
+          // Zusatz-Zeitrahmen (15m/4h/1d) für die Squeeze-Bestätigung: entspricht einer davon bereits dem
+          // gewählten Haupt-Zeitrahmen, wird das schon berechnete Ergebnis wiederverwendet statt doppelt zu
+          // laden/rechnen.
+          const mtf = {};
+          for(const tf of SCREENING_MTF_INTERVALS){
+            if(tf === interval){ mtf[tf] = compression.status; continue; }
+            try{
+              await ensureScreeningData(symbol, tf);
+              const tfCompression = computeCompressionMetrics(symbol, tf);
+              mtf[tf] = tfCompression ? tfCompression.status : null;
+            }catch(e){ mtf[tf] = null; }
+          }
+          const superSqueeze = compression.status === 'squeeze'
+            && SCREENING_MTF_INTERVALS.every(tf => mtf[tf] === 'squeeze')
+            && compression.vol5_20 != null && compression.vol5_20 > 1;
+
           const data = ohlcCache[symbol+'::'+interval];
-          if(ampel) marketScreeningResults.push({ symbol, ampel, lastClose: data ? data.closes[data.closes.length-1] : null });
+          marketScreeningResults.push({ symbol, compression, bias, mtf, superSqueeze, lastClose: data ? data.closes[data.closes.length-1] : null });
         }catch(e){
           console.warn('Marktscreening:', symbol, 'übersprungen:', e.message);
         } finally {
@@ -5999,41 +6204,156 @@ async function runMarketScreening(){
     marketScreeningRunning = false;
   }
   renderMarketScreeningResults();
-  if(statusEl) statusEl.textContent = `${marketScreeningResults.length} von ${symbols.length} Coins ausgewertet (Zeitrahmen ${interval}).`;
+  const treffer = marketScreeningResults.filter(r => r.compression.status !== 'normal').length;
+  if(statusEl) statusEl.textContent = `Treffer: ${treffer}   Coins geprüft: ${marketScreeningResults.length}   Stand: ${new Date().toLocaleString('de-DE')}`;
 }
-// Sortierung: Grün vor Rot vor Gelb, innerhalb einer Farbe nach Betrag des Trendscore absteigend (stärkste
-// Signale zuerst).
+// Spalten-Layout der Ergebnistabelle in Anzeige-Reihenfolge. "sortable:true"-Spalten bekommen ein
+// data-key-Attribut in der Kopfzelle (siehe initScreeningTableSorting()/handleScreeningHeaderClick()) und
+// einen Wert-Extraktor für sortScreeningResults(); "Verlauf" (Mini-Chart) und die 15m/4h/1d-Punkte sind
+// bewusst nicht sortierbar (kein sinnvoller einzelner Vergleichswert je Zelle).
+const SCREENING_COLUMN_DEFS = [
+  { key:'symbol',        label:'Coin',        sortable:true,  get:r => r.symbol },
+  { key:'price',         label:'Preis (€)',   sortable:true,  get:r => r.lastClose },
+  { key:'verlauf',       label:'Verlauf',     sortable:false },
+  { key:'rsi',           label:'RSI(14)',     sortable:true,  get:r => r.compression.lastRsi },
+  { key:'bbPercentile',  label:'BB %ile',     sortable:true,  get:r => r.compression.bbPercentile },
+  { key:'atrPercentile', label:'ATR %ile',    sortable:true,  get:r => r.compression.atrPercentile },
+  { key:'range',         label:'Range 10/60', sortable:true,  get:r => r.compression.range10_60 },
+  { key:'vol',           label:'Vol 5/20',    sortable:true,  get:r => r.compression.vol5_20 },
+  { key:'kompression',   label:'Kompr.',      sortable:true,  get:r => r.compression.kompression },
+  { key:'bias',          label:'Bias',        sortable:true,  get:r => ({bearish:-1,neutral:0,bullish:1})[r.bias] },
+  { key:'mtf15m',        label:'15m',         sortable:false },
+  { key:'mtf4h',         label:'4h',          sortable:false },
+  { key:'mtf1d',         label:'1d',          sortable:false },
+  { key:'status',        label:'Status',      sortable:true,  get:r => ({normal:0,partial:1,squeeze:2})[r.compression.status] },
+];
+// Standard-Sortierung: nach Kompressions-Score absteigend (am stärksten komprimierte Coins zuerst) -- genau
+// das, wonach ein Squeeze-Screener typischerweise sucht. Klick auf eine Kopfzelle wechselt auf diese Spalte
+// (nochmaliger Klick kehrt die Richtung um).
+let marketScreeningSort = { key: 'kompression', dir: -1 };
+let marketScreeningOnlyHits = false; // "Nur Treffer"-Checkbox: blendet Status="normale Volatilität" aus
+function sortScreeningResults(results){
+  const col = SCREENING_COLUMN_DEFS.find(c => c.key === marketScreeningSort.key && c.sortable);
+  if(!col) return [...results];
+  const dir = marketScreeningSort.dir;
+  return [...results].sort((a,b)=>{
+    const va = col.get(a), vb = col.get(b);
+    if(va == null && vb == null) return 0;
+    if(va == null) return 1;  // fehlende Werte immer ans Ende, unabhängig von der Sortierrichtung
+    if(vb == null) return -1;
+    if(typeof va === 'string') return dir * va.localeCompare(vb);
+    return dir * (va - vb);
+  });
+}
+function screeningBiasTag(bias){
+  const label = bias==='bullish' ? 'Bullish' : bias==='bearish' ? 'Bearish' : 'Neutral';
+  return `<span class="bias-tag bias-${bias||'neutral'}">${label}</span>`;
+}
+function screeningStatusCell(status){
+  if(status==='squeeze') return '<span class="status-dot status-dot-squeeze"></span>Squeeze';
+  if(status==='partial') return '<span class="status-dot status-dot-partial"></span>teilweise';
+  return '<span class="status-dot status-dot-normal"></span>normale Volatilität';
+}
+function screeningPercentileCell(pctile){
+  if(pctile==null) return '—';
+  const cls = pctile<=20 ? 'status-dot-squeeze' : pctile<=35 ? 'status-dot-partial' : 'status-dot-normal';
+  return `<span class="status-dot ${cls}"></span>${pctile}`;
+}
+function screeningMtfDot(status, superSqueeze){
+  const cls = superSqueeze ? 'status-dot-super' : status==='squeeze' ? 'status-dot-mtf-on' : 'status-dot-mtf-off';
+  return `<span class="status-dot ${cls}" title="${status||'—'}"></span>`;
+}
+function renderScreeningCell(key, r){
+  const c = r.compression;
+  switch(key){
+    case 'symbol':        return `<td>${r.symbol}</td>`;
+    case 'price':          return `<td>${r.lastClose!=null ? r.lastClose.toFixed(4) : '—'}</td>`;
+    case 'verlauf':        return `<td><canvas id="screeningChart_${r.symbol}" width="100" height="32" style="width:100px;height:32px;display:block"></canvas></td>`;
+    case 'rsi':            return `<td>${c.lastRsi!=null ? c.lastRsi.toFixed(1) : '—'}</td>`;
+    case 'bbPercentile':   return `<td>${screeningPercentileCell(c.bbPercentile)}</td>`;
+    case 'atrPercentile':  return `<td>${screeningPercentileCell(c.atrPercentile)}</td>`;
+    case 'range':          return `<td>${c.range10_60!=null ? c.range10_60.toFixed(2)+'×' : '—'}</td>`;
+    case 'vol':            return `<td>${c.vol5_20!=null ? Math.round(c.vol5_20*100)+'%' : '—'}</td>`;
+    case 'kompression':    return `<td>${c.kompression!=null ? c.kompression : '—'}</td>`;
+    case 'bias':           return `<td>${screeningBiasTag(r.bias)}</td>`;
+    case 'mtf15m':         return `<td style="text-align:center">${screeningMtfDot(r.mtf['15m'], r.superSqueeze)}</td>`;
+    case 'mtf4h':          return `<td style="text-align:center">${screeningMtfDot(r.mtf['4h'], r.superSqueeze)}</td>`;
+    case 'mtf1d':          return `<td style="text-align:center">${screeningMtfDot(r.mtf['1d'], r.superSqueeze)}</td>`;
+    case 'status':         return `<td>${screeningStatusCell(c.status)}</td>`;
+    default:               return '<td>—</td>';
+  }
+}
 function renderMarketScreeningResults(){
   const wrapEl = document.getElementById('screeningResultsWrap');
   if(!wrapEl) return;
-  const colorRank = { green:0, red:1, yellow:2 };
-  const sorted = [...marketScreeningResults].sort((a,b)=>{
-    const rankDiff = colorRank[a.ampel.color] - colorRank[b.ampel.color];
-    if(rankDiff !== 0) return rankDiff;
-    const scoreA = Math.abs(a.ampel.trendScore || 0), scoreB = Math.abs(b.ampel.trendScore || 0);
-    return scoreB - scoreA;
-  });
+  let results = marketScreeningResults;
+  if(marketScreeningOnlyHits) results = results.filter(r => r.compression.status !== 'normal');
+  const sorted = sortScreeningResults(results);
   if(sorted.length === 0){
     wrapEl.innerHTML = '<div class="status">Noch keine Ergebnisse.</div>';
     return;
   }
-  let html = '<table><thead><tr><th>Coin</th><th>Preis</th><th>Ampel</th><th>Kernkriterien</th><th>ADX</th><th>Trendscore</th><th>Reliability</th></tr></thead><tbody>';
+  const intervalEl = document.getElementById('screeningIntervalSelect');
+  const interval = intervalEl ? intervalEl.value : '4h';
+  const headerCells = SCREENING_COLUMN_DEFS.map(col=>{
+    if(!col.sortable) return `<th>${col.label}</th>`;
+    const active = marketScreeningSort.key === col.key;
+    const arrow = active ? (marketScreeningSort.dir===1 ? ' ▲' : ' ▼') : '';
+    return `<th data-key="${col.key}" style="cursor:pointer;user-select:none" title="Zum Sortieren klicken">${col.label}${arrow}</th>`;
+  }).join('');
+  let html = `<table><thead><tr>${headerCells}</tr></thead><tbody>`;
   sorted.forEach(r=>{
-    const a = r.ampel;
-    const cls = a.color==='green' ? 'pos' : a.color==='red' ? 'neg' : '';
-    const votesText = !a.gatesPassed ? (!a.gate1 ? 'kein Trend' : 'Reliability niedrig') : `${Math.max(a.longVotes,a.shortVotes)}/${a.votesTotal}`;
-    html += `<tr>
-      <td>${r.symbol}</td>
-      <td>${r.lastClose!=null ? r.lastClose.toFixed(4) : '—'}</td>
-      <td class="${cls}">${ampelEmoji(a.color)} ${ampelDirectionLabel(a.direction)}</td>
-      <td>${votesText}</td>
-      <td>${a.adx!=null ? a.adx.toFixed(0) : '—'}</td>
-      <td>${a.trendScore!=null ? (a.trendScore*100).toFixed(0) : '—'}</td>
-      <td>${a.reliabilityScore!=null ? a.reliabilityScore : '—'}</td>
-    </tr>`;
+    html += '<tr>' + SCREENING_COLUMN_DEFS.map(col => renderScreeningCell(col.key, r)).join('') + '</tr>';
   });
   html += '</tbody></table>';
   wrapEl.innerHTML = html;
+  sorted.forEach(r => drawScreeningMiniChart(`screeningChart_${r.symbol}`, r.symbol, interval));
+}
+// Sparkline-Mini-Chart je Zeile: letzte ~80 Kerzen des Schlusskurses, grün/rot je nach Kursrichtung im
+// Fenster -- nutzt bereits geladene ohlcCache-Daten (kein eigener Ladevorgang). Bewusst deutlich schlanker als
+// die großen RSI-/MACD-Mini-Charts im Indikator-Panel: hier reicht ein reiner visueller Eindruck pro Zeile.
+function drawScreeningMiniChart(canvasId, symbol, interval){
+  const setup = setupMiniCanvas(canvasId);
+  if(!setup) return;
+  const { ctx, wCSS, hCSS } = setup;
+  const data = ohlcCache[symbol+'::'+interval];
+  if(!data || data.closes.length < 5){
+    ctx.fillStyle = '#8b949e'; ctx.font = '9px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('—', wCSS/2, hCSS/2);
+    return;
+  }
+  const windowN = Math.min(80, data.closes.length);
+  const closes = data.closes.slice(-windowN);
+  let lo = Math.min(...closes), hi = Math.max(...closes);
+  if(hi<=lo) hi = lo+1;
+  const pad = (hi-lo)*0.08 || 1; lo -= pad; hi += pad;
+  const scaleX = i => (windowN<=1 ? 0 : i/(windowN-1)) * wCSS;
+  const scaleY = v => hCSS - (v-lo)/(hi-lo)*hCSS;
+  ctx.strokeStyle = closes[closes.length-1] >= closes[0] ? '#3fb950' : '#f85149';
+  ctx.lineWidth = 1.3;
+  ctx.beginPath();
+  closes.forEach((c,i)=>{ const x=scaleX(i), y=scaleY(c); if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); });
+  ctx.stroke();
+}
+// Klick auf eine sortierbare Kopfzelle: gleiche Spalte nochmal -> Richtung umkehren, sonst neue Spalte,
+// aufsteigend. Delegierter Listener auf dem (stabilen) Wrapper-Element -- überlebt das komplette Neuzeichnen
+// der Tabelle bei jedem renderMarketScreeningResults()-Aufruf, muss also nur EINMAL gebunden werden.
+function handleScreeningHeaderClick(e){
+  const th = e.target.closest('th[data-key]');
+  if(!th) return;
+  const key = th.dataset.key;
+  if(marketScreeningSort.key === key) marketScreeningSort.dir *= -1;
+  else marketScreeningSort = { key, dir: 1 };
+  renderMarketScreeningResults();
+}
+function initScreeningTableSorting(){
+  const wrapEl = document.getElementById('screeningResultsWrap');
+  if(wrapEl) wrapEl.addEventListener('click', handleScreeningHeaderClick);
+  const onlyHitsEl = document.getElementById('screeningOnlyHitsCheckbox');
+  if(onlyHitsEl) onlyHitsEl.addEventListener('change', ()=>{
+    marketScreeningOnlyHits = !!onlyHitsEl.checked;
+    renderMarketScreeningResults();
+  });
 }
 function populateScreeningIntervalUI(){
   const sel = document.getElementById('screeningIntervalSelect');
@@ -6377,6 +6697,7 @@ document.addEventListener('DOMContentLoaded', () => {
   clearMiniCharts();
 
   populateScreeningIntervalUI();
+  initScreeningTableSorting();
   document.getElementById('screeningStartBtn').addEventListener('click', runMarketScreening);
 
   loadAutoTradeState();
