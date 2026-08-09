@@ -1,0 +1,1826 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Signal-Dashboard — Krypto & Aktien (serverlos)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b201a; --bg-grad:#0e2820; --surface:#12332a; --surface-2:#173e32;
+    --border:#254a3c; --text:#eaf4ee; --text-muted:#84a99a;
+    --buy:#39cf8f; --buy-dim:#1c4a38; --sell:#ef6455; --sell-dim:#4a2320;
+    --hold:#e0b256; --hold-dim:#493b1e; --accent:#57e3b0;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:radial-gradient(1200px 800px at 10% -10%, var(--bg-grad), var(--bg) 60%);color:var(--text);font-family:'Inter',sans-serif;min-height:100vh;padding-bottom:80px;}
+  .wrap{max-width:1240px;margin:0 auto;padding:28px 20px 0;}
+  header.top{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px;border-bottom:1px solid var(--border);padding-bottom:20px;margin-bottom:22px;}
+  .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:6px;}
+  h1{font-family:'Space Grotesk',sans-serif;font-size:30px;margin:0;font-weight:600;letter-spacing:-0.01em;}
+  .headerbtns{display:flex;gap:10px;align-items:center;}
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;margin-bottom:22px;}
+  #scanChartPanel{padding:14px 16px;}
+  .addrow{display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
+  .addrow label{font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;}
+  .field{display:flex;flex-direction:column;}
+  select, input[type=text], input[type=password]{background:var(--surface-2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 10px;font-family:'Inter',sans-serif;font-size:14px;min-width:120px;}
+  input[type=text], input[type=password]{min-width:170px;font-family:'IBM Plex Mono',monospace;}
+  button{font-family:'Inter',sans-serif;font-weight:600;font-size:14px;border:none;border-radius:8px;padding:10px 16px;cursor:pointer;background:var(--accent);color:#06231a;transition:transform .08s ease, filter .15s ease;}
+  button:hover{filter:brightness(1.08);}
+  button:active{transform:scale(.97);}
+  button.ghost{background:transparent;border:1px solid var(--border);color:var(--text);}
+  button.small{padding:6px 11px;font-size:12.5px;}
+  .hint{font-size:12px;color:var(--text-muted);margin-top:10px;line-height:1.5;}
+  .hint code{color:var(--accent);}
+  h2.section{font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:600;display:flex;align-items:center;gap:10px;margin:0 0 14px;}
+  .count{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text-muted);border:1px solid var(--border);border-radius:20px;padding:2px 9px;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill, minmax(272px,1fr));gap:13px;margin-bottom:26px;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 14px 13px;position:relative;overflow:hidden;}
+  .card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--label-color, var(--hold));}
+  .card-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;}
+  .sym{font-family:'Space Grotesk',sans-serif;font-size:15.5px;font-weight:600;}
+  .asset-tag{font-family:'IBM Plex Mono',monospace;font-size:8.5px;letter-spacing:.08em;color:var(--text-muted);text-transform:uppercase;}
+  .price-row{display:flex;align-items:baseline;gap:10px;margin-top:2px;}
+  .price{font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:600;}
+  .change{font-family:'IBM Plex Mono',monospace;font-size:11px;}
+  .change.pos{color:var(--buy);} .change.neg{color:var(--sell);}
+  .src-tag{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-muted);margin-top:2px;}
+  .bp-compare{font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--accent);margin-top:4px;}
+  .bp-compare b{color:var(--text);}
+  .src-note{font-size:11.5px;color:var(--hold);margin-top:4px;line-height:1.4;}
+  .chart-wrap{margin:10px 0 6px;}
+  .chart-plot-area{position:relative;}
+  .chart-svg{width:100%;height:120px;display:block;}
+  .chart-label-overlay{position:absolute;inset:0;pointer-events:none;}
+  .chart-label-badge{
+    position:absolute;right:2px;transform:translateY(-50%);
+    background:var(--surface);opacity:0.92;padding:1px 5px;border-radius:3px;
+    font-family:'Inter',sans-serif;font-size:8.5px;font-weight:600;letter-spacing:.01em;
+    white-space:nowrap;line-height:1.4;
+  }
+  .chart-label-badge.crosshair-price{background:var(--surface-2);border:1px solid var(--border);opacity:0;color:var(--text);}
+  .chart-svg.big{height:350px;cursor:grab;}
+  .chart-svg.big:active{cursor:grabbing;}
+  .chart-legend{display:flex;gap:10px;flex-wrap:wrap;font-size:9px;letter-spacing:.01em;color:var(--text-muted);font-family:'Inter',sans-serif;font-weight:500;margin-top:4px;}
+  .chart-hover-info{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--text-muted);min-height:18px;margin-top:6px;padding-top:6px;border-top:1px dashed var(--border);}
+  .chart-hover-info b{color:var(--text);}
+  .chart-zoom-controls{display:flex;justify-content:flex-end;gap:8px;margin-top:6px;}
+  .chart-legend .lg::before{content:"●";margin-right:3px;font-size:8px;}
+  .chart-legend .ema20{color:var(--accent);}
+  .chart-legend .ema50{color:#e0b256;}
+  .chart-legend .sup{color:var(--buy);}
+  .chart-legend .res{color:var(--sell);}
+  select.mini-tf{background:var(--surface-2);border:1px solid var(--border);color:var(--text-muted);border-radius:6px;padding:3px 6px;font-family:'IBM Plex Mono',monospace;font-size:11px;}
+  .ccy{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-muted);border:1px solid var(--border);border-radius:5px;padding:1px 4px;}
+  .company-name{font-size:9.5px;color:var(--text-muted);font-family:'Inter',sans-serif;margin-top:1px;}
+  .tabbar{display:flex;gap:8px;margin-bottom:18px;}
+  .tab-btn{background:transparent;border:1px solid var(--border);color:var(--text-muted);padding:8px 16px;border-radius:9px;font-size:13.5px;}
+  .tab-btn.active{background:var(--surface-2);color:var(--text);border-color:var(--accent);}
+  .scan-table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+  .scan-table th{text-align:left;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;padding:10px 14px;border-bottom:1px solid var(--border);}
+  .scan-table td{padding:10px 14px;border-bottom:1px solid var(--border);font-size:13.5px;}
+  .scan-table tr:last-child td{border-bottom:none;}
+  .scan-table tr.buy{background:linear-gradient(90deg, var(--buy-dim), transparent 40%);}
+  .scan-table tr.clickable-row:hover{background:var(--surface-2);}
+  .scan-table .sym-cell{font-family:'Space Grotesk',sans-serif;font-weight:600;}
+  .scan-table .num{font-family:'IBM Plex Mono',monospace;}
+  .scan-table .tag-badge{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;}
+  .scan-table .tag-badge.buy{background:var(--buy-dim);color:var(--buy);}
+  .scan-table .tag-badge.hold{background:var(--hold-dim);color:var(--hold);}
+  .scan-table .tag-badge.sell{background:var(--sell-dim);color:var(--sell);}
+  .scan-chip{display:inline-flex;align-items:center;gap:6px;background:var(--surface-2);border:1px solid var(--border);border-radius:20px;padding:4px 10px 4px 12px;font-family:'IBM Plex Mono',monospace;font-size:12px;margin:3px 6px 3px 0;}
+  .scan-chip button{background:transparent;border:none;color:var(--text-muted);cursor:pointer;padding:0;font-size:13px;line-height:1;}
+  .scan-chip button:hover{color:var(--sell);}
+
+  /* Marktscreening-Tab: deutlich kompakter als die Watchlist */
+  #screeningView .panel{padding:11px 13px;margin-bottom:14px;}
+  #screeningView h2.section{font-size:13px;margin:0 0 10px;}
+  #screeningView .count{font-size:10px;padding:1px 7px;}
+  #screeningView label{font-size:10px;}
+  #screeningView .hint{font-size:10px;}
+  #screeningView select, #screeningView input[type=text]{font-size:11.5px;padding:6px 8px;min-width:90px;}
+  #screeningView button{font-size:11.5px;padding:6px 11px;}
+  #screeningView button.small{font-size:10.5px;padding:5px 9px;}
+  #screeningView .scan-chip{font-size:10px;padding:3px 8px 3px 10px;margin:2px 4px 2px 0;}
+  #screeningView .scan-table th{font-size:8.5px;padding:6px 9px;}
+  #screeningView .scan-table td{font-size:10.5px;padding:6px 9px;}
+  #screeningView .sym-cell{font-size:11px;}
+  #screeningView .company-name{font-size:8px;}
+  #screeningView .tag-badge{font-size:9.5px;padding:2px 7px;}
+  #screeningView .card-head .sym{font-size:15px;}
+  #screeningView .card-head .asset-tag{font-size:9px;}
+  .remove-btn{background:transparent;border:none;color:var(--text-muted);cursor:pointer;font-size:16px;padding:2px 6px;border-radius:6px;}
+  .remove-btn:hover{background:var(--surface-2);color:var(--text);}
+  .badge{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;padding:3px 8px;border-radius:20px;margin:6px 0 10px;}
+  .badge.buy{background:var(--buy-dim);color:var(--buy);} .badge.hold{background:var(--hold-dim);color:var(--hold);} .badge.sell{background:var(--sell-dim);color:var(--sell);}
+  .gauge-wrap{margin-bottom:14px;}
+  .gauge{position:relative;height:6px;border-radius:5px;background:linear-gradient(90deg, var(--sell) 0%, var(--hold-dim) 48%, var(--hold-dim) 52%, var(--buy) 100%);margin-bottom:5px;}
+  .needle{position:absolute;top:-4px;width:2px;height:16px;background:var(--text);transform:translateX(-1px);border-radius:2px;}
+  .tick{position:absolute;top:2px;width:4px;height:4px;border-radius:50%;background:var(--text-muted);transform:translateX(-2px);}
+  .gauge-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--text-muted);font-family:'IBM Plex Mono',monospace;}
+  .agree{font-size:10.5px;color:var(--text-muted);margin-bottom:10px;} .agree b{color:var(--text);}
+  details.votes summary{cursor:pointer;font-size:10.5px;color:var(--accent);font-family:'IBM Plex Mono',monospace;list-style:none;margin-bottom:6px;}
+  details.votes summary::-webkit-details-marker{display:none;}
+  .vote-row{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-top:1px solid var(--border);font-size:10.5px;}
+  .vote-row .vname{color:var(--text);} .vote-row .vreason{color:var(--text-muted);font-size:9.5px;display:block;margin-top:2px;}
+  .vscore{font-family:'IBM Plex Mono',monospace;font-weight:600;flex:none;} .vscore.pos{color:var(--buy);} .vscore.neg{color:var(--sell);}
+  .levels{display:flex;gap:11px;flex-wrap:wrap;margin:10px 0;font-family:'IBM Plex Mono',monospace;font-size:10px;}
+  .levels div{color:var(--text-muted);} .levels b{color:var(--text);display:block;font-size:11px;}
+  .ai-box{margin-top:12px;border-top:1px dashed var(--border);padding-top:12px;}
+  .ai-btn{background:var(--surface-2);color:var(--accent);border:1px solid var(--border);font-size:12.5px;padding:7px 12px;}
+  .ai-btn[disabled]{opacity:.4;cursor:not-allowed;}
+  .ai-text{font-size:13px;line-height:1.55;color:var(--text);margin-top:10px;white-space:pre-wrap;}
+  .error-text{color:var(--sell);font-size:13px;line-height:1.5;}
+  .loading{color:var(--text-muted);font-size:13px;}
+  footer{max-width:1240px;margin:0 auto;padding:0 20px;color:var(--text-muted);font-size:11.5px;line-height:1.6;}
+  a{color:var(--accent);}
+  .settings-panel{display:none;}
+  .settings-panel.open{display:block;}
+  .settings-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
+  @media (max-width: 900px){ .settings-grid{grid-template-columns:1fr;} }
+  .settings-field label{display:block;font-size:12.5px;color:var(--text-muted);margin-bottom:4px;}
+  .settings-field input{width:100%;}
+  .settings-field .note{font-size:11px;color:var(--text-muted);margin-top:4px;}
+  @media (prefers-reduced-motion: reduce){ *{transition:none!important;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <div class="eyebrow">Läuft komplett im Browser · kein Server, kein Python · kein Autotrading</div>
+      <h1>Signal-Dashboard</h1>
+    </div>
+    <div class="headerbtns">
+      <button class="ghost small" id="settingsToggle">Einstellungen</button>
+      <span class="hint" id="statusText" style="margin:0;"></span>
+    </div>
+  </header>
+
+  <div class="tabbar">
+    <button class="tab-btn active" data-tab="watchlist">Watchlist</button>
+    <button class="tab-btn" data-tab="screening">Marktscreening</button>
+  </div>
+
+  <div class="panel settings-panel" id="settingsPanel">
+    <div class="settings-grid">
+      <div class="settings-field">
+        <label>Alpaca API-Key + Secret (empfohlen für Aktien)</label>
+        <input type="password" id="alpacaKey" placeholder="Alpaca API-Key">
+        <input type="password" id="alpacaSecret" placeholder="Alpaca Secret-Key" style="margin-top:6px;">
+        <div class="note">Echte Echtzeit- + Historien-API für Aktien (kostenloser IEX-Feed, alpaca.markets, kein Geld nötig). Wird nur lokal gespeichert, direkt an data.alpaca.markets gesendet — kein Proxy. Bekannter, ungewisser Punkt: Alpacas Daten-API hatte in der Vergangenheit CORS-Probleme mit eigenen Auth-Headern; falls das bei dir auftritt, siehst du eine klare Fehlermeldung und es fällt automatisch auf die anderen Quellen zurück.</div>
+      </div>
+      <div class="settings-field">
+        <label>Anthropic API-Key (optional)</label>
+        <input type="password" id="anthropicKey" placeholder="sk-ant-...">
+        <div class="note">Für den "KI-Kommentar"-Button. Wird nur in diesem Browser gespeichert (localStorage) und direkt an api.anthropic.com gesendet — nie an Dritte.</div>
+      </div>
+      <div class="settings-field">
+        <label>FMP API-Key (optional)</label>
+        <input type="password" id="fmpKey" placeholder="dein FMP-Key">
+        <div class="note">Fallback, falls Alpaca nicht konfiguriert ist und Stooq/Yahoo bei dir blockiert sind, und für Intraday-Zeitrahmen. Läuft bewusst ohne Proxy. Kostenloser Account (250 Anfragen/Tag, End-of-Day) auf financialmodelingprep.com.</div>
+      </div>
+      <div class="settings-field">
+        <label>Bitpanda API-Key (optional)</label>
+        <input type="password" id="bitpandaKey" placeholder="dein Bitpanda-Key (Scope: Trading)">
+        <div class="note">Blendet deinen echten Bitpanda-Live-Preis zum Abgleich ein. Kann je nach Browser an CORS scheitern — wenn ja, wird es einfach stillschweigend übersprungen.</div>
+      </div>
+    </div>
+    <div style="margin-top:12px;"><button class="small" id="saveSettings">Speichern</button></div>
+  </div>
+
+  <div id="watchlistView">
+  <div class="panel">
+    <div class="addrow">
+      <div class="field">
+        <label>Typ</label>
+        <select id="addType">
+          <option value="crypto">Krypto (Binance-Daten)</option>
+          <option value="stock">Aktie (Stooq/Yahoo-Daten)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Symbol</label>
+        <input type="text" id="addSymbol" placeholder="z. B. BTC-EUR oder ASML" list="symbolHints">
+        <datalist id="symbolHints">
+          <option value="BTC-EUR"></option><option value="ETH-EUR"></option>
+          <option value="SOL-EUR"></option><option value="XRP-EUR"></option>
+          <option value="ASML"></option><option value="ASML.NL"></option>
+          <option value="RIO"></option><option value="AAPL"></option>
+        </datalist>
+      </div>
+      <div class="field">
+        <label>Zeitrahmen</label>
+        <select id="addInterval">
+          <option value="1h">1 Stunde</option>
+          <option value="4h">4 Stunden</option>
+          <option value="12h">12 Stunden</option>
+          <option value="1d" selected>1 Tag</option>
+          <option value="1w">1 Woche</option>
+          <option value="1mo">1 Monat</option>
+        </select>
+      </div>
+      <div class="field" style="justify-content:flex-end;"><button id="addBtn">+ Zur Watchlist</button></div>
+      <div class="field" style="justify-content:flex-end;"><button class="ghost" id="refreshAllBtn">Alle aktualisieren</button></div>
+    </div>
+    <div class="hint">
+      Krypto (Binance) und Aktien (Stooq/Yahoo, Tages-/Wochen-/Monatskerzen) brauchen standardmäßig keinen Account.
+      <b style="color:var(--text);">Stunden-Zeitrahmen bei Aktien (1h/4h/12h) brauchen einen Alpaca-Key</b> (Einstellungen) —
+      ohne Alpaca zeigt die Karte eine klare Fehlermeldung statt falscher Daten. Europäische Aktien ggf. mit
+      Börsen-Suffix eingeben: <code>ASML.NL</code>, <code>SAP.DE</code>, <code>RIO.UK</code>. Alles läuft nur in
+      deinem Browser — nichts wird irgendwo hochgeladen.
+    </div>
+  </div>
+
+  <h2 class="section">Krypto <span class="count" id="cryptoCount">0</span></h2>
+  <div class="grid" id="cryptoGrid"></div>
+
+  <h2 class="section">Aktien <span class="count" id="stockCount">0</span></h2>
+  <div class="grid" id="stockGrid"></div>
+  </div>
+
+  <div id="screeningView" style="display:none">
+    <div class="panel">
+      <div class="addrow">
+        <div class="field" style="min-width:220px;">
+          <label>Kategorie laden</label>
+          <select id="scanCategorySelect"></select>
+        </div>
+        <div class="field" style="justify-content:flex-end;"><button id="scanCategoryLoadBtn">Liste laden</button></div>
+      </div>
+      <div class="hint">Ersetzt die aktuelle Scan-Liste durch eine vordefinierte Kategorie. Danach frei anpassbar.</div>
+    </div>
+
+    <div class="panel">
+      <div class="addrow">
+        <div class="field">
+          <label>Typ</label>
+          <select id="scanAddType">
+            <option value="crypto">Krypto</option>
+            <option value="stock">Aktie</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Symbol zur Scan-Liste hinzufügen</label>
+          <input type="text" id="scanAddSymbol" placeholder="z. B. NVDA" list="symbolHints">
+        </div>
+        <div class="field" style="justify-content:flex-end;"><button id="scanAddBtn">+ Hinzufügen</button></div>
+        <div class="field" style="justify-content:flex-end;"><button class="ghost small" id="scanResetBtn">Standardliste</button></div>
+      </div>
+      <div class="hint" id="scanListHint" style="margin-top:12px;"></div>
+    </div>
+
+    <div class="panel">
+      <div class="addrow" style="justify-content:space-between;">
+        <div class="addrow" style="gap:10px;">
+          <div class="field">
+            <label>Zeitrahmen für den Scan</label>
+            <select id="scanTimeframe">
+              <option value="1h">1 Stunde</option>
+              <option value="4h">4 Stunden</option>
+              <option value="12h">12 Stunden</option>
+              <option value="1d" selected>1 Tag</option>
+              <option value="1w">1 Woche</option>
+              <option value="1mo">1 Monat</option>
+            </select>
+          </div>
+          <div class="field" style="justify-content:flex-end;"><button id="scanRunBtn">🔍 Markt scannen</button></div>
+        </div>
+        <span class="hint" id="scanStatus" style="margin:0;"></span>
+      </div>
+      <div class="hint">Gilt unabhängig von der Watchlist -- Aktien mit Stunden-Zeitrahmen brauchen einen Alpaca-Key.</div>
+    </div>
+
+    <div class="panel" id="scanChartPanel" style="display:none;">
+      <div class="card-head" style="margin-bottom:4px;">
+        <div><div class="asset-tag" id="scanChartTag"></div><div class="sym" id="scanChartSym"></div></div>
+        <button class="remove-btn" id="scanChartClose" title="Schließen">✕</button>
+      </div>
+      <div class="addrow" style="gap:10px;margin-bottom:6px;">
+        <div class="field">
+          <label>Chart-Zeitrahmen (unabhängig vom Scan)</label>
+          <select id="scanChartTimeframe">
+            <option value="1h">1 Stunde</option>
+            <option value="4h">4 Stunden</option>
+            <option value="12h">12 Stunden</option>
+            <option value="1d">1 Tag</option>
+            <option value="1w">1 Woche</option>
+            <option value="1mo">1 Monat</option>
+          </select>
+        </div>
+        <div class="field" style="justify-content:flex-end;">
+          <button class="ghost small" id="scanChartZoomOut" title="Rauszoomen">−</button>
+          <button class="ghost small" id="scanChartZoomIn" title="Reinzoomen" style="margin-left:6px;">+</button>
+          <button class="ghost small" id="scanChartZoomReset" style="margin-left:6px;">Zoom zurücksetzen</button>
+        </div>
+      </div>
+      <div id="scanChartBody"></div>
+    </div>
+
+    <h2 class="section">Ergebnisse <span class="count" id="scanCount">0</span></h2>
+    <div id="scanResults"></div>
+  </div>
+
+</div>
+
+<footer>
+  Alle Einschätzungen sind automatisiert aus historischen Kursdaten abgeleitet, keine Anlageberatung.
+  Krypto-Daten von Binance, Aktien-Daten von Stooq.com oder Yahoo Finance (ggf. über einen öffentlichen CORS-Proxy geleitet,
+  falls dein Browser die direkte Anfrage blockiert) — beide Quellen sind inoffiziell/Best-Effort und können
+  gelegentlich ausfallen. Vergangene Kursverläufe sind kein verlässlicher Indikator für die Zukunft.
+</footer>
+
+<script>
+// signals.js -- JS-Port der regelbasierten Multi-Strategie-Signal-Engine.
+// Spiegelt signals.py 1:1, damit beide Versionen (mit/ohne lokalen Server)
+// dieselben Ergebnisse liefern.
+
+function emaSeries(values, period) {
+  if (values.length < period) return values.map(() => null);
+  const k = 2 / (period + 1);
+  const out = new Array(period - 1).fill(null);
+  let sma = values.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  out.push(sma);
+  let prev = sma;
+  for (let i = period; i < values.length; i++) {
+    prev = values[i] * k + prev * (1 - k);
+    out.push(prev);
+  }
+  return out;
+}
+
+function smaSeries(values, period) {
+  const out = new Array(values.length).fill(null);
+  for (let i = period - 1; i < values.length; i++) {
+    let sum = 0;
+    for (let j = i - period + 1; j <= i; j++) sum += values[j];
+    out[i] = sum / period;
+  }
+  return out;
+}
+
+function rsiSeries(values, period = 14) {
+  const out = new Array(values.length).fill(null);
+  if (values.length <= period) return out;
+  const gains = [], losses = [];
+  for (let i = 1; i < values.length; i++) {
+    const change = values[i] - values[i - 1];
+    gains.push(Math.max(change, 0));
+    losses.push(Math.max(-change, 0));
+  }
+  let avgGain = gains.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  let avgLoss = losses.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  let rs = avgLoss !== 0 ? avgGain / avgLoss : Infinity;
+  out[period] = avgLoss !== 0 ? 100 - 100 / (1 + rs) : 100;
+  for (let i = period; i < gains.length; i++) {
+    avgGain = (avgGain * (period - 1) + gains[i]) / period;
+    avgLoss = (avgLoss * (period - 1) + losses[i]) / period;
+    rs = avgLoss !== 0 ? avgGain / avgLoss : Infinity;
+    out[i + 1] = avgLoss !== 0 ? 100 - 100 / (1 + rs) : 100;
+  }
+  return out;
+}
+
+function macdSeries(values, fast = 12, slow = 26, signal = 9) {
+  const emaFast = emaSeries(values, fast);
+  const emaSlow = emaSeries(values, slow);
+  const macdLine = emaFast.map((a, i) => (a !== null && emaSlow[i] !== null) ? a - emaSlow[i] : null);
+  const valid = macdLine.filter(m => m !== null);
+  const sigValid = valid.length >= signal ? emaSeries(valid, signal) : [];
+  const signalLine = new Array(macdLine.length).fill(null);
+  const offset = macdLine.length - valid.length;
+  sigValid.forEach((s, i) => { signalLine[offset + i] = s; });
+  const hist = macdLine.map((m, i) => (m !== null && signalLine[i] !== null) ? m - signalLine[i] : null);
+  return { macdLine, signalLine, hist };
+}
+
+function bollingerSeries(values, period = 20, mult = 2.0) {
+  const mid = smaSeries(values, period);
+  const upper = new Array(values.length).fill(null);
+  const lower = new Array(values.length).fill(null);
+  for (let i = period - 1; i < values.length; i++) {
+    const window = values.slice(i - period + 1, i + 1);
+    const m = mid[i];
+    const variance = window.reduce((a, x) => a + (x - m) ** 2, 0) / period;
+    const sd = Math.sqrt(variance);
+    upper[i] = m + mult * sd;
+    lower[i] = m - mult * sd;
+  }
+  return { upper, mid, lower };
+}
+
+function atrSeries(candles, period = 14) {
+  const trs = candles.map((c, i) => {
+    if (i === 0) return c.h - c.l;
+    const prevC = candles[i - 1].c;
+    return Math.max(c.h - c.l, Math.abs(c.h - prevC), Math.abs(c.l - prevC));
+  });
+  const out = new Array(candles.length).fill(null);
+  if (trs.length < period) return out;
+  let avg = trs.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  out[period - 1] = avg;
+  for (let i = period; i < trs.length; i++) {
+    avg = (avg * (period - 1) + trs[i]) / period;
+    out[i] = avg;
+  }
+  return out;
+}
+
+function pivotLevels(candles, lookback = 60, clusterPct = 0.006) {
+  const window = candles.length > lookback ? candles.slice(-lookback) : candles;
+  const highs = [], lows = [];
+  for (let i = 2; i < window.length - 2; i++) {
+    const seg = window.slice(i - 2, i + 3);
+    const c = seg[2];
+    if (c.h === Math.max(...seg.map(x => x.h))) highs.push(c.h);
+    if (c.l === Math.min(...seg.map(x => x.l))) lows.push(c.l);
+  }
+  function cluster(vals) {
+    vals = [...vals].sort((a, b) => a - b);
+    const clusters = [];
+    for (const v of vals) {
+      if (clusters.length && Math.abs(v - clusters[clusters.length - 1].at(-1)) / Math.max(v, 1e-9) < clusterPct) {
+        clusters[clusters.length - 1].push(v);
+      } else {
+        clusters.push([v]);
+      }
+    }
+    return clusters.map(c => c.reduce((a, b) => a + b, 0) / c.length);
+  }
+  return { highs: cluster(highs), lows: cluster(lows) };
+}
+
+function closesOf(candles) { return candles.map(c => c.c); }
+function clamp(x) { return Math.max(-1, Math.min(1, x)); }
+
+function stratTrendEma(candles) {
+  const c = closesOf(candles);
+  const e20 = emaSeries(c, 20), e50 = emaSeries(c, 50), e200 = emaSeries(c, 200);
+  if (e50.at(-1) === null) {
+    return { key: 'trend_ema', name: 'EMA-Trend (20/50/200)', score: 0, weight: 1.2, reason: 'Zu wenig Historie für EMA50/200.' };
+  }
+  const last20 = e20.at(-1), last50 = e50.at(-1), last200 = e200.at(-1), price = c.at(-1);
+  let score = 0; const reasons = [];
+  if (last200 !== null) {
+    if (last20 > last50 && last50 > last200) { score += 0.6; reasons.push('EMA20 > EMA50 > EMA200 (klarer Aufwärtstrend)'); }
+    else if (last20 < last50 && last50 < last200) { score -= 0.6; reasons.push('EMA20 < EMA50 < EMA200 (klarer Abwärtstrend)'); }
+    else reasons.push('EMAs nicht sauber sortiert (Seitwärts-/Übergangsphase)');
+  } else {
+    if (last20 > last50) { score += 0.4; reasons.push('EMA20 über EMA50 (kurzfristig bullisch)'); }
+    else { score -= 0.4; reasons.push('EMA20 unter EMA50 (kurzfristig bärisch)'); }
+  }
+  if (price > last20) { score += 0.2; reasons.push('Preis über EMA20'); }
+  else { score -= 0.2; reasons.push('Preis unter EMA20'); }
+  return { key: 'trend_ema', name: 'EMA-Trend (20/50/200)', score: clamp(score), weight: 1.2, reason: reasons.join('; ') };
+}
+
+function stratRsi(candles) {
+  const c = closesOf(candles);
+  const r = rsiSeries(c, 14);
+  if (r.at(-1) === null) return { key: 'rsi', name: 'RSI (14)', score: 0, weight: 1.0, reason: 'Zu wenig Historie für RSI.' };
+  const val = r.at(-1);
+  let score, txt;
+  if (val >= 75) { score = -0.8; txt = `RSI ${val.toFixed(0)} -- deutlich überkauft`; }
+  else if (val >= 65) { score = -0.4; txt = `RSI ${val.toFixed(0)} -- überkauft`; }
+  else if (val <= 25) { score = 0.8; txt = `RSI ${val.toFixed(0)} -- deutlich überverkauft`; }
+  else if (val <= 35) { score = 0.4; txt = `RSI ${val.toFixed(0)} -- überverkauft`; }
+  else { score = (val - 50) / 50 * 0.15; txt = `RSI ${val.toFixed(0)} -- neutraler Bereich`; }
+  return { key: 'rsi', name: 'RSI (14)', score, weight: 1.0, reason: txt };
+}
+
+function stratMacd(candles) {
+  const c = closesOf(candles);
+  const { macdLine, signalLine, hist } = macdSeries(c);
+  if (hist.at(-1) === null || hist.at(-2) === null) {
+    return { key: 'macd', name: 'MACD (12/26/9)', score: 0, weight: 1.0, reason: 'Zu wenig Historie für MACD.' };
+  }
+  let score = 0; const reasons = [];
+  if (macdLine.at(-1) > signalLine.at(-1)) { score += 0.5; reasons.push('MACD über Signallinie'); }
+  else { score -= 0.5; reasons.push('MACD unter Signallinie'); }
+  if (hist.at(-1) > hist.at(-2)) { score += 0.3; reasons.push('Histogramm steigt (Momentum nimmt zu)'); }
+  else { score -= 0.3; reasons.push('Histogramm fällt (Momentum lässt nach)'); }
+  return { key: 'macd', name: 'MACD (12/26/9)', score: clamp(score), weight: 1.0, reason: reasons.join('; ') };
+}
+
+function stratBollinger(candles) {
+  const c = closesOf(candles);
+  const { upper, mid, lower } = bollingerSeries(c, 20, 2.0);
+  if (upper.at(-1) === null) {
+    return { key: 'bollinger', name: 'Bollinger-Bänder (20,2)', score: 0, weight: 0.8, reason: 'Zu wenig Historie für Bollinger-Bänder.' };
+  }
+  const price = c.at(-1);
+  const bandWidth = (upper.at(-1) - lower.at(-1)) / mid.at(-1);
+  const prevSlice = { u: upper.slice(-11, -1), m: mid.slice(-11, -1), l: lower.slice(-11, -1) };
+  const prevWidths = [];
+  for (let i = 0; i < prevSlice.u.length; i++) {
+    if (prevSlice.u[i] !== null && prevSlice.m[i] !== null && prevSlice.l[i] !== null) {
+      prevWidths.push((prevSlice.u[i] - prevSlice.l[i]) / prevSlice.m[i]);
+    }
+  }
+  const avgPrevWidth = prevWidths.length ? prevWidths.reduce((a, b) => a + b, 0) / prevWidths.length : bandWidth;
+  const squeeze = bandWidth < avgPrevWidth * 0.7;
+  let score, txt;
+  if (price >= upper.at(-1)) { score = -0.6; txt = 'Preis am/über oberem Band -- überdehnt, Rücksetzer wahrscheinlicher'; }
+  else if (price <= lower.at(-1)) { score = 0.6; txt = 'Preis am/unter unterem Band -- überdehnt nach unten, Erholung wahrscheinlicher'; }
+  else {
+    const rel = upper.at(-1) !== mid.at(-1) ? (price - mid.at(-1)) / (upper.at(-1) - mid.at(-1)) : 0;
+    score = -rel * 0.25; txt = 'Preis innerhalb der Bänder, keine Extremlage';
+  }
+  if (squeeze) txt += ' | Bänder eng (Squeeze) -- Ausbruch in beide Richtungen möglich';
+  return { key: 'bollinger', name: 'Bollinger-Bänder (20,2)', score: clamp(score), weight: 0.8, reason: txt };
+}
+
+function stratBreakoutVolume(candles, lookback = 20) {
+  if (candles.length < lookback + 5) {
+    return { key: 'breakout', name: 'Breakout + Volumen', score: 0, weight: 1.3, reason: 'Zu wenig Historie für Breakout-Check.' };
+  }
+  const window = candles.slice(-(lookback + 1), -1);
+  const rangeHigh = Math.max(...window.map(x => x.h));
+  const rangeLow = Math.min(...window.map(x => x.l));
+  const avgVol = window.reduce((a, x) => a + x.v, 0) / window.length;
+  const last = candles.at(-1), prev = candles.at(-2);
+  const volConfirmed = last.v > avgVol * 1.4;
+  let score = 0; const reasons = [];
+  if (last.c > rangeHigh) {
+    if (volConfirmed) { score = 0.9; reasons.push(`Ausbruch über ${lookback}er-Hoch mit erhöhtem Volumen (${(last.v / avgVol).toFixed(1)}x Ø)`); }
+    else { score = 0.35; reasons.push(`Ausbruch über ${lookback}er-Hoch, aber OHNE Volumenbestätigung -- Fakeout-Risiko`); }
+  } else if (last.c < rangeLow) {
+    if (volConfirmed) { score = -0.9; reasons.push(`Ausbruch unter ${lookback}er-Tief mit erhöhtem Volumen (${(last.v / avgVol).toFixed(1)}x Ø)`); }
+    else { score = -0.35; reasons.push(`Ausbruch unter ${lookback}er-Tief, aber OHNE Volumenbestätigung -- Fakeout-Risiko`); }
+  } else {
+    reasons.push(`Preis innerhalb der letzten ${lookback} Kerzen-Range -- kein Ausbruch`);
+  }
+  if (prev.c > rangeHigh && last.c < rangeHigh) { score -= 0.4; reasons.push('Rückfall unter das gebrochene Hoch -- möglicher Fakeout/Bulltrap'); }
+  if (prev.c < rangeLow && last.c > rangeLow) { score += 0.4; reasons.push('Rückkehr über das gebrochene Tief -- möglicher Fakeout/Beartrap'); }
+  return { key: 'breakout', name: 'Breakout + Volumen', score: clamp(score), weight: 1.3, reason: reasons.join('; ') };
+}
+
+function stratSupportResistance(candles) {
+  const { highs, lows } = pivotLevels(candles);
+  const price = candles.at(-1).c;
+  if (!highs.length && !lows.length) {
+    return { key: 'sr', name: 'Support/Resistance-Nähe', score: 0, weight: 0.7, reason: 'Keine klaren Pivot-Level gefunden.' };
+  }
+  const above = highs.filter(h => h > price);
+  const below = lows.filter(l => l < price);
+  const nearestRes = above.length ? Math.min(...above) : null;
+  const nearestSup = below.length ? Math.max(...below) : null;
+  let score = 0; const reasons = [];
+  if (nearestSup !== null) {
+    const distSup = (price - nearestSup) / price;
+    if (distSup < 0.015) { score += 0.5; reasons.push(`Sehr nah an Unterstützung ~${nearestSup.toPrecision(4)}`); }
+  }
+  if (nearestRes !== null) {
+    const distRes = (nearestRes - price) / price;
+    if (distRes < 0.015) { score -= 0.5; reasons.push(`Sehr nah an Widerstand ~${nearestRes.toPrecision(4)}`); }
+  }
+  if (!reasons.length) reasons.push('Kein Level in unmittelbarer Nähe (>1.5% entfernt)');
+  return { key: 'sr', name: 'Support/Resistance-Nähe', score: clamp(score), weight: 0.7, reason: reasons.join('; ') };
+}
+
+const STRATEGIES = [stratTrendEma, stratRsi, stratMacd, stratBollinger, stratBreakoutVolume, stratSupportResistance];
+
+const LABELS = [
+  [0.5, 'Kaufen'], [0.15, 'Akkumulieren'], [-0.15, 'Beobachten / Abwarten'],
+  [-0.5, 'Reduzieren'], [-1.01, 'Verkaufen'],
+];
+function labelForScore(score) {
+  for (const [threshold, label] of LABELS) if (score >= threshold) return label;
+  return 'Verkaufen';
+}
+
+function analyze(candles, symbol, assetType) {
+  if (candles.length < 30) {
+    return { symbol, assetType, error: 'Zu wenig Kerzendaten (mind. ~30 nötig) für eine belastbare Analyse.' };
+  }
+  const votes = STRATEGIES.map(fn => fn(candles));
+  const totalW = votes.reduce((a, v) => a + v.weight, 0);
+  let composite = totalW ? votes.reduce((a, v) => a + v.score * v.weight, 0) / totalW : 0;
+  composite = clamp(composite);
+  const label = labelForScore(composite);
+
+  const price = candles.at(-1).c;
+  const atrVal = atrSeries(candles, 14).at(-1) || price * 0.02;
+  const { highs, lows } = pivotLevels(candles);
+  const below = lows.filter(l => l < price);
+  const above = highs.filter(h => h > price);
+  const nearestSup = below.length ? Math.max(...below) : price - atrVal * 1.5;
+  const nearestRes = above.length ? Math.min(...above) : price + atrVal * 1.5;
+
+  let entryZone = null, stop = null, target = null;
+  if (composite > 0.15) {
+    entryZone = [Math.min(nearestSup, price - atrVal * 0.3), price];
+    stop = nearestSup - atrVal * 0.6;
+    target = nearestRes;
+  } else if (composite < -0.15) {
+    stop = nearestRes + atrVal * 0.6;
+    target = nearestSup;
+  }
+
+  const agreeBuy = votes.filter(v => v.score > 0.15).length;
+  const agreeSell = votes.filter(v => v.score < -0.15).length;
+
+  const lookbackChange = Math.min(24, candles.length - 1);
+  const refPrice = candles[candles.length - 1 - lookbackChange].c;
+  const changePct = refPrice ? (price - refPrice) / refPrice * 100 : 0;
+
+  return {
+    symbol, assetType, price, changePct: round2(changePct), atr: atrVal,
+    compositeScore: round3(composite), label,
+    strategiesAgreeingBuy: agreeBuy, strategiesAgreeingSell: agreeSell, strategiesTotal: votes.length,
+    votes: votes.map(v => ({ key: v.key, name: v.name, score: round3(v.score), weight: v.weight, reason: v.reason })),
+    entryZone: entryZone ? entryZone.map(round6) : null,
+    stopLoss: stop !== null ? round6(stop) : null,
+    target: target !== null ? round6(target) : null,
+    nearestSupport: nearestSup !== null ? round6(nearestSup) : null,
+    nearestResistance: nearestRes !== null ? round6(nearestRes) : null,
+  };
+}
+
+function round2(x) { return Math.round(x * 100) / 100; }
+function round3(x) { return Math.round(x * 1000) / 1000; }
+function round6(x) { return Math.round(x * 1e6) / 1e6; }
+
+
+
+// ============================================================
+// Einstellungen (localStorage, nie an Dritte außer der jeweiligen API)
+// ============================================================
+const SETTINGS_KEY = 'signal_dashboard_settings_v1';
+function loadSettings(){
+  try{ return JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'); }catch(e){ return {}; }
+}
+function saveSettingsToStorage(s){ localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); }
+let settings = loadSettings();
+
+document.getElementById('alpacaKey').value = settings.alpacaKey || '';
+document.getElementById('alpacaSecret').value = settings.alpacaSecret || '';
+document.getElementById('anthropicKey').value = settings.anthropicKey || '';
+document.getElementById('fmpKey').value = settings.fmpKey || '';
+document.getElementById('bitpandaKey').value = settings.bitpandaKey || '';
+
+document.getElementById('settingsToggle').addEventListener('click', () => {
+  document.getElementById('settingsPanel').classList.toggle('open');
+});
+document.getElementById('saveSettings').addEventListener('click', () => {
+  settings = {
+    alpacaKey: document.getElementById('alpacaKey').value.trim(),
+    alpacaSecret: document.getElementById('alpacaSecret').value.trim(),
+    anthropicKey: document.getElementById('anthropicKey').value.trim(),
+    fmpKey: document.getElementById('fmpKey').value.trim(),
+    bitpandaKey: document.getElementById('bitpandaKey').value.trim(),
+  };
+  saveSettingsToStorage(settings);
+  document.getElementById('settingsPanel').classList.remove('open');
+  rerenderAll();
+});
+
+// ============================================================
+// Watchlist (localStorage)
+// ============================================================
+const LS_KEY = 'signal_dashboard_watchlist_v2';
+function loadWatchlist(){
+  try{ const raw = localStorage.getItem(LS_KEY); if(raw) return JSON.parse(raw); }catch(e){}
+  return [
+    {type:'crypto', symbol:'BTC-EUR', interval:'1d'},
+    {type:'crypto', symbol:'ETH-EUR', interval:'1d'},
+    {type:'stock', symbol:'ASML.NL', interval:'1d'},
+    {type:'stock', symbol:'RIO', interval:'1d'},
+  ];
+}
+function saveWatchlist(list){ localStorage.setItem(LS_KEY, JSON.stringify(list)); }
+let watchlist = loadWatchlist();
+
+// ============================================================
+// Datenquellen
+// ============================================================
+const BINANCE_INTERVAL_MAP = {'1h':'1h','4h':'4h','12h':'12h','1d':'1d','1w':'1w','1mo':'1M','15m':'15m','30m':'30m','5m':'5m','1m':'1m'};
+
+async function fetchBinanceKlines(symbol, interval, limit){
+  const [base, quote] = symbol.toUpperCase().replace('_','-').split('-');
+  let pair;
+  if (quote === 'EUR') pair = base + 'EUR';
+  else if (['USD','USDC','USDT'].includes(quote)) pair = base + 'USDT';
+  else pair = base + (quote || 'USDT');
+
+  async function tryPair(p){
+    const url = `https://api.binance.com/api/v3/klines?symbol=${p}&interval=${BINANCE_INTERVAL_MAP[interval]||'1h'}&limit=${limit}`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`Binance HTTP ${r.status}`);
+    const raw = await r.json();
+    if (!Array.isArray(raw)) throw new Error('Unerwartete Binance-Antwort');
+    return raw.map(row => ({ t: row[0], o: +row[1], h: +row[2], l: +row[3], c: +row[4], v: +row[5] }));
+  }
+  try{
+    return await tryPair(pair);
+  }catch(e){
+    if (pair.endsWith('EUR')){
+      try{ return await tryPair(pair.replace(/EUR$/, 'USDT')); }
+      catch(e2){ throw new Error(`Binance nicht erreichbar für ${pair} (${e2.message}). Möglicherweise blockiert dein Netzwerk/Browser die Anfrage.`); }
+    }
+    throw new Error(`Binance nicht erreichbar für ${pair} (${e.message}). Möglicherweise blockiert dein Netzwerk/Browser die Anfrage.`);
+  }
+}
+
+function parseStooqCsv(text, limitN){
+  const lines = text.trim().split('\n');
+  if (!lines.length || !lines[0].includes(',')) throw new Error('Keine gültigen CSV-Daten erhalten.');
+  const header = lines[0].split(',').map(h => h.trim().toLowerCase());
+  const idx = k => header.indexOf(k);
+  const rows = lines.slice(1).filter(l => l.trim());
+  if (!rows.length) throw new Error('Leere Antwort.');
+  const candles = rows.map(line => {
+    const cols = line.split(',');
+    return {
+      t: cols[idx('date')],
+      o: parseFloat(cols[idx('open')]), h: parseFloat(cols[idx('high')]),
+      l: parseFloat(cols[idx('low')]), c: parseFloat(cols[idx('close')]),
+      v: parseFloat(cols[idx('volume')] || '0'),
+    };
+  }).filter(c => !isNaN(c.c));
+  if (!candles.length) throw new Error('Keine verwertbaren Kerzen in der Antwort.');
+  return candles.slice(-limitN);
+}
+
+const ALPACA_TIMEFRAME_MAP = {'1m':'1Min','5m':'5Min','15m':'15Min','30m':'30Min','1h':'1Hour','4h':'4Hour','12h':'12Hour','1d':'1Day','1w':'1Week','1mo':'1Month'};
+const ALPACA_LOOKBACK_DAYS = {'1m':20,'5m':40,'15m':80,'30m':120,'1h':300,'4h':600,'12h':1200,'1d':2500,'1w':6000,'1mo':9000};
+
+async function fetchAlpacaCandles(symbol, interval, limit, key, secret){
+  const timeframe = ALPACA_TIMEFRAME_MAP[interval] || '1Day';
+  const lookbackDays = ALPACA_LOOKBACK_DAYS[interval] || 500;
+  const start = new Date(Date.now() - lookbackDays*24*3600*1000).toISOString().slice(0,10);
+  // sort=desc (neueste zuerst): Alpaca paginiert bei großen Anfragen (next_page_token), das wir
+  // hier bewusst NICHT auflösen -- mit sort=asc bekämen wir dadurch nur die älteste Seite und die
+  // aktuellen Monate würden fehlen. Mit sort=desc ist die eine Seite, die wir bekommen, garantiert
+  // die JÜNGSTE -- danach drehen wir sie für die weitere Verarbeitung wieder chronologisch um.
+  const url = `https://data.alpaca.markets/v2/stocks/${encodeURIComponent(symbol)}/bars` +
+    `?timeframe=${timeframe}&start=${start}&limit=${Math.min(limit*2,10000)}&feed=iex&adjustment=split&sort=desc`;
+  let r;
+  try{
+    r = await fetch(url, { headers: { 'APCA-API-KEY-ID': key, 'APCA-API-SECRET-KEY': secret } });
+  }catch(e){
+    throw new Error(
+      `Alpaca direkt nicht erreichbar (${e.message}). Das kann an einem bekannten CORS-Problem bei ` +
+      `data.alpaca.markets liegen (eigene Auth-Header überleben den Preflight nicht immer) -- kein Fehler ` +
+      `in diesem Tool, sondern eine Alpaca-Eigenheit. Fällt automatisch auf die anderen Quellen zurück.`
+    );
+  }
+  if (r.status === 401 || r.status === 403) throw new Error(`Alpaca-Key ungültig oder ohne Berechtigung (HTTP ${r.status}).`);
+  if (!r.ok) throw new Error(`Alpaca HTTP ${r.status}`);
+  const data = await r.json();
+  const bars = data.bars || [];
+  if (!bars.length) throw new Error(`Keine Alpaca-Daten für '${symbol}' -- US-Ticker korrekt? (z.B. 'ASML' für die Nasdaq-ADR)`);
+  const candles = bars.slice().reverse().map(b => ({ t: b.t, o: b.o, h: b.h, l: b.l, c: b.c, v: b.v }));
+  return candles.slice(-limit);
+}
+
+const CORS_PROXIES = [
+  u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+  u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+];
+
+// Versucht eine URL direkt, dann über die CORS-Proxys der Reihe nach.
+// parseFn bekommt den Response-Body (Text) und muss Kerzen zurückgeben oder werfen.
+async function fetchDirectThenProxied(target, parseFn, limit, errors, label){
+  try{
+    const r = await fetch(target);
+    if (r.ok){ return parseFn(await r.text(), limit); }
+    errors.push(`${label} direkt: HTTP ${r.status}`);
+  }catch(e){ errors.push(`${label} direkt: ${e.message}`); }
+  for (const proxyFn of CORS_PROXIES){
+    try{
+      const r = await fetch(proxyFn(target));
+      if (r.ok){ return { ...parseFn(await r.text(), limit), via: 'CORS-Proxy' }; }
+      errors.push(`${label} Proxy: HTTP ${r.status}`);
+    }catch(e){ errors.push(`${label} Proxy: ${e.message}`); }
+  }
+  return null;
+}
+
+function parseStooqResult(text, limit){
+  return { candles: parseStooqCsv(text, limit), via: 'direkt' };
+}
+
+function parseYahooResult(text, limit){
+  const data = JSON.parse(text);
+  const result = data?.chart?.result?.[0];
+  if (!result) throw new Error(data?.chart?.error?.description || 'Keine Yahoo-Daten in der Antwort.');
+  const ts = result.timestamp || [];
+  const q = result.indicators?.quote?.[0] || {};
+  const candles = ts.map((t, i) => ({
+    t, o: q.open?.[i], h: q.high?.[i], l: q.low?.[i], c: q.close?.[i], v: q.volume?.[i] || 0,
+  })).filter(c => c.c !== null && c.c !== undefined && !isNaN(c.c));
+  if (!candles.length) throw new Error('Yahoo-Antwort enthielt keine verwertbaren Kerzen.');
+  return { candles: candles.slice(-limit), via: 'direkt' };
+}
+
+const STOOQ_INTERVAL_MAP = {'1d':'d', '1w':'w', '1mo':'m'};
+const YAHOO_INTERVAL_MAP = {'1d':'1d', '1w':'1wk', '1mo':'1mo'};
+const YAHOO_RANGE_MAP = {'1d':'10y', '1w':'20y', '1mo':'max'};
+
+async function fetchStockCandlesWithFallback(symbol, limit, interval='1d'){
+  if (!STOOQ_INTERVAL_MAP[interval]){
+    throw new Error(
+      `Zeitrahmen '${interval}' braucht Alpaca -- Stooq/Yahoo liefern kostenlos nur Tages-, Wochen- und ` +
+      `Monatskerzen, kein Intraday. Trag einen Alpaca-Key in den Einstellungen ein, oder wähle 1 Tag/1 Woche/1 Monat.`
+    );
+  }
+  const stooqI = STOOQ_INTERVAL_MAP[interval];
+  const stooqCandidates = symbol.includes('.') ? [symbol] : [symbol, `${symbol}.US`];
+  const errors = [];
+
+  for (const sym of stooqCandidates){
+    const target = `https://stooq.com/q/d/l/?s=${encodeURIComponent(sym)}&i=${stooqI}`;
+    const res = await fetchDirectThenProxied(target, parseStooqResult, limit, errors, `Stooq(${sym})`);
+    if (res) return { ...res, resolvedSymbol: sym, source: 'Stooq' };
+  }
+
+  // Yahoo Finance als zweite Quelle probieren -- eigene Symbol-Konvention
+  // (US meist ohne Suffix, London ".L", Amsterdam ".AS", Xetra ".DE" usw.)
+  const yInterval = YAHOO_INTERVAL_MAP[interval];
+  const yRange = YAHOO_RANGE_MAP[interval];
+  const yahooTarget = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${yRange}&interval=${yInterval}`;
+  const yRes = await fetchDirectThenProxied(yahooTarget, parseYahooResult, limit, errors, `Yahoo(${symbol})`);
+  if (yRes) return { ...yRes, resolvedSymbol: symbol, source: 'Yahoo Finance' };
+
+  throw new Error(
+    `Weder Stooq noch Yahoo Finance erreichbar für '${symbol}' (versucht: ${stooqCandidates.join(', ')} bei Stooq, ` +
+    `'${symbol}' bei Yahoo). Bitpanda selbst liefert nur den aktuellen Preis, keine Kurshistorie -- ` +
+    `deshalb kann ich hier nicht einfach die Quelle wechseln. Bei europäischen Werten ggf. anderes ` +
+    `Symbolformat probieren (Stooq: 'ASML.NL', Yahoo: 'ASML.AS'). Zuverlässigste Lösung: kostenlosen ` +
+    `FMP-Key oder Alpaca in den Einstellungen eintragen. [${errors.slice(0,4).join(' | ')}]`
+  );
+}
+
+const FMP_INTERVAL_MAP = {'1m':'1min','5m':'5min','15m':'15min','30m':'30min','1h':'1hour','4h':'4hour'};
+
+async function fetchFmpCandles(symbol, interval, limit, apiKey){
+  const fmpInterval = FMP_INTERVAL_MAP[interval];
+  const url = fmpInterval
+    ? `https://financialmodelingprep.com/stable/historical-chart/${fmpInterval}?symbol=${encodeURIComponent(symbol)}&apikey=${apiKey}`
+    : `https://financialmodelingprep.com/stable/historical-price-eod-full?symbol=${encodeURIComponent(symbol)}&apikey=${apiKey}`;
+  // Bewusst OHNE CORS-Proxy-Fallback: dein FMP-Key steckt in der URL, und den
+  // wollen wir nicht an einen fremden Proxy-Dienst mitschicken.
+  let r;
+  try{
+    r = await fetch(url);
+  }catch(e){
+    throw new Error(
+      `FMP direkt nicht erreichbar (${e.message}). Falls das an CORS liegt: dein Browser/Netzwerk ` +
+      `blockiert dann vermutlich auch andere direkte API-Aufrufe generell -- die zuverlässigste Lösung ` +
+      `wäre dann die lokale Server-Variante (server.py), die läuft außerhalb des Browsers und hat ` +
+      `dieses Problem grundsätzlich nicht.`
+    );
+  }
+  if (!r.ok) throw new Error(`FMP HTTP ${r.status} -- Key korrekt? Tageslimit (250/Tag im Free-Tier) erreicht?`);
+  const data = await r.json();
+  const rows = Array.isArray(data) ? data : (data.historical || []);
+  if (!rows.length) throw new Error(`Keine FMP-Daten für '${symbol}' -- Symbol korrekt? (FMP-Free-Tier deckt v.a. US-Ticker ab)`);
+  return rows.slice().reverse().slice(-limit).map(row => ({
+    t: row.date, o: +row.open, h: +row.high, l: +row.low, c: +row.close, v: +(row.volume||0),
+  }));
+}
+
+async function fetchBitpandaTicker(symbol, apiKey){
+  if (!apiKey) return null;
+  try{
+    const r = await fetch(`https://developer.bitpanda.com/v1/ticker?symbol=${encodeURIComponent(symbol)}&page_size=5`, {
+      headers: { 'X-Api-Key': apiKey }
+    });
+    if (!r.ok) return null;
+    const data = await r.json();
+    const items = data.data || [];
+    if (!items.length) return null;
+    const exact = items.find(i => (i.symbol||'').toUpperCase() === symbol.toUpperCase()) || items[0];
+    return { price: parseFloat(exact.price), changeDayPct: parseFloat(exact.price_change_day || 0) };
+  }catch(e){ return null; } // still silently degrade -- CORS or network issue, non-critical enhancement
+}
+
+async function fetchAiComment(analysis, apiKey){
+  const votesText = (analysis.votes||[]).map(v =>
+    `- ${v.name} (Gewicht ${v.weight}): Score ${v.score>0?'+':''}${v.score} -- ${v.reason}`
+  ).join('\n');
+  const prompt = `Du bist ein nüchterner, unaufgeregter technischer Analyst. Hier ist eine
+regelbasierte Multi-Strategie-Auswertung für ${analysis.symbol} (${analysis.assetType}):
+
+Aktueller Preis: ${analysis.price}
+Gesamt-Score: ${analysis.compositeScore} (Range -1 bis +1)
+Einstufung: ${analysis.label}
+Zustimmung: ${analysis.strategiesAgreeingBuy} von ${analysis.strategiesTotal} Strategien bullisch, ${analysis.strategiesAgreeingSell} bärisch
+
+Einzelstrategien:
+${votesText}
+
+Nächster Support: ${analysis.nearestSupport}
+Nächster Widerstand: ${analysis.nearestResistance}
+Entry-Zone: ${JSON.stringify(analysis.entryZone)}
+Stop: ${analysis.stopLoss}
+
+Schreibe 3-5 kurze Sätze auf Deutsch: Fasse zusammen, WARUM die Strategien sich einig oder uneinig sind,
+was das größte Risiko an dieser Einschätzung ist, und was ein sinnvoller nächster Schritt wäre.
+Keine Finanzberatung im rechtlichen Sinne, keine Emojis, keine Überschriften, nur Fließtext.`;
+
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 400, messages: [{role:'user', content: prompt}] }),
+  });
+  if (!r.ok){
+    const txt = await r.text().catch(()=> '');
+    throw new Error(`Anthropic API HTTP ${r.status} ${txt.slice(0,150)}`);
+  }
+  const data = await r.json();
+  return (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('').trim();
+}
+
+// ============================================================
+// Rendering (identisch zum Server-Dashboard)
+// ============================================================
+const SYMBOL_NAMES = {
+  // Standard / bigtech / ai-chips
+  NVDA:'NVIDIA Corp', TSM:'Taiwan Semiconductor Mfg', AAPL:'Apple Inc.', MSFT:'Microsoft Corp',
+  GOOGL:'Alphabet Inc. (Google)', AMZN:'Amazon.com Inc.', META:'Meta Platforms Inc.', TSLA:'Tesla Inc.',
+  ASML:'ASML Holding N.V.', AMD:'Advanced Micro Devices', AVGO:'Broadcom Inc.', MU:'Micron Technology',
+  QCOM:'Qualcomm Inc.', ARM:'Arm Holdings', AMAT:'Applied Materials', LRCX:'Lam Research',
+  NFLX:'Netflix Inc.', ORCL:'Oracle Corp', PEP:'PepsiCo Inc.', ADBE:'Adobe Inc.', CSCO:'Cisco Systems',
+  TMUS:'T-Mobile US', INTU:'Intuit Inc.', CMCSA:'Comcast Corp', TXN:'Texas Instruments',
+  // Rohstoffe & Bergbau / Edelmetalle
+  BHP:'BHP Group', FCX:'Freeport-McMoRan', RIO:'Rio Tinto plc', VALE:'Vale S.A.', SCCO:'Southern Copper Corp',
+  NEM:'Newmont Corp', GOLD:'Barrick Gold Corp', AEM:'Agnico Eagle Mines', WPM:'Wheaton Precious Metals',
+  HL:'Hecla Mining Co', PAAS:'Pan American Silver',
+  // Energie
+  XOM:'Exxon Mobil Corp', CVX:'Chevron Corp', SHEL:'Shell plc', COP:'ConocoPhillips', SLB:'SLB (Schlumberger)', SU:'Suncor Energy',
+  // Erneuerbare
+  ENPH:'Enphase Energy', SEDG:'SolarEdge Technologies', FSLR:'First Solar', NEE:'NextEra Energy', RUN:'Sunrun Inc.',
+  // Banken
+  JPM:'JPMorgan Chase & Co.', BAC:'Bank of America', GS:'Goldman Sachs Group', MS:'Morgan Stanley',
+  WFC:'Wells Fargo & Co.', C:'Citigroup Inc.',
+  // Gesundheit
+  JNJ:'Johnson & Johnson', PFE:'Pfizer Inc.', UNH:'UnitedHealth Group', LLY:'Eli Lilly and Co.',
+  NVO:'Novo Nordisk A/S', MRK:'Merck & Co. (US)',
+  // Konsum
+  WMT:'Walmart Inc.', COST:'Costco Wholesale', PG:'Procter & Gamble', KO:'Coca-Cola Co.',
+  MCD:"McDonald's Corp", NKE:'Nike Inc.',
+  // Auto
+  TM:'Toyota Motor Corp', GM:'General Motors', F:'Ford Motor Co.', RIVN:'Rivian Automotive', LCID:'Lucid Group',
+  // Industrie/Rüstung
+  BA:'Boeing Co.', LMT:'Lockheed Martin', RTX:'RTX Corp (Raytheon)', CAT:'Caterpillar Inc.',
+  GE:'GE Aerospace', NOC:'Northrop Grumman',
+  // Reise
+  DAL:'Delta Air Lines', UAL:'United Airlines Holdings', AAL:'American Airlines Group',
+  BKNG:'Booking Holdings', ABNB:'Airbnb Inc.',
+  // Cyber
+  CRWD:'CrowdStrike Holdings', PANW:'Palo Alto Networks', ZS:'Zscaler Inc.', FTNT:'Fortinet Inc.', OKTA:'Okta Inc.',
+  // REITs
+  PLD:'Prologis Inc.', AMT:'American Tower Corp', O:'Realty Income Corp', SPG:'Simon Property Group', EQIX:'Equinix Inc.',
+  // S&P Ergänzungen
+  V:'Visa Inc.', MA:'Mastercard Inc.', HD:'Home Depot Inc.',
+  // Rohstoff-ETFs
+  GLD:'SPDR Gold Shares (Gold-ETF)', SLV:'iShares Silver Trust (Silber-ETF)', CPER:'United States Copper Index Fund (Kupfer-ETF)',
+  USO:'United States Oil Fund (Öl-ETF)', UNG:'United States Natural Gas Fund (Erdgas-ETF)',
+  PPLT:'abrdn Physical Platinum Shares (Platin-ETF)', PALL:'abrdn Physical Palladium Shares (Palladium-ETF)',
+  DBA:'Invesco DB Agriculture Fund (Agrar-ETF)',
+  // DAX
+  'SAP.DE':'SAP SE', 'SIE.DE':'Siemens AG', 'ALV.DE':'Allianz SE', 'DTE.DE':'Deutsche Telekom AG',
+  'MBG.DE':'Mercedes-Benz Group AG', 'BMW.DE':'BMW AG', 'BAS.DE':'BASF SE', 'BAYN.DE':'Bayer AG',
+  'VOW3.DE':'Volkswagen AG (Vz.)', 'MUV2.DE':'Münchener Rück (Munich Re)', 'DBK.DE':'Deutsche Bank AG',
+  'ADS.DE':'Adidas AG', 'DB1.DE':'Deutsche Börse AG', 'RWE.DE':'RWE AG', 'EOAN.DE':'E.ON SE',
+  'IFX.DE':'Infineon Technologies AG', 'MRK.DE':'Merck KGaA (Deutschland)', 'DHL.DE':'DHL Group',
+  'HEN3.DE':'Henkel AG (Vz.)', 'FRE.DE':'Fresenius SE',
+  // Krypto
+  'BTC-EUR':'Bitcoin', 'ETH-EUR':'Ethereum', 'SOL-EUR':'Solana', 'XRP-EUR':'XRP', 'ADA-EUR':'Cardano',
+  'BNB-EUR':'BNB', 'DOT-EUR':'Polkadot', 'LINK-EUR':'Chainlink', 'AVAX-EUR':'Avalanche',
+  'UNI-EUR':'Uniswap', 'AAVE-EUR':'Aave', 'PAXG-EUR':'PAX Gold (tokenisiertes Gold)',
+  'MATIC-EUR':'Polygon', 'ATOM-EUR':'Cosmos', 'NEAR-EUR':'NEAR Protocol', 'FIL-EUR':'Filecoin',
+  'LTC-EUR':'Litecoin', 'BCH-EUR':'Bitcoin Cash', 'ETC-EUR':'Ethereum Classic', 'ALGO-EUR':'Algorand',
+  'INJ-EUR':'Injective',
+  // KI & Halbleiter (Ergänzung)
+  KLAC:'KLA Corp', MRVL:'Marvell Technology', ADI:'Analog Devices', MCHP:'Microchip Technology',
+  ON:'ON Semiconductor', SWKS:'Skyworks Solutions', QRVO:'Qorvo Inc.', TER:'Teradyne Inc.',
+  ENTG:'Entegris Inc.', CDNS:'Cadence Design Systems', SNPS:'Synopsys Inc.', MPWR:'Monolithic Power Systems',
+  GFS:'GlobalFoundries', WOLF:'Wolfspeed Inc.', SITM:'SiTime Corp', CRDO:'Credo Technology',
+  ONTO:'Onto Innovation', UCTT:'Ultra Clean Holdings',
+  // Software & Cloud
+  CRM:'Salesforce Inc.', NOW:'ServiceNow Inc.', WDAY:'Workday Inc.', TEAM:'Atlassian Corp',
+  SNOW:'Snowflake Inc.', DDOG:'Datadog Inc.', NET:'Cloudflare Inc.', MDB:'MongoDB Inc.',
+  HUBS:'HubSpot Inc.', ZM:'Zoom Communications', DOCU:'DocuSign Inc.', ADSK:'Autodesk Inc.',
+  ANSS:'Ansys Inc.', PTC:'PTC Inc.', VEEV:'Veeva Systems',
+  // Big Tech / E-Commerce / Medien / Telekom
+  IBM:'IBM Corp', DASH:'DoorDash Inc.', MELI:'MercadoLibre Inc.', ETSY:'Etsy Inc.', EBAY:'eBay Inc.',
+  CHWY:'Chewy Inc.', W:'Wayfair Inc.', CVNA:'Carvana Co.', BABA:'Alibaba Group', JD:'JD.com Inc.',
+  PDD:'PDD Holdings (Temu)', SE:'Sea Limited', WIX:'Wix.com Ltd.',
+  DIS:'The Walt Disney Company', WBD:'Warner Bros. Discovery', PARA:'Paramount Global',
+  LYV:'Live Nation Entertainment', ROKU:'Roku Inc.', FOXA:'Fox Corp', NWSA:'News Corp',
+  VZ:'Verizon Communications', T:'AT&T Inc.', CHTR:'Charter Communications', LUMN:'Lumen Technologies',
+  VOD:'Vodafone Group', ORAN:'Orange S.A.',
+  // Rohstoffe / Edelmetalle / Uran (Ergänzung)
+  TECK:'Teck Resources', MOS:'The Mosaic Company', CF:'CF Industries', NUE:'Nucor Corp',
+  STLD:'Steel Dynamics', X:'United States Steel', CLF:'Cleveland-Cliffs', AA:'Alcoa Corp', CENX:'Century Aluminum',
+  KGC:'Kinross Gold', AU:'AngloGold Ashanti', FNV:'Franco-Nevada Corp', RGLD:'Royal Gold Inc.',
+  SSRM:'SSR Mining', CDE:'Coeur Mining', BTG:'B2Gold Corp', EGO:'Eldorado Gold',
+  CCJ:'Cameco Corp', UEC:'Uranium Energy Corp', DNN:'Denison Mines', NXE:'NexGen Energy',
+  UUUU:'Energy Fuels Inc.', LEU:'Centrus Energy', SMR:'NuScale Power', BWXT:'BWX Technologies',
+  // Energie / Erneuerbare / Wasserstoff (Ergänzung)
+  EOG:'EOG Resources', OXY:'Occidental Petroleum', MPC:'Marathon Petroleum', VLO:'Valero Energy',
+  PSX:'Phillips 66', HAL:'Halliburton Co.', BKR:'Baker Hughes', WMB:'Williams Companies', KMI:'Kinder Morgan', DVN:'Devon Energy',
+  PLUG:'Plug Power', BE:'Bloom Energy', NOVA:'Sunnova Energy', CSIQ:'Canadian Solar', JKS:'JinkoSolar',
+  ARRY:'Array Technologies', SHLS:'Shoals Technologies', AES:'The AES Corp', ORA:'Ormat Technologies',
+  BLDP:'Ballard Power Systems', FCEL:'FuelCell Energy',
+  // Banken / Versicherungen (Ergänzung)
+  USB:'U.S. Bancorp', PNC:'PNC Financial Services', TFC:'Truist Financial', SCHW:'Charles Schwab Corp',
+  BK:'BNY Mellon', STT:'State Street Corp', AXP:'American Express', COF:'Capital One Financial',
+  DFS:'Discover Financial Services', ALLY:'Ally Financial', RF:'Regions Financial', FITB:'Fifth Third Bancorp',
+  HBAN:'Huntington Bancshares', KEY:'KeyCorp',
+  ALL:'Allstate Corp', TRV:'Travelers Companies', PGR:'Progressive Corp', CB:'Chubb Ltd.',
+  MET:'MetLife Inc.', PRU:'Prudential Financial', AIG:'American International Group', HIG:'The Hartford',
+  CINF:'Cincinnati Financial', WRB:'W. R. Berkley Corp',
+  // Gesundheit / Biotech (Ergänzung)
+  ABBV:'AbbVie Inc.', TMO:'Thermo Fisher Scientific', ABT:'Abbott Laboratories', DHR:'Danaher Corp',
+  BMY:'Bristol Myers Squibb', AMGN:'Amgen Inc.', GILD:'Gilead Sciences', VRTX:'Vertex Pharmaceuticals',
+  REGN:'Regeneron Pharmaceuticals', ISRG:'Intuitive Surgical', ZTS:'Zoetis Inc.', CVS:'CVS Health',
+  CI:'The Cigna Group', HUM:'Humana Inc.', ELV:'Elevance Health', MDT:'Medtronic plc',
+  SYK:'Stryker Corp', BSX:'Boston Scientific', BDX:'Becton Dickinson',
+  MRNA:'Moderna Inc.', BNTX:'BioNTech SE', ILMN:'Illumina Inc.', ALNY:'Alnylam Pharmaceuticals',
+  BMRN:'BioMarin Pharmaceutical', INCY:'Incyte Corp', EXEL:'Exelixis Inc.', SRPT:'Sarepta Therapeutics',
+  IONS:'Ionis Pharmaceuticals', RARE:'Ultragenyx Pharmaceutical', UTHR:'United Therapeutics',
+  // Konsum (Ergänzung)
+  PEP:'PepsiCo Inc.', TGT:'Target Corp', LOW:"Lowe's Companies", SBUX:'Starbucks Corp',
+  CL:'Colgate-Palmolive', KMB:'Kimberly-Clark', EL:'Estée Lauder Companies', MO:'Altria Group',
+  PM:'Philip Morris International', KHC:'Kraft Heinz Co.', GIS:'General Mills', HSY:'The Hershey Company',
+  CLX:'Clorox Co.', CHD:'Church & Dwight',
+  // Automobil (Ergänzung)
+  STLA:'Stellantis N.V.', HMC:'Honda Motor Co.', NIO:'NIO Inc.', XPEV:'XPeng Inc.', LI:'Li Auto Inc.',
+  APTV:'Aptiv PLC', LEA:'Lear Corp', BWA:'BorgWarner Inc.', GT:'Goodyear Tire & Rubber',
+  // Industrie / Bau / Chemie (Ergänzung)
+  GD:'General Dynamics', HII:'Huntington Ingalls Industries', LHX:'L3Harris Technologies', TXT:'Textron Inc.',
+  HON:'Honeywell International', MMM:'3M Company', ITW:'Illinois Tool Works', EMR:'Emerson Electric',
+  ETN:'Eaton Corp', PH:'Parker Hannifin', DOV:'Dover Corp', ROK:'Rockwell Automation', CMI:'Cummins Inc.',
+  VMC:'Vulcan Materials', MLM:'Martin Marietta Materials', EXP:'Eagle Materials', SUM:'Summit Materials',
+  MAS:'Masco Corp', BLD:'TopBuild Corp', PHM:'PulteGroup', LEN:'Lennar Corp', DHI:'D.R. Horton', NVR:'NVR Inc.',
+  DD:'DuPont de Nemours', DOW:'Dow Inc.', LYB:'LyondellBasell Industries', CE:'Celanese Corp',
+  EMN:'Eastman Chemical', ALB:'Albemarle Corp', FMC:'FMC Corp', LIN:'Linde plc', APD:'Air Products and Chemicals', ECL:'Ecolab Inc.',
+  // Reise (Ergänzung)
+  LUV:'Southwest Airlines', ALK:'Alaska Air Group', JBLU:'JetBlue Airways', CCL:'Carnival Corp',
+  RCL:'Royal Caribbean Group', NCLH:'Norwegian Cruise Line', MAR:'Marriott International',
+  HLT:'Hilton Worldwide', H:'Hyatt Hotels Corp', EXPE:'Expedia Group', TRIP:'Tripadvisor Inc.',
+  // Cybersecurity / REITs (Ergänzung)
+  S:'SentinelOne Inc.', CYBR:'CyberArk Software', QLYS:'Qualys Inc.', RPD:'Rapid7 Inc.',
+  TENB:'Tenable Holdings', VRNS:'Varonis Systems',
+  PSA:'Public Storage', WELL:'Welltower Inc.', DLR:'Digital Realty Trust', AVB:'AvalonBay Communities',
+  EQR:'Equity Residential', VTR:'Ventas Inc.', BXP:'BXP Inc.', ARE:'Alexandria Real Estate', EXR:'Extra Space Storage', CCI:'Crown Castle',
+  // Europa (ex-DAX)
+  'MC.PA':'LVMH Moët Hennessy Louis Vuitton', 'OR.PA':"L'Oréal S.A.", 'SAN.PA':'Sanofi S.A.',
+  'AI.PA':'Air Liquide S.A.', 'TTE.PA':'TotalEnergies SE', 'NESN.SW':'Nestlé S.A.',
+  'NOVN.SW':'Novartis AG', 'ROG.SW':'Roche Holding AG', 'ENEL.MI':'Enel S.p.A.', 'ISP.MI':'Intesa Sanpaolo S.p.A.',
+  // Nasdaq/S&P Ergänzung
+  MDLZ:'Mondelez International', ADP:'Automatic Data Processing',
+};
+function fullName(symbol){ return SYMBOL_NAMES[symbol] || null; }
+
+const SUFFIX_CURRENCY = {
+  '.DE':'EUR', '.F':'EUR', '.PA':'EUR', '.AS':'EUR', '.MI':'EUR', '.MC':'EUR', '.BR':'EUR', '.LS':'EUR',
+  '.L':'GBX (Pence)', '.SW':'CHF', '.TO':'CAD', '.AX':'AUD', '.HK':'HKD', '.T':'JPY',
+};
+function guessCurrency(item){
+  if (item.type === 'crypto'){
+    const parts = item.symbol.toUpperCase().split('-');
+    return parts[1] || 'USD';
+  }
+  const dot = item.symbol.lastIndexOf('.');
+  if (dot > -1){
+    const suffix = item.symbol.slice(dot).toUpperCase();
+    if (SUFFIX_CURRENCY[suffix]) return SUFFIX_CURRENCY[suffix];
+  }
+  return 'USD'; // Standardannahme: keine Endung = US-Börse
+}
+
+function cardId(item){ return `${item.type}-${item.symbol}-${item.interval}`.replace(/[^a-zA-Z0-9-]/g,'_'); }
+function labelClass(label){
+  if(label === 'Kaufen' || label === 'Akkumulieren') return 'buy';
+  if(label === 'Verkaufen' || label === 'Reduzieren') return 'sell';
+  return 'hold';
+}
+function labelColorVar(cls){ return cls==='buy'?'var(--buy)':cls==='sell'?'var(--sell)':'var(--hold)'; }
+function fmtNum(n){
+  if(n===null||n===undefined||isNaN(n)) return '–';
+  const abs = Math.abs(n);
+  const digits = abs>=1000?0:abs>=1?2:6;
+  return n.toLocaleString('de-DE',{minimumFractionDigits:0,maximumFractionDigits:digits});
+}
+
+const INTRADAY_INTERVALS = ['1m','5m','15m','30m','1h','4h','12h'];
+function fmtCandleTime(t, interval){
+  let d;
+  if (typeof t === 'number') d = new Date(t > 2e10 ? t : t * 1000); // Sekunden vs. Millisekunden
+  else d = new Date(t); // ISO-String (Alpaca) oder "YYYY-MM-DD" (Stooq)
+  if (isNaN(d.getTime())) return String(t).slice(0,10);
+  return INTRADAY_INTERVALS.includes(interval)
+    ? d.toLocaleString('de-DE', {day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit'})
+    : d.toLocaleDateString('de-DE');
+}
+
+const dataStore = {};
+let lastChartGeometry = null; // von renderChart(big:true) gesetzt, für den Interaktions-Handler (Fadenkreuz/Zoom)
+
+function renderChart(data, opts={}){
+  const { big = false } = opts;
+  const candles = data.candles;
+  if (!candles || candles.length < 5) return '';
+  const width = 600;
+  const volH = big ? 55 : 0;
+  const height = big ? 270 + volH : 140;
+  const padLeft = 4, padTop = 10, padBottom = big ? volH + 22 : 6;
+
+  let yMin = Math.min(...candles.map(c => c.l));
+  let yMax = Math.max(...candles.map(c => c.h));
+  if (big){
+    [data.nearestSupport, data.nearestResistance, data.stopLoss, data.target].forEach(v => {
+      if (v !== null && v !== undefined){ yMin = Math.min(yMin, v); yMax = Math.max(yMax, v); }
+    });
+    if (data.entryZone){ yMin = Math.min(yMin, data.entryZone[0]); yMax = Math.max(yMax, data.entryZone[1]); }
+  }
+  const pad = (yMax - yMin) * 0.08 || Math.abs(yMax) * 0.01 || 1;
+  yMin -= pad; yMax += pad;
+
+  // Erst die Label-Texte sammeln, DANN daraus den nötigen rechten Rand berechnen --
+  // so ist garantiert genug (aber nicht zu viel) Platz reserviert, unabhängig davon
+  // ob die Preise "12,3" oder "56.789,12" lang sind. Verhindert sowohl Überlappung
+  // mit den Kerzen als auch unnötig große Leerflächen.
+  const axisLabels = [];
+  if (big){
+    const steps = 4;
+    for (let s = 0; s <= steps; s++){
+      const val = yMin + pad + (yMax - pad - (yMin + pad)) * (s / steps);
+      axisLabels.push({ value: val, text: fmtNum(val), color: 'var(--text-muted)' });
+    }
+  }
+  const levelLabels = [];
+  if (data.nearestResistance != null) levelLabels.push({ value: data.nearestResistance, text: 'W', color: 'var(--sell)' });
+  if (data.nearestSupport != null) levelLabels.push({ value: data.nearestSupport, text: 'S', color: 'var(--buy)' });
+  if (data.stopLoss) levelLabels.push({ value: data.stopLoss, text: 'Stop', color: 'var(--hold)' });
+  if (big && data.target) levelLabels.push({ value: data.target, text: 'Ziel', color: 'var(--buy)' });
+
+  const allLabelTexts = [...axisLabels, ...levelLabels].map(l => l.text);
+  const maxBadgeW = allLabelTexts.length
+    ? Math.max(...allLabelTexts.map(t => Math.max(26, t.length * 5.6 + 8)))
+    : 0;
+  const padRight = Math.max(big ? 10 : 6, maxBadgeW + 8);
+
+  const plotW = width - padLeft - padRight;
+  const plotH = height - padTop - padBottom;
+
+  const n = candles.length;
+  const xStep = plotW / n;
+  const y = v => padTop + plotH - ((v - yMin) / (yMax - yMin)) * plotH;
+  const x = i => padLeft + i * xStep + xStep / 2;
+  const bodyW = Math.max(1, xStep * (n > 120 ? 0.5 : 0.62));
+
+  const bgParts = [];      // Kerzen, Volumen, EMA, Hilfslinien -- innerhalb des SVG
+  const overlayLabels = []; // Preis-/Level-Beschriftungen -- als normales HTML-Overlay (nicht verzerrt)
+
+  function queueLabel(yy, text, colorVar){
+    overlayLabels.push({ topPct: (yy / height) * 100, text, color: colorVar });
+  }
+
+  axisLabels.forEach(l => {
+    const yy = y(l.value);
+    bgParts.push(`<line x1="${padLeft}" x2="${width-padRight}" y1="${yy.toFixed(1)}" y2="${yy.toFixed(1)}" stroke="var(--border)" stroke-width="1" opacity="0.4"/>`);
+    queueLabel(yy, l.text, l.color);
+  });
+  if (big && data.entryZone){
+    const y1 = y(data.entryZone[1]), y2 = y(data.entryZone[0]);
+    bgParts.push(`<rect x="${padLeft}" y="${y1.toFixed(1)}" width="${plotW}" height="${(y2-y1).toFixed(1)}" fill="var(--buy)" opacity="0.08"/>`);
+  }
+  levelLabels.forEach(l => {
+    const yy = y(l.value);
+    bgParts.push(`<line x1="${padLeft}" x2="${width-padRight}" y1="${yy.toFixed(1)}" y2="${yy.toFixed(1)}" stroke="${l.color}" stroke-width="1" stroke-dasharray="3,3" opacity="0.75"/>`);
+    queueLabel(yy, l.text, l.color);
+  });
+
+  const closes = candles.map(c => c.c);
+  function emaLine(period, colorVar){
+    const series = emaSeries(closes, period);
+    const pts = series.map((v,i) => v !== null ? `${x(i).toFixed(1)},${y(v).toFixed(1)}` : null).filter(Boolean);
+    if (pts.length > 1) bgParts.push(`<polyline points="${pts.join(' ')}" fill="none" stroke="${colorVar}" stroke-width="1.3" opacity="0.9"/>`);
+  }
+  emaLine(20, 'var(--accent)');
+  emaLine(50, '#e0b256');
+
+  candles.forEach((c,i) => {
+    const xi = x(i);
+    const up = c.c >= c.o;
+    const color = up ? 'var(--buy)' : 'var(--sell)';
+    const yTop = Math.min(y(c.o), y(c.c));
+    const bodyH = Math.max(1, Math.abs(y(c.c) - y(c.o)));
+    bgParts.push(`<line x1="${xi.toFixed(1)}" x2="${xi.toFixed(1)}" y1="${y(c.h).toFixed(1)}" y2="${y(c.l).toFixed(1)}" stroke="${color}" stroke-width="1"/>`);
+    bgParts.push(`<rect x="${(xi-bodyW/2).toFixed(1)}" y="${yTop.toFixed(1)}" width="${bodyW.toFixed(1)}" height="${bodyH.toFixed(1)}" fill="${color}"/>`);
+  });
+
+  if (big && volH > 0){
+    const volTop = height - volH - 4;
+    const maxVol = Math.max(...candles.map(c => c.v || 0)) || 1;
+    bgParts.push(`<line x1="${padLeft}" x2="${width-2}" y1="${volTop.toFixed(1)}" y2="${volTop.toFixed(1)}" stroke="var(--border)" stroke-width="1"/>`);
+    bgParts.push(`<text x="${padLeft}" y="${(volTop-3).toFixed(1)}" font-size="9" fill="var(--text-muted)" font-family="'IBM Plex Mono',monospace">Volumen</text>`);
+    candles.forEach((c,i) => {
+      const xi = x(i);
+      const up = c.c >= c.o;
+      const color = up ? 'var(--buy)' : 'var(--sell)';
+      const h = ((c.v || 0) / maxVol) * (volH - 6);
+      bgParts.push(`<rect x="${(xi-bodyW/2).toFixed(1)}" y="${(height-4-h).toFixed(1)}" width="${bodyW.toFixed(1)}" height="${h.toFixed(1)}" fill="${color}" opacity="0.55"/>`);
+    });
+  }
+
+  if (big){
+    lastChartGeometry = { width, height, padLeft, padRight, padTop, plotH, plotW, xStep, n, yMin, yMax };
+  }
+
+  const overlayHtml = overlayLabels.map(l =>
+    `<div class="chart-label-badge" style="top:${l.topPct.toFixed(2)}%;color:${l.color};">${l.text}</div>`
+  ).join('');
+
+  return `<div class="chart-wrap">
+    <div class="chart-plot-area">
+      <svg viewBox="0 0 ${width} ${height}" class="chart-svg${big?' big':''}" preserveAspectRatio="none" data-n="${n}">${bgParts.join('')}${big ? `
+        <line id="crosshairV" x1="0" y1="${padTop}" x2="0" y2="${padTop+plotH}" stroke="var(--text-muted)" stroke-width="1" stroke-dasharray="2,2" opacity="0" pointer-events="none"/>
+        <line id="crosshairH" x1="${padLeft}" y1="0" x2="${width-padRight}" y2="0" stroke="var(--text-muted)" stroke-width="1" stroke-dasharray="2,2" opacity="0" pointer-events="none"/>
+      ` : ''}</svg>
+      ${big ? `<div class="chart-label-overlay">${overlayHtml}<div class="chart-label-badge crosshair-price" id="crosshairPriceLabel"></div></div>` : ''}
+    </div>
+    <div class="chart-legend"><span class="lg ema20">EMA20</span><span class="lg ema50">EMA50</span>${data.nearestSupport!=null?'<span class="lg sup">S = Support</span>':''}${data.nearestResistance!=null?'<span class="lg res">W = Widerstand</span>':''}${big?'<span style="color:var(--text-muted);">Scrollen = Zoom, Ziehen = Verschieben</span>':''}</div>
+    ${big ? '<div class="chart-hover-info" id="chartHoverInfo"></div>' : ''}
+  </div>`;
+}
+
+
+function renderCard(item, data){
+  const cls = data.error ? 'hold' : labelClass(data.label);
+  const pct = data.error ? 50 : ((data.compositeScore ?? 0) + 1) / 2 * 100;
+  const changeCls = (data.changePct ?? 0) >= 0 ? 'pos' : 'neg';
+
+  const votesHtml = (data.votes||[]).map(v=>{
+    const vcls = v.score>0.05?'pos':v.score<-0.05?'neg':'';
+    return `<div class="vote-row"><div><span class="vname">${v.name}</span><span class="vreason">${v.reason}</span></div><div class="vscore ${vcls}">${v.score>0?'+':''}${v.score.toFixed(2)}</div></div>`;
+  }).join('');
+  const tickHtml = (data.votes||[]).map(v=>`<div class="tick" style="left:${((v.score+1)/2*100)}%"></div>`).join('');
+  const levelsHtml = data.error ? '' : `<div class="levels">
+      <div>Support<b>${fmtNum(data.nearestSupport)}</b></div>
+      <div>Widerstand<b>${fmtNum(data.nearestResistance)}</b></div>
+      ${data.entryZone ? `<div>Entry-Zone<b>${fmtNum(data.entryZone[0])}–${fmtNum(data.entryZone[1])}</b></div>`:''}
+      ${data.stopLoss ? `<div>Stop<b>${fmtNum(data.stopLoss)}</b></div>`:''}
+      ${data.target ? `<div>Ziel<b>${fmtNum(data.target)}</b></div>`:''}
+    </div>`;
+  const bitpandaRow = (data.bitpandaPrice!==undefined && data.bitpandaPrice!==null)
+    ? `<div class="bp-compare">Bitpanda-Preis: <b>${fmtNum(data.bitpandaPrice)}</b> (${data.bitpandaChangeDayPct>0?'+':''}${data.bitpandaChangeDayPct}% heute)</div>` : '';
+  const sourceNote = data.note ? `<div class="src-note">${data.note}</div>` : '';
+
+  const hasAiKey = !!settings.anthropicKey;
+  const body = data.error
+    ? `<div class="error-text">${data.error}</div>`
+    : `
+      <div class="price-row"><span class="price">${fmtNum(data.price)}</span><span class="ccy">${guessCurrency(item)}</span><span class="change ${changeCls}">${data.changePct>0?'+':''}${data.changePct}%</span></div>
+      <div class="src-tag">Quelle: ${data.dataSource||'–'}</div>
+      ${bitpandaRow}
+      ${sourceNote}
+      ${renderChart(data)}
+      <span class="badge ${cls}">${data.label} · Score ${data.compositeScore>0?'+':''}${data.compositeScore}</span>
+      <div class="gauge-wrap"><div class="gauge"><div class="needle" style="left:${pct}%"></div>${tickHtml}</div>
+        <div class="gauge-labels"><span>Verkaufen</span><span>Abwarten</span><span>Kaufen</span></div></div>
+      <div class="agree"><b>${data.strategiesAgreeingBuy}</b> von ${data.strategiesTotal} Strategien bullisch, <b>${data.strategiesAgreeingSell}</b> bärisch</div>
+      ${levelsHtml}
+      <details class="votes"><summary>Strategie-Details anzeigen</summary>${votesHtml}</details>
+      <div class="ai-box">
+        <button class="ai-btn" data-action="ai" data-id="${cardId(item)}" ${hasAiKey?'':'disabled title="Anthropic-Key in den Einstellungen eintragen"'}>KI-Kommentar generieren</button>
+        <div class="ai-text" id="ai-${cardId(item)}"></div>
+      </div>`;
+
+  const TF_OPTIONS = [['1h','1 Std'],['4h','4 Std'],['12h','12 Std'],['1d','1 Tag'],['1w','1 Woche'],['1mo','1 Monat']];
+  const tfSelect = `<select class="mini-tf" data-id="${cardId(item)}">${TF_OPTIONS.map(([v,l])=>`<option value="${v}" ${v===item.interval?'selected':''}>${l}</option>`).join('')}</select>`;
+
+  return `<div class="card" id="card-${cardId(item)}" style="--label-color:${labelColorVar(cls)}">
+    <div class="card-head">
+      <div><div class="asset-tag">${item.type==='crypto'?'Krypto':'Aktie'}</div><div class="sym">${item.symbol}</div>${fullName(item.symbol)?`<div class="company-name">${fullName(item.symbol)}</div>`:''}</div>
+      <button class="remove-btn" data-action="remove" data-id="${cardId(item)}" title="Entfernen">✕</button>
+    </div>
+    <div style="margin-bottom:8px;">${tfSelect}</div>
+    ${body}
+  </div>`;
+}
+
+function rerenderAll(){
+  const cryptoItems = watchlist.filter(i=>i.type==='crypto');
+  const stockItems = watchlist.filter(i=>i.type==='stock');
+  document.getElementById('cryptoCount').textContent = cryptoItems.length;
+  document.getElementById('stockCount').textContent = stockItems.length;
+  document.getElementById('cryptoGrid').innerHTML = cryptoItems.map(item=>{
+    const entry = dataStore[cardId(item)];
+    return entry ? renderCard(item, entry.data) : renderCard(item, {loading:true});
+  }).join('') || '<div class="loading">Noch keine Krypto-Werte auf der Watchlist.</div>';
+  document.getElementById('stockGrid').innerHTML = stockItems.map(item=>{
+    const entry = dataStore[cardId(item)];
+    return entry ? renderCard(item, entry.data) : renderCard(item, {loading:true});
+  }).join('') || '<div class="loading">Noch keine Aktien auf der Watchlist.</div>';
+}
+
+async function getAnalysisFor(item, opts={}){
+  const { includeCandles = true, includeBitpanda = true, candleLimit = 90 } = opts;
+  const fetchLimit = Math.max(250, candleLimit);
+  let result;
+  if (item.type === 'crypto'){
+    const candles = await fetchBinanceKlines(item.symbol, item.interval, fetchLimit);
+    result = analyze(candles, item.symbol, 'crypto');
+    if (includeCandles) result.candles = candles.slice(-candleLimit);
+    result.dataSource = 'Binance (direkt im Browser)';
+    if (includeBitpanda){
+      const base = item.symbol.toUpperCase().split('-')[0];
+      const bp = await fetchBitpandaTicker(base, settings.bitpandaKey);
+      if (bp){ result.bitpandaPrice = bp.price; result.bitpandaChangeDayPct = bp.changeDayPct; }
+    }
+  } else {
+    let candles, source, resolvedSymbol, note;
+
+    if (settings.alpacaKey && settings.alpacaSecret){
+      try{
+        candles = await fetchAlpacaCandles(item.symbol, item.interval, fetchLimit, settings.alpacaKey, settings.alpacaSecret);
+        source = `Alpaca (IEX, ${item.interval})`;
+      }catch(alpacaErr){
+        note = `Alpaca fehlgeschlagen (${alpacaErr.message}) -- weiche auf Ersatzquelle aus.`;
+      }
+    }
+
+    if (!candles && FMP_INTERVAL_MAP[item.interval] && settings.fmpKey){
+      candles = await fetchFmpCandles(item.symbol, item.interval, fetchLimit, settings.fmpKey);
+      source = 'FMP (Intraday)';
+    } else if (!candles) {
+      try{
+        const res = await fetchStockCandlesWithFallback(item.symbol, fetchLimit, item.interval);
+        candles = res.candles; resolvedSymbol = res.resolvedSymbol;
+        source = `${res.source} (${item.interval==='1w'?'Wochenkerzen':item.interval==='1mo'?'Monatskerzen':'Tageskerzen'}${res.via==='CORS-Proxy' ? ', über Proxy' : ''})`;
+      } catch(stooqErr){
+        if (settings.fmpKey && item.interval === '1d'){
+          candles = await fetchFmpCandles(item.symbol, '1d', fetchLimit, settings.fmpKey);
+          source = 'FMP (Fallback nach Stooq-Fehler)';
+        } else {
+          throw stooqErr;
+        }
+      }
+    }
+    result = analyze(candles, item.symbol, 'stock');
+    if (includeCandles) result.candles = candles.slice(-candleLimit);
+    result.dataSource = source;
+    if (note) result.note = note;
+    if (resolvedSymbol && resolvedSymbol !== item.symbol) result.resolvedSymbol = resolvedSymbol;
+    if (includeBitpanda){
+      const bp = await fetchBitpandaTicker(item.symbol, settings.bitpandaKey);
+      if (bp){ result.bitpandaPrice = bp.price; result.bitpandaChangeDayPct = bp.changeDayPct; }
+    }
+  }
+  return result;
+}
+
+async function fetchOne(item){
+  const id = cardId(item);
+  try{
+    dataStore[id] = { item, data: await getAnalysisFor(item) };
+  }catch(e){
+    dataStore[id] = { item, data: { error: e.message } };
+  }
+  rerenderAll();
+}
+
+function refreshAll(){ watchlist.forEach(item => fetchOne(item)); }
+
+document.getElementById('addBtn').addEventListener('click', () => {
+  const type = document.getElementById('addType').value;
+  const symbol = document.getElementById('addSymbol').value.trim().toUpperCase();
+  const interval = document.getElementById('addInterval').value;
+  if(!symbol) return;
+  if(watchlist.some(i=>i.type===type && i.symbol===symbol && i.interval===interval)) return;
+  watchlist.push({type, symbol, interval});
+  saveWatchlist(watchlist);
+  document.getElementById('addSymbol').value='';
+  rerenderAll();
+  fetchOne({type, symbol, interval});
+});
+document.getElementById('refreshAllBtn').addEventListener('click', refreshAll);
+
+document.addEventListener('change', (e) => {
+  const sel = e.target.closest('select.mini-tf');
+  if (!sel) return;
+  const oldId = sel.dataset.id;
+  const idx = watchlist.findIndex(i => cardId(i) === oldId);
+  if (idx === -1) return;
+  watchlist[idx] = { ...watchlist[idx], interval: sel.value };
+  saveWatchlist(watchlist);
+  delete dataStore[oldId];
+  rerenderAll();
+  fetchOne(watchlist[idx]);
+});
+
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-action]');
+  if(!btn) return;
+  const id = btn.dataset.id, action = btn.dataset.action;
+
+  if(action === 'remove'){
+    watchlist = watchlist.filter(i=>cardId(i)!==id);
+    saveWatchlist(watchlist);
+    delete dataStore[id];
+    rerenderAll();
+  }
+  if(action === 'ai'){
+    const entry = Object.values(dataStore).find(d=>cardId(d.item)===id);
+    if(!entry || entry.data.error || !settings.anthropicKey) return;
+    const box = document.getElementById(`ai-${id}`);
+    box.textContent = 'Generiere Kommentar …';
+    try{
+      box.textContent = await fetchAiComment(entry.data, settings.anthropicKey);
+    }catch(err){
+      box.textContent = `Fehler: ${err.message}`;
+    }
+  }
+});
+
+document.getElementById('statusText').textContent = 'Bereit — lädt Watchlist …';
+rerenderAll();
+refreshAll();
+
+// ============================================================
+// Tabs
+// ============================================================
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const tab = btn.dataset.tab;
+    document.getElementById('watchlistView').style.display = tab === 'watchlist' ? '' : 'none';
+    document.getElementById('screeningView').style.display = tab === 'screening' ? '' : 'none';
+  });
+});
+
+// ============================================================
+// Marktscreening
+// ============================================================
+const SCAN_LS_KEY = 'signal_dashboard_screening_v1';
+const DEFAULT_SCAN_LIST = [
+  {type:'crypto', symbol:'BTC-EUR'}, {type:'crypto', symbol:'ETH-EUR'},
+  {type:'crypto', symbol:'SOL-EUR'}, {type:'crypto', symbol:'XRP-EUR'},
+  {type:'crypto', symbol:'ADA-EUR'},
+  {type:'stock', symbol:'NVDA'}, {type:'stock', symbol:'TSM'}, {type:'stock', symbol:'AAPL'},
+  {type:'stock', symbol:'MSFT'}, {type:'stock', symbol:'GOOGL'}, {type:'stock', symbol:'AMZN'},
+  {type:'stock', symbol:'META'}, {type:'stock', symbol:'TSLA'}, {type:'stock', symbol:'ASML'},
+  {type:'stock', symbol:'BHP'}, {type:'stock', symbol:'FCX'}, {type:'stock', symbol:'RIO'},
+  {type:'stock', symbol:'XOM'}, {type:'stock', symbol:'CVX'},
+];
+
+function S(symbols){ return symbols.map(s => ({type:'stock', symbol:s})); }
+function C(symbols){ return symbols.map(s => ({type:'crypto', symbol:s})); }
+
+const CATEGORIES = {
+  standard:      { label: 'Standard-Mix (Start)',            items: DEFAULT_SCAN_LIST },
+  ai_chips:      { label: 'KI & Halbleiter',                 items: S(['NVDA','TSM','AMD','AVGO','ASML','MU','QCOM','ARM','AMAT','LRCX','KLAC','MRVL','ADI','MCHP','ON','SWKS','QRVO','TER','ENTG','CDNS','SNPS','MPWR','GFS','INTC','TXN','WOLF','SITM','CRDO','ONTO','UCTT']) },
+  software:      { label: 'Software & Cloud/SaaS',           items: S(['MSFT','ORCL','CRM','ADBE','NOW','WDAY','TEAM','SNOW','DDOG','NET','MDB','HUBS','ZM','DOCU','ADSK','ANSS','PTC','VEEV','INTU','SAP.DE']) },
+  bigtech:       { label: 'Big Tech',                         items: S(['AAPL','MSFT','GOOGL','AMZN','META','NFLX','ORCL','IBM','SHOP','UBER','ABNB','SPOT','PYPL','SNAP','PINS','DASH']) },
+  ecommerce:     { label: 'E-Commerce & Internet',            items: S(['AMZN','SHOP','MELI','ETSY','EBAY','CHWY','W','CVNA','BABA','JD','PDD','SE','WIX']) },
+  medien:        { label: 'Medien & Streaming',               items: S(['NFLX','DIS','WBD','PARA','CMCSA','LYV','ROKU','SPOT','FOXA','NWSA']) },
+  telekom:       { label: 'Telekommunikation',                items: S(['TMUS','VZ','T','CMCSA','CHTR','LUMN','VOD','ORAN','DTE.DE']) },
+  rohstoffe:     { label: 'Rohstoffe & Bergbau',              items: S(['BHP','RIO','FCX','VALE','SCCO','NEM','TECK','MOS','CF','NUE','STLD','X','CLF','AA','CENX']) },
+  edelmetalle:   { label: 'Gold- & Edelmetall-Minen',         items: S(['NEM','GOLD','AEM','WPM','HL','PAAS','KGC','AU','FNV','RGLD','SSRM','CDE','BTG','EGO']) },
+  uran:          { label: 'Uran & Kernenergie',               items: S(['CCJ','UEC','DNN','NXE','UUUU','LEU','SMR','BWXT']) },
+  energie:       { label: 'Energie (Öl & Gas)',               items: S(['XOM','CVX','SHEL','COP','SLB','SU','EOG','OXY','MPC','VLO','PSX','HAL','BKR','WMB','KMI','DVN']) },
+  erneuerbare:   { label: 'Solar & Erneuerbare Energien',     items: S(['ENPH','SEDG','FSLR','NEE','RUN','PLUG','BE','NOVA','CSIQ','JKS','ARRY','SHLS','AES','ORA']) },
+  wasserstoff:   { label: 'Wasserstoff',                      items: S(['PLUG','BE','BLDP','FCEL']) },
+  banken:        { label: 'Banken & Finanzen',                items: S(['JPM','BAC','GS','MS','WFC','C','USB','PNC','TFC','SCHW','BK','STT','AXP','COF','DFS','ALLY','RF','FITB','HBAN','KEY']) },
+  versicherung:  { label: 'Versicherungen',                   items: S(['ALL','TRV','PGR','CB','MET','PRU','AIG','HIG','CINF','WRB']) },
+  gesundheit:    { label: 'Gesundheit & Pharma',              items: S(['JNJ','PFE','UNH','LLY','NVO','MRK','ABBV','TMO','ABT','DHR','BMY','AMGN','GILD','VRTX','REGN','ISRG','ZTS','CVS','CI','HUM','ELV','MDT','SYK','BSX','BDX']) },
+  biotech:       { label: 'Biotech',                          items: S(['VRTX','REGN','MRNA','BNTX','ILMN','ALNY','BMRN','INCY','EXEL','SRPT','IONS','RARE','UTHR','GILD']) },
+  konsum:        { label: 'Konsum & Einzelhandel',            items: S(['WMT','COST','PG','KO','MCD','NKE','PEP','TGT','LOW','SBUX','CL','KMB','EL','MO','PM','KHC','GIS','HSY','CLX','CHD']) },
+  auto:          { label: 'Automobil & E-Mobilität',          items: S(['TSLA','TM','GM','F','RIVN','LCID','STLA','HMC','NIO','XPEV','LI','APTV','LEA','BWA','GT']) },
+  industrie:     { label: 'Rüstung & Industrie',              items: S(['BA','LMT','RTX','CAT','GE','NOC','GD','HII','LHX','TXT','HON','MMM','ITW','EMR','ETN','PH','DOV','ROK','CMI']) },
+  bau:           { label: 'Bau & Baustoffe',                  items: S(['VMC','MLM','EXP','SUM','MAS','BLD','PHM','LEN','DHI','NVR']) },
+  chemie:        { label: 'Chemie',                           items: S(['DD','DOW','LYB','CE','EMN','ALB','FMC','LIN','APD','ECL']) },
+  reise:         { label: 'Fluggesellschaften & Reise',       items: S(['DAL','UAL','AAL','BKNG','ABNB','LUV','ALK','JBLU','CCL','RCL','NCLH','MAR','HLT','H','EXPE','TRIP']) },
+  cyber:         { label: 'Cybersecurity',                    items: S(['CRWD','PANW','ZS','FTNT','OKTA','S','CYBR','QLYS','RPD','TENB','VRNS','NET','DDOG','MDB']) },
+  reits:         { label: 'REITs & Immobilien',               items: S(['PLD','AMT','O','SPG','EQIX','PSA','WELL','DLR','AVB','EQR','VTR','BXP','ARE','EXR','CCI']) },
+  europa:        { label: 'Europa Standardwerte (ex-DAX)',    items: S(['MC.PA','OR.PA','SAN.PA','AI.PA','TTE.PA','NESN.SW','NOVN.SW','ROG.SW','ENEL.MI','ISP.MI']) },
+  krypto_major:  { label: 'Krypto-Majors',                    items: C(['BTC-EUR','ETH-EUR','SOL-EUR','XRP-EUR','BNB-EUR']) },
+  krypto_alt:    { label: 'Krypto Altcoins & DeFi',           items: C(['ADA-EUR','DOT-EUR','LINK-EUR','AVAX-EUR','UNI-EUR','AAVE-EUR','PAXG-EUR','MATIC-EUR','ATOM-EUR','NEAR-EUR','FIL-EUR','LTC-EUR','BCH-EUR','ETC-EUR','ALGO-EUR','INJ-EUR']) },
+  dax20:         { label: 'DAX Top 20 (Deutschland)',         items: S(['SAP.DE','SIE.DE','ALV.DE','DTE.DE','MBG.DE','BMW.DE','BAS.DE','BAYN.DE','VOW3.DE','MUV2.DE','DBK.DE','ADS.DE','DB1.DE','RWE.DE','EOAN.DE','IFX.DE','MRK.DE','DHL.DE','HEN3.DE','FRE.DE']) },
+  nasdaq_top:    { label: 'Nasdaq Top-Werte (USA)',           items: S(['AAPL','MSFT','NVDA','AMZN','GOOGL','META','AVGO','TSLA','COST','NFLX','PEP','ADBE','CSCO','TMUS','AMD','QCOM','INTU','CMCSA','TXN','AMAT','ASML','MU','PANW','ISRG','BKNG','ABNB','MDLZ','ADP','GILD','VRTX']) },
+  sp500_top:     { label: 'S&P 500 Top-Werte (USA, breit)',   items: S(['AAPL','MSFT','NVDA','GOOGL','AMZN','META','LLY','AVGO','TSLA','JPM','WMT','V','UNH','XOM','ORCL','MA','HD','PG','COST','JNJ','ABBV','BAC','KO','CVX','MRK','ADBE','CRM','PEP','NFLX','TMO']) },
+  rohstoff_etf:  { label: 'Edelmetalle & Rohstoffe (ETFs)',   items: S(['GLD','SLV','CPER','USO','UNG','PPLT','PALL','DBA']) },
+};
+
+function populateCategoryDropdown(){
+  const sel = document.getElementById('scanCategorySelect');
+  sel.innerHTML = Object.entries(CATEGORIES).map(([key,c]) => `<option value="${key}">${c.label} (${c.items.length})</option>`).join('');
+}
+populateCategoryDropdown();
+document.getElementById('scanCategoryLoadBtn').addEventListener('click', () => {
+  const key = document.getElementById('scanCategorySelect').value;
+  const cat = CATEGORIES[key];
+  if (!cat) return;
+  scanList = cat.items.slice();
+  saveScanList(scanList);
+  renderScanListChips();
+});
+
+function loadScanList(){
+  try{ const raw = localStorage.getItem(SCAN_LS_KEY); if(raw) return JSON.parse(raw); }catch(e){}
+  return DEFAULT_SCAN_LIST.slice();
+}
+function saveScanList(list){ localStorage.setItem(SCAN_LS_KEY, JSON.stringify(list)); }
+let scanList = loadScanList();
+
+function renderScanListChips(){
+  const el = document.getElementById('scanListHint');
+  el.innerHTML = `<div style="margin-bottom:8px;">Scan-Liste (${scanList.length} Werte):</div>` +
+    scanList.map((it,i) => `<span class="scan-chip">${it.symbol}<button data-scanremove="${i}">✕</button></span>`).join(' ');
+}
+renderScanListChips();
+
+document.getElementById('scanAddBtn').addEventListener('click', () => {
+  const type = document.getElementById('scanAddType').value;
+  const symbol = document.getElementById('scanAddSymbol').value.trim().toUpperCase();
+  if(!symbol) return;
+  if(scanList.some(i => i.type===type && i.symbol===symbol)) return;
+  scanList.push({type, symbol});
+  saveScanList(scanList);
+  document.getElementById('scanAddSymbol').value = '';
+  renderScanListChips();
+});
+document.getElementById('scanResetBtn').addEventListener('click', () => {
+  scanList = DEFAULT_SCAN_LIST.slice();
+  saveScanList(scanList);
+  renderScanListChips();
+});
+document.getElementById('scanListHint').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-scanremove]');
+  if(!btn) return;
+  scanList.splice(parseInt(btn.dataset.scanremove), 1);
+  saveScanList(scanList);
+  renderScanListChips();
+});
+
+function labelRank(label){
+  const order = ['Kaufen','Akkumulieren','Beobachten / Abwarten','Reduzieren','Verkaufen'];
+  const i = order.indexOf(label);
+  return i === -1 ? 99 : i;
+}
+
+let lastScanResults = [];
+
+function renderScanResults(results){
+  lastScanResults = results;
+  document.getElementById('scanCount').textContent = results.length;
+  const sorted = results.slice().sort((a,b) => {
+    const ea = a.data.error ? 1 : 0, eb = b.data.error ? 1 : 0;
+    if (ea !== eb) return ea - eb;
+    if (ea) return 0;
+    return (b.data.compositeScore ?? -99) - (a.data.compositeScore ?? -99);
+  });
+  const buyCount = sorted.filter(r => !r.data.error && labelRank(r.data.label) <= 1).length;
+
+  const rows = sorted.map(r => {
+    const d = r.data;
+    const rid = `${r.item.type}-${r.item.symbol}`.replace(/[^a-zA-Z0-9-]/g,'_');
+    const name = fullName(r.item.symbol);
+    const nameCell = `<td class="sym-cell">${r.item.symbol}${name?`<div class="company-name">${name}</div>`:''}</td>`;
+    if (d.error){
+      return `<tr>${nameCell}<td>${r.item.type==='crypto'?'Krypto':'Aktie'}</td>
+        <td colspan="5" style="color:var(--sell);font-size:12.5px;">${d.error}</td></tr>`;
+    }
+    const cls = labelClass(d.label);
+    const changeCls = (d.changePct ?? 0) >= 0 ? 'pos' : 'neg';
+    const currency = guessCurrency(r.item);
+    return `<tr class="${cls==='buy'?'buy':''} clickable-row" data-scanrow="${rid}" style="cursor:pointer;">
+      ${nameCell}
+      <td>${r.item.type==='crypto'?'Krypto':'Aktie'}</td>
+      <td class="num">${fmtNum(d.price)} <span class="ccy">${currency}</span></td>
+      <td class="num change ${changeCls}">${d.changePct>0?'+':''}${d.changePct}%</td>
+      <td class="num">${d.compositeScore>0?'+':''}${d.compositeScore}</td>
+      <td><span class="tag-badge ${cls}">${d.label}</span></td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('scanResults').innerHTML = `
+    <div class="hint" style="margin-bottom:12px;"><b style="color:var(--buy);">${buyCount}</b> von ${results.length} Werten aktuell im Kauf-/Akkumulieren-Bereich. Zeile anklicken für Chart. Preise in Originalwährung des jeweiligen Handelsplatzes (siehe Spalte).</div>
+    <table class="scan-table">
+      <thead><tr><th>Symbol</th><th>Typ</th><th>Preis</th><th>24-Tage-Δ</th><th>Score</th><th>Einstufung</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+async function runScan(){
+  const btn = document.getElementById('scanRunBtn');
+  const status = document.getElementById('scanStatus');
+  const timeframe = document.getElementById('scanTimeframe').value;
+  btn.disabled = true;
+  document.getElementById('scanChartPanel').style.display = 'none';
+  const results = [];
+  for (let i = 0; i < scanList.length; i++){
+    const itemWithTf = { ...scanList[i], interval: timeframe };
+    status.textContent = `Scanne ${i+1}/${scanList.length}: ${itemWithTf.symbol} …`;
+    try{
+      const data = await getAnalysisFor(itemWithTf, {includeCandles:true, includeBitpanda:false});
+      results.push({item: itemWithTf, data});
+    }catch(e){
+      results.push({item: itemWithTf, data:{error: e.message}});
+    }
+    renderScanResults(results);
+  }
+  status.textContent = `Fertig — ${new Date().toLocaleTimeString('de-DE')}`;
+  btn.disabled = false;
+}
+document.getElementById('scanRunBtn').addEventListener('click', runScan);
+
+// ============================================================
+// Großer Chart im Screening-Tab: Zoom, Pan, eigener Zeitrahmen
+// ============================================================
+let currentChartItem = null;   // {type, symbol}
+let currentChartData = null;   // Analyse-Ergebnis inkl. .candles (volle Historie)
+let chartVisibleRange = null;  // {start, end} Indizes in currentChartData.candles
+
+function zoomChart(factor){
+  if (!currentChartData || !currentChartData.candles) return;
+  const total = currentChartData.candles.length;
+  const rangeSize = chartVisibleRange.end - chartVisibleRange.start;
+  let newSize = Math.round(rangeSize * factor);
+  newSize = Math.max(12, Math.min(total, newSize));
+  const newEnd = total; // beim Zoomen bleibt die aktuellste Kerze immer ganz rechts
+  const newStart = Math.max(0, newEnd - newSize);
+  chartVisibleRange = { start: newStart, end: newEnd };
+  renderBigChart();
+}
+
+function renderBigChart(){
+  if (!currentChartData || !currentChartData.candles){
+    document.getElementById('scanChartBody').innerHTML = '<div class="hint">Keine Kerzendaten verfügbar.</div>';
+    return;
+  }
+  const all = currentChartData.candles;
+  const { start, end } = chartVisibleRange;
+  const visible = all.slice(start, end);
+  const sliceData = { ...currentChartData, candles: visible };
+  document.getElementById('scanChartBody').innerHTML =
+    (renderChart(sliceData, { big: true }) || '<div class="hint">Keine Kerzendaten verfügbar.</div>') +
+    `<div class="chart-zoom-controls"><span class="hint" style="margin:0;">${visible.length} von ${all.length} Kerzen sichtbar</span></div>`;
+  attachChartInteraction();
+}
+
+function attachChartInteraction(){
+  const svg = document.querySelector('#scanChartBody .chart-svg');
+  if (!svg) return;
+  const hoverInfo = document.getElementById('chartHoverInfo');
+
+  svg.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    zoomChart(e.deltaY < 0 ? 0.955 : 1/0.955);
+  }, { passive: false });
+
+  svg.addEventListener('mousedown', (e) => {
+    chartDragState.dragging = true;
+    chartDragState.startX = e.clientX;
+    chartDragState.startRange = { ...chartVisibleRange };
+  });
+
+  svg.addEventListener('mousemove', (e) => {
+    if (chartDragState.dragging || !hoverInfo || !currentChartData || !lastChartGeometry) return;
+    const all = currentChartData.candles;
+    const { start, end } = chartVisibleRange;
+    const visible = all.slice(start, end);
+    const rect = svg.getBoundingClientRect();
+    const g = lastChartGeometry;
+    const relX = (e.clientX - rect.left) / rect.width;
+    const relY = (e.clientY - rect.top) / rect.height;
+
+    // Cursor-Pixel -> viewBox-X -> Kerzen-Index, UNTER Berücksichtigung von padLeft/plotW.
+    // (Vorher fehlte diese Umrechnung -- dadurch lag das Fadenkreuz spürbar links vom Cursor.)
+    const viewBoxX = relX * g.width;
+    const idxFloat = (viewBoxX - g.padLeft) / g.plotW * visible.length;
+    const idx = Math.max(0, Math.min(visible.length - 1, Math.floor(idxFloat)));
+
+    const c = visible[idx];
+    if (!c) return;
+    const dateStr = fmtCandleTime(c.t, currentChartItem && currentChartItem.interval);
+    hoverInfo.innerHTML = `${dateStr} &nbsp; O <b>${fmtNum(c.o)}</b> &nbsp; H <b>${fmtNum(c.h)}</b> &nbsp; L <b>${fmtNum(c.l)}</b> &nbsp; C <b>${fmtNum(c.c)}</b> &nbsp; Vol <b>${fmtNum(c.v)}</b>`;
+
+    // Fadenkreuz: vertikale Linie rastet auf die Kerze ein, horizontale folgt frei der Maus
+    const xStepVisible = g.plotW / visible.length;
+    const xPos = g.padLeft + idx * xStepVisible + xStepVisible / 2;
+    const yPos = relY * g.height;
+    const priceAtCursor = g.yMax - (yPos - g.padTop) / g.plotH * (g.yMax - g.yMin);
+
+    const vLine = svg.querySelector('#crosshairV');
+    const hLine = svg.querySelector('#crosshairH');
+    const priceLabel = document.getElementById('crosshairPriceLabel');
+    if (vLine){ vLine.setAttribute('x1', xPos.toFixed(1)); vLine.setAttribute('x2', xPos.toFixed(1)); vLine.setAttribute('opacity', '0.8'); }
+    if (yPos >= g.padTop && yPos <= g.padTop + g.plotH){
+      if (hLine){ hLine.setAttribute('y1', yPos.toFixed(1)); hLine.setAttribute('y2', yPos.toFixed(1)); hLine.setAttribute('opacity', '0.8'); }
+      if (priceLabel){
+        priceLabel.style.top = ((yPos / g.height) * 100).toFixed(2) + '%';
+        priceLabel.textContent = fmtNum(priceAtCursor);
+        priceLabel.style.opacity = '1';
+      }
+    } else {
+      if (hLine) hLine.setAttribute('opacity', '0');
+      if (priceLabel) priceLabel.style.opacity = '0';
+    }
+  });
+
+  svg.addEventListener('mouseleave', () => {
+    if (hoverInfo) hoverInfo.innerHTML = '';
+    ['crosshairV','crosshairH'].forEach(id => {
+      const el = svg.querySelector('#'+id);
+      if (el) el.setAttribute('opacity', '0');
+    });
+    const priceLabel = document.getElementById('crosshairPriceLabel');
+    if (priceLabel) priceLabel.style.opacity = '0';
+  });
+}
+
+// Drag-Zustand + globale Maus-Listener EINMAL registrieren (nicht bei jedem Render neu,
+// sonst häufen sich Listener an -- die SVG selbst wird pro Render neu erzeugt, das Fenster nicht).
+const chartDragState = { dragging: false, startX: 0, startRange: null };
+window.addEventListener('mousemove', (e) => {
+  if (!chartDragState.dragging || !currentChartData) return;
+  const svg = document.querySelector('#scanChartBody .chart-svg');
+  if (!svg) return;
+  const all = currentChartData.candles;
+  const total = all.length;
+  const rangeSize = chartDragState.startRange.end - chartDragState.startRange.start;
+  const rect = svg.getBoundingClientRect();
+  const dxPixels = e.clientX - chartDragState.startX;
+  const candlesPerPixel = rangeSize / rect.width;
+  const shift = Math.round(-dxPixels * candlesPerPixel);
+  let newStart = chartDragState.startRange.start + shift;
+  let newEnd = chartDragState.startRange.end + shift;
+  if (newStart < 0){ newStart = 0; newEnd = rangeSize; }
+  if (newEnd > total){ newEnd = total; newStart = total - rangeSize; }
+  chartVisibleRange = { start: newStart, end: newEnd };
+  renderBigChart();
+});
+window.addEventListener('mouseup', () => { chartDragState.dragging = false; });
+
+async function showBigChart(item, interval){
+  currentChartItem = { type: item.type, symbol: item.symbol, interval };
+  document.getElementById('scanChartTag').textContent = `${item.type==='crypto'?'Krypto':'Aktie'} · ${interval}`;
+  document.getElementById('scanChartSym').textContent = `${item.symbol}${fullName(item.symbol)?' — '+fullName(item.symbol):''}`;
+  document.getElementById('scanChartTimeframe').value = interval;
+
+  // Beim Öffnen/Timeframe-Wechsel immer tief nachladen (viel mehr als die 90 Kerzen aus dem Scan),
+  // damit beim Rauszoomen echte Historie da ist statt nach ein paar Klicks am Rand anzustoßen.
+  document.getElementById('scanChartBody').innerHTML = '<div class="hint">Lädt Chart-Historie …</div>';
+  try{
+    currentChartData = await getAnalysisFor(
+      { type: item.type, symbol: item.symbol, interval },
+      { includeCandles: true, includeBitpanda: false, candleLimit: 1000 }
+    );
+  }catch(e){
+    document.getElementById('scanChartBody').innerHTML = `<div class="error-text">${e.message}</div>`;
+    return;
+  }
+  if (currentChartData.error){
+    document.getElementById('scanChartBody').innerHTML = `<div class="error-text">${currentChartData.error}</div>`;
+    return;
+  }
+  chartVisibleRange = { start: 0, end: (currentChartData.candles || []).length };
+  renderBigChart();
+}
+
+document.getElementById('scanChartTimeframe').addEventListener('change', (e) => {
+  if (!currentChartItem) return;
+  showBigChart(currentChartItem, e.target.value);
+});
+document.getElementById('scanChartZoomReset').addEventListener('click', () => {
+  if (!currentChartData || !currentChartData.candles) return;
+  chartVisibleRange = { start: 0, end: currentChartData.candles.length };
+  renderBigChart();
+});
+document.getElementById('scanChartZoomIn').addEventListener('click', () => zoomChart(0.8));
+document.getElementById('scanChartZoomOut').addEventListener('click', () => zoomChart(1.25));
+
+document.getElementById('scanResults').addEventListener('click', (e) => {
+  const row = e.target.closest('tr[data-scanrow]');
+  if (!row) return;
+  const rid = row.dataset.scanrow;
+  const entry = lastScanResults.find(r => `${r.item.type}-${r.item.symbol}`.replace(/[^a-zA-Z0-9-]/g,'_') === rid);
+  if (!entry || entry.data.error) return;
+  document.getElementById('scanChartPanel').style.display = '';
+  showBigChart(entry.item, entry.item.interval);
+  document.getElementById('scanChartPanel').scrollIntoView({behavior:'smooth', block:'nearest'});
+});
+document.getElementById('scanChartClose').addEventListener('click', () => {
+  document.getElementById('scanChartPanel').style.display = 'none';
+});
+
+</script>
+</body>
+</html>
