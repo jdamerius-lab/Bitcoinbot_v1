@@ -93,6 +93,15 @@
   .scan-chip{display:inline-flex;align-items:center;gap:6px;background:var(--surface-2);border:1px solid var(--border);border-radius:20px;padding:4px 10px 4px 12px;font-family:'IBM Plex Mono',monospace;font-size:12px;margin:3px 6px 3px 0;}
   .scan-chip button{background:transparent;border:none;color:var(--text-muted);cursor:pointer;padding:0;font-size:13px;line-height:1;}
   .scan-chip button:hover{color:var(--sell);}
+  .scan-chip-name{color:var(--text-muted);font-size:0.85em;margin-left:2px;}
+  .most-active-chip{display:inline-flex;align-items:baseline;gap:6px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:5px 10px;margin:3px 5px 3px 0;font-family:'IBM Plex Mono',monospace;font-size:11.5px;cursor:pointer;}
+  .most-active-chip:hover{border-color:var(--accent);}
+  .most-active-chip .rank{color:var(--text-muted);font-size:10px;}
+  .most-active-chip .vol{color:var(--accent);}
+  .mover-chip{display:inline-flex;align-items:baseline;gap:6px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:5px 10px;margin:3px 5px 3px 0;font-family:'IBM Plex Mono',monospace;font-size:11.5px;cursor:pointer;}
+  .mover-chip:hover{border-color:var(--accent);}
+  .mover-chip.gain .pct{color:var(--buy);}
+  .mover-chip.loss .pct{color:var(--sell);}
 
   /* Marktscreening-Tab: deutlich kompakter als die Watchlist */
   #screeningView .panel{padding:11px 13px;margin-bottom:14px;}
@@ -245,6 +254,71 @@
   <div id="screeningView" style="display:none">
     <div class="panel">
       <div class="addrow">
+        <div class="field">
+          <label>Alpaca Top-Volumen (heute, kein natives Wochen-Aggregat)</label>
+          <select id="mostActiveCount">
+            <option value="10">Top 10</option>
+            <option value="20">Top 20</option>
+            <option value="30" selected>Top 30</option>
+            <option value="50">Top 50</option>
+            <option value="100">Top 100</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Sortiert nach</label>
+          <select id="mostActiveBy">
+            <option value="volume" selected>Handelsvolumen</option>
+            <option value="trades">Anzahl Trades</option>
+          </select>
+        </div>
+        <div class="field" style="justify-content:flex-end;"><button id="mostActiveLoadBtn">Top-Volumen laden</button></div>
+        <div class="field" style="justify-content:flex-end;"><button class="ghost small" id="mostActiveAddAllBtn" style="display:none;">Alle zur Scan-Liste hinzufügen</button></div>
+      </div>
+      <div class="hint" id="mostActiveStatus"></div>
+      <div id="mostActiveResults"></div>
+    </div>
+
+    <div class="panel">
+      <div class="addrow">
+        <div class="field">
+          <label>Markt</label>
+          <select id="moversMarket">
+            <option value="stocks" selected>Aktien</option>
+            <option value="crypto">Krypto</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Anzahl je Seite</label>
+          <select id="moversCount">
+            <option value="10" selected>Top 10</option>
+            <option value="20">Top 20</option>
+            <option value="30">Top 30</option>
+            <option value="50">Top 50</option>
+          </select>
+        </div>
+        <div class="field" style="justify-content:flex-end;"><button id="moversLoadBtn">Gewinner &amp; Verlierer laden</button></div>
+      </div>
+      <div class="hint" id="moversStatus"></div>
+      <div style="display:flex;gap:20px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:220px;">
+          <div class="hint" style="margin-bottom:6px;color:var(--buy);display:flex;justify-content:space-between;align-items:center;">
+            <span>Gewinner</span>
+            <button class="ghost small" id="moversAddGainersBtn" style="display:none;">Zur Scanliste hinzufügen</button>
+          </div>
+          <div id="moversGainers"></div>
+        </div>
+        <div style="flex:1;min-width:220px;">
+          <div class="hint" style="margin-bottom:6px;color:var(--sell);display:flex;justify-content:space-between;align-items:center;">
+            <span>Verlierer</span>
+            <button class="ghost small" id="moversAddLosersBtn" style="display:none;">Zur Scanliste hinzufügen</button>
+          </div>
+          <div id="moversLosers"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="addrow">
         <div class="field" style="min-width:220px;">
           <label>Kategorie laden</label>
           <select id="scanCategorySelect"></select>
@@ -269,6 +343,7 @@
         </div>
         <div class="field" style="justify-content:flex-end;"><button id="scanAddBtn">+ Hinzufügen</button></div>
         <div class="field" style="justify-content:flex-end;"><button class="ghost small" id="scanResetBtn">Standardliste</button></div>
+        <div class="field" style="justify-content:flex-end;"><button class="ghost small" id="scanClearBtn">Liste leeren</button></div>
       </div>
       <div class="hint" id="scanListHint" style="margin-top:12px;"></div>
     </div>
@@ -775,6 +850,54 @@ async function fetchAlpacaCandles(symbol, interval, limit, key, secret){
   if (!bars.length) throw new Error(`Keine Alpaca-Daten für '${symbol}' -- US-Ticker korrekt? (z.B. 'ASML' für die Nasdaq-ADR)`);
   const candles = bars.slice().reverse().map(b => ({ t: b.t, o: b.o, h: b.h, l: b.l, c: b.c, v: b.v }));
   return candles.slice(-limit);
+}
+
+async function fetchAlpacaMostActive(topN, by, key, secret){
+  const url = `https://data.alpaca.markets/v1beta1/screener/stocks/most-actives?top=${Math.min(100, Math.max(1, topN))}&by=${by}`;
+  let r;
+  try{
+    r = await fetch(url, { headers: { 'APCA-API-KEY-ID': key, 'APCA-API-SECRET-KEY': secret } });
+  }catch(e){
+    throw new Error(`Alpaca-Screener direkt nicht erreichbar (${e.message}) -- vermutlich dasselbe CORS-Thema wie bei den Kursdaten.`);
+  }
+  if (r.status === 401 || r.status === 403){
+    throw new Error(`Alpaca-Screener HTTP ${r.status} -- dieser Endpunkt braucht laut Doku "Echtzeit-SIP-Daten", das ist normalerweise ein kostenpflichtiges Alpaca-Feature. Dein kostenloser Account hat vermutlich keinen Zugriff darauf.`);
+  }
+  if (!r.ok) throw new Error(`Alpaca-Screener HTTP ${r.status}`);
+  const data = await r.json();
+  const list = data.most_actives || data.mostActives || [];
+  if (!list.length) throw new Error('Alpaca-Screener hat eine leere Liste zurückgegeben.');
+  return list.map(item => ({
+    symbol: item.symbol,
+    volume: item.volume ?? null,
+    tradeCount: item.trade_count ?? item.tradeCount ?? null,
+  }));
+}
+
+async function fetchAlpacaMovers(marketType, topN, key, secret){
+  const url = `https://data.alpaca.markets/v1beta1/screener/${marketType}/movers?top=${Math.min(50, Math.max(1, topN))}`;
+  let r;
+  try{
+    r = await fetch(url, { headers: { 'APCA-API-KEY-ID': key, 'APCA-API-SECRET-KEY': secret } });
+  }catch(e){
+    throw new Error(`Alpaca-Movers direkt nicht erreichbar (${e.message}) -- vermutlich dasselbe CORS-Thema wie bei den Kursdaten.`);
+  }
+  if (r.status === 401 || r.status === 403){
+    throw new Error(`Alpaca-Movers HTTP ${r.status} -- braucht laut Doku "Echtzeit-SIP-Daten" (kostenpflichtiges Feature). Dein kostenloser Account hat vermutlich keinen Zugriff.`);
+  }
+  if (!r.ok) throw new Error(`Alpaca-Movers HTTP ${r.status}`);
+  const data = await r.json();
+  function mapItem(item){
+    return {
+      symbol: item.symbol,
+      price: item.price ?? item.last_price ?? item.close ?? null,
+      changePct: item.percent_change ?? item.percentChange ?? item.change_percent ?? null,
+    };
+  }
+  return {
+    gainers: (data.gainers || []).map(mapItem),
+    losers: (data.losers || []).map(mapItem),
+  };
 }
 
 const CORS_PROXIES = [
@@ -1532,6 +1655,140 @@ document.getElementById('scanCategoryLoadBtn').addEventListener('click', () => {
   renderScanListChips();
 });
 
+// ============================================================
+// Alpaca Top-Volumen-Screener (Tageswert, kein natives Wochen-Aggregat)
+// ============================================================
+let lastMostActive = [];
+
+function renderMostActive(list){
+  lastMostActive = list;
+  document.getElementById('mostActiveResults').innerHTML = list.map((item, i) => {
+    const name = fullName(item.symbol);
+    const volStr = item.volume != null ? fmtNum(item.volume) : (item.tradeCount != null ? fmtNum(item.tradeCount) + ' Trades' : '–');
+    return `<span class="most-active-chip" data-symbol="${item.symbol}" title="${name || item.symbol}">
+      <span class="rank">#${i+1}</span> ${item.symbol}${name?`<span class="scan-chip-name">${name}</span>`:''} <span class="vol">${volStr}</span>
+    </span>`;
+  }).join(' ');
+  document.getElementById('mostActiveAddAllBtn').style.display = list.length ? '' : 'none';
+}
+
+document.getElementById('mostActiveLoadBtn').addEventListener('click', async () => {
+  const status = document.getElementById('mostActiveStatus');
+  if (!settings.alpacaKey || !settings.alpacaSecret){
+    status.textContent = 'Braucht einen Alpaca-Key (Einstellungen) -- dieser Screener kommt nur von Alpaca, es gibt keine kostenlose Alternative dafür.';
+    return;
+  }
+  const topN = parseInt(document.getElementById('mostActiveCount').value);
+  const by = document.getElementById('mostActiveBy').value;
+  status.textContent = 'Lädt …';
+  document.getElementById('mostActiveResults').innerHTML = '';
+  try{
+    const list = await fetchAlpacaMostActive(topN, by, settings.alpacaKey, settings.alpacaSecret);
+    renderMostActive(list);
+    status.textContent = `${list.length} Werte geladen (Stand: heutiger Handelstag). Chip anklicken für Chart.`;
+  }catch(e){
+    status.textContent = e.message;
+  }
+});
+
+document.getElementById('mostActiveResults').addEventListener('click', (e) => {
+  const chip = e.target.closest('.most-active-chip');
+  if (!chip) return;
+  const symbol = chip.dataset.symbol;
+  document.getElementById('scanChartPanel').style.display = '';
+  showBigChart({ type: 'stock', symbol }, '1d');
+  document.getElementById('scanChartPanel').scrollIntoView({behavior:'smooth', block:'nearest'});
+});
+
+document.getElementById('mostActiveAddAllBtn').addEventListener('click', () => {
+  let added = 0;
+  lastMostActive.forEach(item => {
+    if (!scanList.some(i => i.type==='stock' && i.symbol===item.symbol)){
+      scanList.push({ type:'stock', symbol: item.symbol });
+      added++;
+    }
+  });
+  saveScanList(scanList);
+  renderScanListChips();
+  document.getElementById('mostActiveStatus').textContent = `${added} neue Werte zur Scan-Liste hinzugefügt (${lastMostActive.length - added} waren schon drin).`;
+});
+
+// ============================================================
+// Alpaca Gewinner & Verlierer (Top Market Movers)
+// ============================================================
+function renderMoverList(containerId, items, cls){
+  document.getElementById(containerId).innerHTML = items.map((item, i) => {
+    const name = fullName(item.symbol);
+    const pctStr = item.changePct != null ? `${item.changePct > 0 ? '+' : ''}${fmtNum(item.changePct)}%` : '–';
+    const priceStr = item.price != null ? fmtNum(item.price) : '';
+    return `<span class="mover-chip ${cls}" data-symbol="${item.symbol}" data-type="${cls==='gain'||cls==='loss' ? item.assetType : 'stock'}" title="${name || item.symbol}">
+      <span class="rank">#${i+1}</span> ${item.symbol}${name?`<span class="scan-chip-name">${name}</span>`:''} <span class="pct">${pctStr}</span>${priceStr?` <span style="color:var(--text-muted);">${priceStr}</span>`:''}
+    </span>`;
+  }).join(' ') || '<span class="hint" style="margin:0;">Keine Daten.</span>';
+}
+
+let lastGainers = [], lastLosers = [];
+
+function addMoversToScanList(items){
+  let added = 0;
+  items.forEach(item => {
+    if (!scanList.some(i => i.type===item.assetType && i.symbol===item.symbol)){
+      scanList.push({ type: item.assetType, symbol: item.symbol });
+      added++;
+    }
+  });
+  saveScanList(scanList);
+  renderScanListChips();
+  return added;
+}
+document.getElementById('moversAddGainersBtn').addEventListener('click', () => {
+  const added = addMoversToScanList(lastGainers);
+  document.getElementById('moversStatus').textContent = `${added} Gewinner zur Scan-Liste hinzugefügt (${lastGainers.length - added} waren schon drin).`;
+});
+document.getElementById('moversAddLosersBtn').addEventListener('click', () => {
+  const added = addMoversToScanList(lastLosers);
+  document.getElementById('moversStatus').textContent = `${added} Verlierer zur Scan-Liste hinzugefügt (${lastLosers.length - added} waren schon drin).`;
+});
+
+document.getElementById('moversLoadBtn').addEventListener('click', async () => {
+  const status = document.getElementById('moversStatus');
+  if (!settings.alpacaKey || !settings.alpacaSecret){
+    status.textContent = 'Braucht einen Alpaca-Key (Einstellungen) -- auch dieser Screener kommt nur von Alpaca.';
+    return;
+  }
+  const marketType = document.getElementById('moversMarket').value;
+  const topN = parseInt(document.getElementById('moversCount').value);
+  status.textContent = 'Lädt …';
+  document.getElementById('moversGainers').innerHTML = '';
+  document.getElementById('moversLosers').innerHTML = '';
+  document.getElementById('moversAddGainersBtn').style.display = 'none';
+  document.getElementById('moversAddLosersBtn').style.display = 'none';
+  try{
+    const { gainers, losers } = await fetchAlpacaMovers(marketType, topN, settings.alpacaKey, settings.alpacaSecret);
+    gainers.forEach(i => i.assetType = marketType === 'crypto' ? 'crypto' : 'stock');
+    losers.forEach(i => i.assetType = marketType === 'crypto' ? 'crypto' : 'stock');
+    lastGainers = gainers; lastLosers = losers;
+    renderMoverList('moversGainers', gainers, 'gain');
+    renderMoverList('moversLosers', losers, 'loss');
+    document.getElementById('moversAddGainersBtn').style.display = gainers.length ? '' : 'none';
+    document.getElementById('moversAddLosersBtn').style.display = losers.length ? '' : 'none';
+    status.textContent = `${gainers.length} Gewinner, ${losers.length} Verlierer geladen (${marketType === 'crypto' ? 'Krypto, resettet um Mitternacht' : 'Aktien, resettet zum Handelsstart'}). Chip anklicken für Chart.`;
+  }catch(e){
+    status.textContent = e.message;
+  }
+});
+
+
+document.addEventListener('click', (e) => {
+  const chip = e.target.closest('.mover-chip');
+  if (!chip) return;
+  const symbol = chip.dataset.symbol;
+  const type = chip.dataset.type === 'crypto' ? 'crypto' : 'stock';
+  document.getElementById('scanChartPanel').style.display = '';
+  showBigChart({ type, symbol }, '1d');
+  document.getElementById('scanChartPanel').scrollIntoView({behavior:'smooth', block:'nearest'});
+});
+
 function loadScanList(){
   try{ const raw = localStorage.getItem(SCAN_LS_KEY); if(raw) return JSON.parse(raw); }catch(e){}
   return DEFAULT_SCAN_LIST.slice();
@@ -1542,7 +1799,10 @@ let scanList = loadScanList();
 function renderScanListChips(){
   const el = document.getElementById('scanListHint');
   el.innerHTML = `<div style="margin-bottom:8px;">Scan-Liste (${scanList.length} Werte):</div>` +
-    scanList.map((it,i) => `<span class="scan-chip">${it.symbol}<button data-scanremove="${i}">✕</button></span>`).join(' ');
+    scanList.map((it,i) => {
+      const name = fullName(it.symbol);
+      return `<span class="scan-chip">${it.symbol}${name?`<span class="scan-chip-name">${name}</span>`:''}<button data-scanremove="${i}">✕</button></span>`;
+    }).join(' ');
 }
 renderScanListChips();
 
@@ -1558,6 +1818,11 @@ document.getElementById('scanAddBtn').addEventListener('click', () => {
 });
 document.getElementById('scanResetBtn').addEventListener('click', () => {
   scanList = DEFAULT_SCAN_LIST.slice();
+  saveScanList(scanList);
+  renderScanListChips();
+});
+document.getElementById('scanClearBtn').addEventListener('click', () => {
+  scanList = [];
   saveScanList(scanList);
   renderScanListChips();
 });
