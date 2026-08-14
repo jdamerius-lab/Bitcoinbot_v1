@@ -306,6 +306,8 @@
         <div class="toolgroup">
           <button class="secondary" id="toggleEmaBtn">EMAs</button>
           <button class="secondary" id="toggleBollBtn">Bollinger-Bänder</button>
+          <button class="secondary" id="toggleMlSupertrendBtn">ML Adaptive Supertrend</button>
+          <button class="secondary" id="toggleHalfTrendBtn" title="HalfTrend Long/Short Signal Engine (Portierung nach BigBeluga/everget, CC BY-NC-SA 4.0) -- Linie, Kanal, TP/SL-Zonen, Performance- und Multi-Asset-Dashboard">HalfTrend</button>
           <button class="secondary" id="toggleFvgBtn">FVG</button>
           <button class="secondary" id="toggleFibBtn">Fibonacci</button>
           <button class="secondary" id="toggleIchimokuBtn">Ichimoku</button>
@@ -383,7 +385,7 @@
     </div>
     <div class="status" id="trendGaugeStatus" style="margin-top:6px">Lade…</div>
     <div class="footnote">
-      Mittelwert des Trendscores (gewichteter Konsens aller 10 Strategien, siehe Trendscore-Overlay) über alle
+      Mittelwert des Trendscores (gewichteter Konsens aller 11 Strategien, siehe Trendscore-Overlay) über alle
       11 Zeitrahmen von 1 Minute bis 1 Monat, jeweils für den gerade aktiven Coin. Reine Heuristik zur
       Einordnung der aktuellen Gesamtlage über kurze bis lange Sicht hinweg, keine Anlageberatung.
     </div>
@@ -391,7 +393,7 @@
 
   <div class="footnote">
     Blaues Dreieck unten = Long-Einstieg, oranges Dreieck oben = Short-Einstieg. Hohler Kreis = Ausstieg. Standardmäßig zeigt
-    der Chart die Signale <strong>aller</strong> 10 Strategien gleichzeitig (Overlay „Alle Strategien"); beim Darüberfahren
+    der Chart die Signale <strong>aller</strong> 12 Strategien gleichzeitig (Overlay „Alle Strategien"); beim Darüberfahren
     verrät das Banner oben rechts, welche Strategie(n) genau ausgelöst haben. Alarm-Blöcke zeigen die jeweils letzten
     Signale je Coin (neu → alt) — bei Intervallen bis 30 Min zeitbasiert (30-Minuten-Fenster), bei größeren Intervallen
     kerzenbasiert (letzte 15 Kerzen), da ein festes Zeitfenster dort zu schnell leerläuft. Ältere Signale bleiben trotzdem
@@ -399,6 +401,8 @@
   </div>
   <div class="exit-banner-desc" id="patternExplain" style="display:none"></div>
   <div class="exit-banner-desc" id="trendScoreExplain" style="display:none"></div>
+  <div class="exit-banner-desc" id="mlSupertrendExplain" style="display:none"></div>
+  <div class="exit-banner-desc" id="halfTrendExplain" style="display:none"></div>
 
   <div class="alert-blocks" id="alertBlocksWrap"></div>
 </div>
@@ -408,7 +412,7 @@
   <div class="exit-banner">
     <div class="exit-banner-row">
       <div>
-        <label>Exit-Strategie (gilt für alle 10 Strategien)</label>
+        <label>Exit-Strategie (gilt für alle 12 Strategien)</label>
         <select id="exitModeSelect"></select>
       </div>
       <div id="exitParamWrap" style="display:none">
@@ -454,20 +458,20 @@
       — welcher Zeitrahmen als "höher" gilt, ist per Select frei wählbar (Standard: deutlich größerer Sprung statt
       nur der nächstgrößeren Kerze, damit der Trend dort wirklich unabhängig ist). Swing-Breakout: Wechsel nur bei
       Schlusskurs jenseits des letzten Swing-Hochs/-Tiefs, statt nur einer Indikator-Schwelle. Alle Filter einzeln
-      an/abschaltbar, kombinierbar, gelten für alle 10 Strategien.
+      an/abschaltbar, kombinierbar, gelten für alle 12 Strategien.
     </div>
   </div>
 </div>
 
 <div class="bottom-note">
   Live-Kerzenchart über die öffentliche Binance-API (BTCEUR / ETHEUR / SOLEUR) mit Fadenkreuz-Cursor, EMAs, Fair-Value-Gaps
-  und Fibonacci-Retracement. Standardmäßig laufen die 10 Strategien immer long ODER short, Ausstieg = nächstes Gegensignal
+  und Fibonacci-Retracement. Standardmäßig laufen die 12 Strategien immer long ODER short, Ausstieg = nächstes Gegensignal
   (reine Annahme, keine echte Exit-Logik). Über das Exit-Strategie-Banner unter dem Chart lässt sich das für alle 10
   Strategien gemeinsam auf ein fixes Stop-Loss/Take-Profit, einen ATR-Trailing-Stop oder ein Zeitlimit umstellen — dann
   kann eine Position auch zwischenzeitlich flach sein. Der Chart zeigt
-  standardmäßig die Signale aller 10 Strategien gleichzeitig (per Dropdown auf eine einzelne Strategie einschränkbar); das
+  standardmäßig die Signale aller 12 Strategien gleichzeitig (per Dropdown auf eine einzelne Strategie einschränkbar); das
   Hover-Banner oben rechts nennt beim Darüberfahren die genauen auslösenden Strategien. Die Alarm-Blöcke scannen
-  alle 10 Strategien je Coin auf dem eingestellten Zeitrahmen: bei Intervallen bis 30 Minuten zeitbasiert (30-Min-Fenster),
+  alle 12 Strategien je Coin auf dem eingestellten Zeitrahmen: bei Intervallen bis 30 Minuten zeitbasiert (30-Min-Fenster),
   bei größeren Intervallen kerzenbasiert (letzte 15 Kerzen), jeweils mit Uhrzeit, neueste zuerst. Live-Preis läuft über
   einen Binance-WebSocket (Fallback: Polling) und färbt sich grün/rot je nach Kursrichtung. Zoom per Mausrad oder Buttons
   hält die neueste Kerze am rechten Rand fest. Historie wird beim Zurückscrollen/-zoomen automatisch im Hintergrund
@@ -525,7 +529,7 @@
       </div>
     </div>
     <div class="exit-banner-desc" id="optimizerResult">
-      Testet alle 10 Entry-Strategien × 5 Exit-Strategien (Standard-Parameter je Exit-Modus) für den aktuell
+      Testet alle 12 Entry-Strategien × 5 Exit-Strategien (Standard-Parameter je Exit-Modus) für den aktuell
       gewählten Coin/Zeitrahmen über die letzten N Kerzen und zeigt die beste Kombination an. Sie wird NICHT
       automatisch übernommen — dafür erst auf „Aktivieren" klicken. Ist „Filter mit verfeinern" aktiv, wird
       zusätzlich für genau diese Gewinner-Kombination die beste Einstellung der vier Entry-Filter gesucht
@@ -611,7 +615,7 @@
     unten) — Tests/Änderungen im Analyse-Tab wirken sich nicht mehr auf die laufende Automatik aus. Ein
     Strategie-/Zeitrahmen-Wechsel hier betrifft nur <strong>neue</strong> Einstiege — eine bereits offene Position
     bleibt bis zu ihrem Ausstieg an die Strategie/den Zeitrahmen "eingefroren", mit der/dem sie eröffnet wurde. Im
-    Modus <strong>„Trendscore"</strong> steuert statt einer Einzelstrategie der gewichtete Konsens aller 10 Strategien
+    Modus <strong>„Trendscore"</strong> steuert statt einer Einzelstrategie der gewichtete Konsens aller 11 Strategien
     (siehe Trendscore-Button/-Kästchen im Analyse-Tab) Ein- und Ausstieg; eine so eröffnete Position bleibt ebenfalls
     an dieses Konsens-Signal "eingefroren", auch wenn der Modus später gewechselt wird. Prüft
     alle 30 Sekunden (und sofort beim Zurückkehren in den Tab) für alle aktiven Coins, ob die maßgebliche
@@ -630,7 +634,7 @@
   <div class="exit-banner">
     <div class="exit-banner-row">
       <div>
-        <label>Exit-Strategie (gilt für alle 10 Strategien, nur Automatik)</label>
+        <label>Exit-Strategie (gilt für alle 12 Strategien, nur Automatik)</label>
         <select id="autoExitModeSelect"></select>
       </div>
       <div id="autoExitParamWrap" style="display:none">
@@ -762,7 +766,7 @@
   <div class="exit-banner-desc">
     Fragt alle 30 Sekunden die öffentlichen, offenen Perp-Positionen der angegebenen Hyperliquid-Wallet ab
     (<code>clearinghouseState</code> — öffentlich einsehbar, kein API-Key nötig) und bildet neu auftauchende bzw.
-    verschwindende Positionen als eigenständige Paper-Trades nach, komplett unabhängig von den 10 Strategien oben.
+    verschwindende Positionen als eigenständige Paper-Trades nach, komplett unabhängig von den 12 Strategien oben.
     Die Rendite bei Schließung ist eine <strong>Näherung</strong> aus dem zuletzt bekannten unrealisierten
     Gewinn/Verlust der Wallet (unrealizedPnl ÷ Positionswert), nicht der exakte Fill-Preis. Reine Beobachtung,
     keine echte Order-Ausführung, kein Bezug zu einem eigenen Bitvavo-/Binance-/Hyperliquid-Konto. Vergangene
@@ -910,7 +914,9 @@ const STRAT_LABELS = {
   donchian:   "Donchian-Breakout",
   supertrend: "Supertrend",
   pattern:    "Muster-Erkennung",
-  emastack:   "EMA-Trend (9/20/50)"
+  emastack:   "EMA-Trend (9/20/50)",
+  mlsupertrend: "ML Adaptive Supertrend (K-Means)",
+  halftrend:  "HalfTrend (BigBeluga)"
 };
 const STRAT_LABELS_FULL = {
   sma:        "SMA-Crossover (Trendfolge)",
@@ -922,7 +928,9 @@ const STRAT_LABELS_FULL = {
   donchian:   "Donchian-Breakout",
   supertrend: "Supertrend (ATR-Trendfolge)",
   pattern:    "Muster-Erkennung (Candlestick + Dreiecke)",
-  emastack:   "EMA-Trend (9/20/50-Stack, Trendfolge)"
+  emastack:   "EMA-Trend (9/20/50-Stack, Trendfolge)",
+  mlsupertrend: "ML Adaptive Supertrend (K-Means-Volatilitätsregime, Trendfolge)",
+  halftrend:  "HalfTrend Long/Short Signal Engine (Trendfolge, Hysterese-Kanal, Portierung nach BigBeluga/everget)"
 };
 const EMA_CONFIGS = [
   {period:9,   color:'#ffe9a8', label:'EMA 9'},
@@ -955,7 +963,9 @@ const EXIT_MODES = {
   reversalpattern: { label:'Reversal-Muster + Struktur (Früherkennung)', paramLabel:'Pivot-Fenster fürs Struktur-Sicherheitsnetz', paramDefault:3, min:1, max:10, step:1,
     desc:'Steigt schon aus, sobald sich EIN frühes Warnsignal zeigt — nicht erst, wenn der Kurs die alte Struktur tatsächlich durchbricht: ein Candlestick-Umkehrmuster (z.B. Shooting Star/Bearish Engulfing gegen eine Long-Position, Hammer/Bullish Engulfing gegen Short) oder ein Dreiecks-Ausbruch gegen die Position (dieselbe Erkennung wie die "Muster"-Strategie), oder eine RSI-Erschöpfung (RSI dreht aus dem überkauften/überverkauften Bereich bereits wieder zurück). Jeder dieser Auslöser zählt schon am Entstehungs-Kerzenschluss, nicht erst mit zusätzlicher Verzögerung. Löst keines davon rechtzeitig aus, greift als Sicherheitsnetz zusätzlich derselbe Struktur-Stop wie beim reinen Marktstruktur-Exit (Pivot-Fenster wie dort einstellbar) — die Position wird also nie unbegrenzt gehalten.' },
   adaptive: { label:'Adaptiver Profit-Protect-Exit (Trailing + Breakeven + Reversal)', paramLabel:'ATR-Multiplikator (Trailing-Phase)', paramDefault:3, min:0.5, max:8, step:0.1,
-    desc:'Gestaffelter Exit in drei Phasen, gedacht speziell fürs unbeaufsichtigte Automatik-Trading: (1) direkt nach dem Einstieg schützt nur ein ganz normaler ATR-Trailing-Stop (X × ATR(14)) gegen eine sofortige Fehlbewegung — frühe Reversal-Muster werden hier bewusst ignoriert, das ist zu diesem Zeitpunkt meist nur Rauschen um den Einstieg. (2) Sobald der Trade um mindestens 1×ATR im Plus liegt, wird der Stop mindestens auf Breakeven angehoben — ab hier ist der Trade abgesichert, ein Fehlschlag kostet höchstens noch Gebühren/Slippage. (3) Ist dieser Breakeven-Schutz erreicht UND taucht danach ein Candlestick-Umkehrmuster, ein Dreiecks-Ausbruch gegen die Position oder eine RSI-Erschöpfung auf, wird SOFORT ausgestiegen, statt auf den nachlaufenden Trailing-Stop zu warten — genau das soll verhindern, dass bereits erzielter Gewinn erst wieder komplett abgegeben wird, bevor der Exit reagiert. Der ATR-Trailing-Stop selbst läuft die ganze Zeit als letztes Sicherheitsnetz mit.' }
+    desc:'Gestaffelter Exit in drei Phasen, gedacht speziell fürs unbeaufsichtigte Automatik-Trading: (1) direkt nach dem Einstieg schützt nur ein ganz normaler ATR-Trailing-Stop (X × ATR(14)) gegen eine sofortige Fehlbewegung — frühe Reversal-Muster werden hier bewusst ignoriert, das ist zu diesem Zeitpunkt meist nur Rauschen um den Einstieg. (2) Sobald der Trade um mindestens 1×ATR im Plus liegt, wird der Stop mindestens auf Breakeven angehoben — ab hier ist der Trade abgesichert, ein Fehlschlag kostet höchstens noch Gebühren/Slippage. (3) Ist dieser Breakeven-Schutz erreicht UND taucht danach ein Candlestick-Umkehrmuster, ein Dreiecks-Ausbruch gegen die Position oder eine RSI-Erschöpfung auf, wird SOFORT ausgestiegen, statt auf den nachlaufenden Trailing-Stop zu warten — genau das soll verhindern, dass bereits erzielter Gewinn erst wieder komplett abgegeben wird, bevor der Exit reagiert. Der ATR-Trailing-Stop selbst läuft die ganze Zeit als letztes Sicherheitsnetz mit.' },
+  tpladder: { label:'HalfTrend TP1/TP2/TP3-Leiter (BigBeluga)', paramLabel:'Risiko-Multiplikator (SL-Abstand = ATR(100)/2 × X, TP3 = 3× davon)', paramDefault:3, min:0.5, max:8, step:0.1,
+    desc:'Das eigene Take-Profit/Stop-Loss-System des HalfTrend-Overlays (siehe HalfTrend-Toggle-Button), hier als Exit-Modus für ALLE 12 Strategien nutzbar — z.B. im Automatik-Trading. Bei Einstieg wird ein Risikoabstand = ATR(100)/2 × X festgelegt, TP1/TP2/TP3 liegen im Verhältnis 1×/2×/3× davon entfernt. Anders als beim fixen "Stop-Loss/Take-Profit"-Modus (1:2, sofortiger Exit) schließt die Position hier erst bei TP3 ODER Stop-Loss vollständig — ein bloßes Erreichen von TP1/TP2 allein beendet den Trade noch nicht, die Position bleibt weiter offen in Richtung TP3.' }
 };
 let exitMode = 'reversal';
 let exitParam = null;
@@ -989,6 +999,8 @@ let lastPriceValue = null;
 let priceSocket = null;
 let showEMAs = false;
 let showBoll = false;
+let showMlSupertrend = false;
+let showHalfTrend = false;
 let showFVG = false;
 let showFib = false;
 let showIchimoku = false;
@@ -1086,7 +1098,7 @@ let autoCoinPaused = {};    // coin -> true, wenn die Automatik für diesen Coin
 // Strategien über ein Vergleichsfenster die beste rollierende Rendite erzielt hat, und bei ausreichendem
 // Vorsprung + Mindesthaltezeit dorthin rotiert. Bewusst mit Sicherheitsbremsen gegen Overfitting/Whipsaw --
 // siehe runAutoTradeDynamicForCoin(). "Trendscore"-Modus: nutzt statt einer Einzelstrategie den gewichteten
-// Konsens aus allen 10 Strategien (siehe computeTrendScoreResult()) als Entry/Exit-Signal -- siehe
+// Konsens aus allen 11 Strategien (siehe computeTrendScoreResult()) als Entry/Exit-Signal -- siehe
 // runAutoTradeTrendScoreForCoin().
 let autoTradeMode = 'fixed';        // 'fixed' | 'dynamic' | 'trendscore'
 let autoDynamicWindow = 100;        // Vergleichsfenster in Kerzen für den rollierenden Rendite-Vergleich
@@ -1115,7 +1127,7 @@ const AUTO_TRADE_LS_KEYS = {
 };
 
 // ---------- Wallet-Copy-Trading (Hyperliquid, experimentell) ----------
-// Eigenständiges, von den 10 Strategien komplett unabhängiges Paper-Trading-Modul: fragt periodisch die
+// Eigenständiges, von den 12 Strategien komplett unabhängiges Paper-Trading-Modul: fragt periodisch die
 // öffentlichen offenen Positionen einer Hyperliquid-Wallet ab (kein API-Key nötig, siehe hlFetchClearinghouseState)
 // und bildet Positions-Änderungen als Trades nach. Läuft nur, wenn hlWalletCopyEnabled true ist und eine
 // syntaktisch gültige Adresse eingetragen wurde.
@@ -1523,6 +1535,281 @@ function stochasticK(highs, lows, closes, period){
   return out;
 }
 
+// ---------- ML Adaptive Supertrend (K-Means-Volatilitätsregime) ----------
+// Eigene Neuimplementierung nach demselben GRUNDPRINZIP wie öffentlich beschriebene "Machine Learning Adaptive
+// SuperTrend"-Skripte (z.B. AlgoAlpha auf TradingView) -- KEIN Portierung von deren proprietärem Pine-Quellcode
+// (der liegt uns nicht vor), sondern eine eigenständige, hier dokumentierte Umsetzung desselben Konzepts:
+// statt eines festen ATR-Multiplikators wird der ATR laufend per k-Means in 3 Volatilitäts-Regime (niedrig/
+// mittel/hoch) eingeteilt, und das Zentrum des dem aktuellen ATR am nächsten liegenden Clusters fließt
+// (statt des rohen ATR) in die klassische Supertrend-Bandberechnung ein.
+// 1-dimensionales k-Means: Start-Zentren = Perzentile der SORTIERTEN Verteilung (Standard 25%/50%/75%, exakt
+// wie die "Initial Low/Medium/High volatility Percentile Guess"-Einstellungen im AlgoAlpha-Original -- laut
+// dessen Inputs-Panel bestätigt), danach iterativ Zuordnung + Neuberechnung der Zentren bis zur Konvergenz
+// (oder maxIter erreicht). Perzentile statt Minimum/Durchschnitt/Maximum als Start, weil der arithmetische
+// Durchschnitt bei mehrgipfligen Verteilungen mit "Lücke" zwischen den Gruppen (z.B. ruhige Phase + einzelner
+// Volatilitäts-Ausreißer) in einer datenleeren Zone landen kann -- dann bleibt ein Cluster leer und ein anderer
+// bekommt fälschlich zwei Gruppen zugeordnet, statt dass sich die 3 Zentren sauber auf die 3 tatsächlichen
+// Regime verteilen.
+function kMeansCluster1D(values, k=3, maxIter=25, initialGuesses=[0.25,0.5,0.75]){
+  if(values.length === 0) return new Array(k).fill(0);
+  const sorted = [...values].sort((a,b)=>a-b);
+  let centroids = [];
+  for(let i=0;i<k;i++){
+    const p = initialGuesses[i] != null ? initialGuesses[i] : (i+0.5)/k;
+    centroids.push(sorted[Math.min(sorted.length-1, Math.max(0, Math.floor(sorted.length*p)))]);
+  }
+  for(let iter=0; iter<maxIter; iter++){
+    const sums = new Array(k).fill(0), counts = new Array(k).fill(0);
+    values.forEach(v=>{
+      let bestIdx=0, bestDist=Infinity;
+      for(let c=0;c<k;c++){ const d=Math.abs(v-centroids[c]); if(d<bestDist){ bestDist=d; bestIdx=c; } }
+      sums[bestIdx]+=v; counts[bestIdx]++;
+    });
+    let changed = false;
+    const next = centroids.map((c,idx)=>{
+      if(counts[idx]===0) return c; // leerer Cluster -> Zentrum unverändert lassen
+      const nv = sums[idx]/counts[idx];
+      if(Math.abs(nv-c) > 1e-9) changed = true;
+      return nv;
+    });
+    centroids = next;
+    if(!changed) break;
+  }
+  return centroids.sort((a,b)=>a-b); // [niedrig, mittel, hoch]
+}
+// Ordnet JEDER Kerze (rein kausal, nur Daten bis einschließlich Kerze i) ein Volatilitäts-Regime zu: nimmt ein
+// gleitendes Trainingsfenster der letzten `lookback` ATR-Werte, clustert es per k-Means in 3 Gruppen, und
+// weist der aktuellen Kerze das Zentrum des ihr am nächsten liegenden Clusters zu (statt des rohen ATR-Werts).
+function computeMlAdaptiveAtrSeries(highs, lows, closes, atrPeriod=10, lookback=100){
+  const atrArr = atr(highs, lows, closes, atrPeriod);
+  const n = closes.length;
+  const clusterAtr = new Array(n).fill(null);       // dem aktuellen Regime zugeordnetes Cluster-Zentrum
+  const clusterIdx = new Array(n).fill(null);       // 0=niedrig, 1=mittel, 2=hoch
+  const clusterCounts = new Array(n).fill(null);    // Kerzenanzahl je Cluster im aktuellen Trainingsfenster
+  const clusterCentroids = new Array(n).fill(null); // alle 3 Zentren [niedrig,mittel,hoch] des Trainingsfensters -- fürs Info-Overlay (Tabelle wie im Referenz-Tool)
+  for(let i=0;i<n;i++){
+    if(atrArr[i]==null) continue;
+    const start = Math.max(0, i - lookback + 1);
+    const window = atrArr.slice(start, i+1).filter(v=>v!=null);
+    if(window.length < 3) continue; // zu wenig Punkte für ein sinnvolles 3er-Clustering
+    const centroids = kMeansCluster1D(window, 3);
+    let bestIdx = 0, bestDist = Infinity;
+    centroids.forEach((c,idx)=>{ const d = Math.abs(atrArr[i]-c); if(d<bestDist){ bestDist=d; bestIdx=idx; } });
+    clusterAtr[i] = centroids[bestIdx];
+    clusterIdx[i] = bestIdx;
+    clusterCentroids[i] = centroids;
+    const counts = [0,0,0];
+    window.forEach(v=>{
+      let bi=0, bd=Infinity;
+      centroids.forEach((c,idx)=>{ const d=Math.abs(v-c); if(d<bd){ bd=d; bi=idx; } });
+      counts[bi]++;
+    });
+    clusterCounts[i] = counts;
+  }
+  return { atrArr, clusterAtr, clusterIdx, clusterCounts, clusterCentroids };
+}
+// Klassische, rekursive Supertrend-Bandberechnung (identisch zur bestehenden "Supertrend"-Strategie weiter
+// unten) -- hier aber generisch auf eine BELIEBIGE Volatilitäts-Reihe anwendbar, damit dieselbe Logik sowohl
+// für den festen ATR (bestehende Strategie) als auch für den k-Means-Cluster-ATR (diese neue Strategie) genutzt
+// werden kann. Liefert neben der eigentlichen Trailing-Stop-Linie (st) auch die Bandgrenzen und die
+// Trendrichtung (1=bullisch/-1=bärisch) je Kerze.
+function computeSupertrendFromVolSeries(highs, lows, closes, volSeries, mult){
+  const n = closes.length;
+  const finalUpper = new Array(n).fill(null);
+  const finalLower = new Array(n).fill(null);
+  const st = new Array(n).fill(null);
+  const trendAt = new Array(n).fill(null);
+  for(let i=0;i<n;i++){
+    if(volSeries[i]==null){ trendAt[i] = trendAt[i-1] ?? null; continue; }
+    const basicUpper = (highs[i]+lows[i])/2 + mult*volSeries[i];
+    const basicLower = (highs[i]+lows[i])/2 - mult*volSeries[i];
+    const prevFU = finalUpper[i-1], prevFL = finalLower[i-1], prevClose = closes[i-1];
+    finalUpper[i] = (prevFU==null || basicUpper<prevFU || (prevClose!=null && prevClose>prevFU)) ? basicUpper : prevFU;
+    finalLower[i] = (prevFL==null || basicLower>prevFL || (prevClose!=null && prevClose<prevFL)) ? basicLower : prevFL;
+    const prevST = st[i-1];
+    if(prevST==null){
+      st[i] = closes[i] <= finalUpper[i] ? finalUpper[i] : finalLower[i];
+    } else if(prevST===prevFU){
+      st[i] = closes[i] <= finalUpper[i] ? finalUpper[i] : finalLower[i];
+    } else {
+      st[i] = closes[i] >= finalLower[i] ? finalLower[i] : finalUpper[i];
+    }
+    trendAt[i] = closes[i] > st[i] ? 1 : -1;
+  }
+  return { finalUpper, finalLower, st, trendAt };
+}
+const ML_SUPERTREND_ATR_PERIOD = 10, ML_SUPERTREND_MULT = 3, ML_SUPERTREND_LOOKBACK = 100;
+// Bündelt beide Schritte (Cluster-ATR + Supertrend-Bänder daraus) für EINEN Coin/Zeitrahmen -- genutzt sowohl
+// von der Strategie (#11 in buildStrategiesCore) als auch vom Chart-Overlay (drawMlSupertrendOverlay()).
+function computeMlAdaptiveSupertrend(highs, lows, closes){
+  const vol = computeMlAdaptiveAtrSeries(highs, lows, closes, ML_SUPERTREND_ATR_PERIOD, ML_SUPERTREND_LOOKBACK);
+  const bands = computeSupertrendFromVolSeries(highs, lows, closes, vol.clusterAtr, ML_SUPERTREND_MULT);
+  return { ...vol, ...bands };
+}
+
+// ---------- HalfTrend Long/Short Signal Engine ----------
+// Portierung der Trendlinien-/Kanal-/Risikomanagement-Logik aus dem vom Nutzer bereitgestellten Pine-Script-v6-
+// Quellcode "HalfTrend Long/Short Signal Engine [BigBeluga]" -- Original-HalfTrend-Konzept von "everget",
+// diese Version © BigBeluga, lizenziert unter Creative Commons Attribution-NonCommercial-ShareAlike 4.0
+// International (CC BY-NC-SA 4.0). Diese JS-Portierung dient ausschließlich dem privaten, nicht-kommerziellen,
+// edukativen Gebrauch in genau diesem Tool (Backtesting/Paper-Trading, siehe Kopf der Datei) -- Namensnennung
+// wie hier dokumentiert, keine eigenständige Weiterverbreitung.
+//
+// Trendbestimmung über eine Hysterese aus zwei laufend nachgeführten Extrempunkten (maxLowPrice/minHighPrice):
+// erst wenn sowohl highma/lowma (SMA(Amplitude) auf High/Low) ALS AUCH der Schlusskurs gegen die Vorkerze
+// bestätigen, kippt der Trend. Die gezeichnete HalfTrend-Linie (up/down) "erbt" beim Kippen den letzten Wert
+// der jeweils anderen Linie (Carry-over-Mechanik im Original), statt sofort auf einen neuen Anker zu springen --
+// dadurch wirkt sie optisch wie EINE durchgehende Linie. highPrice/lowPrice (höchstes Hoch/tiefstes Tief der
+// letzten "amplitude" Kerzen) werden hier direkt per Schleife ermittelt statt wie im Original über
+// ta.highestbars()-Offset-Indexierung -- rechnerisch identisch, nur einfacher geschrieben.
+const HALFTREND_AMPLITUDE = 20, HALFTREND_CHANNEL_DEV = 2.0, HALFTREND_ATR_PERIOD = 100, HALFTREND_RISK_MULT = 3;
+function computeHalfTrend(highs, lows, closes, amplitude=HALFTREND_AMPLITUDE, channelDeviation=HALFTREND_CHANNEL_DEV){
+  const n = closes.length;
+  const atrArr = atr(highs, lows, closes, HALFTREND_ATR_PERIOD);
+  const highmaArr = sma(highs, amplitude), lowmaArr = sma(lows, amplitude);
+
+  const trendAt = new Array(n).fill(null);   // 0 = bullisch, 1 = bärisch (Original-Pine-Konvention)
+  const htLine = new Array(n).fill(null);    // die gezeichnete HalfTrend-Linie (up bzw. down, je nach Trend)
+  const atrHigh = new Array(n).fill(null);
+  const atrLow = new Array(n).fill(null);
+  const buySignal = new Array(n).fill(false);
+  const sellSignal = new Array(n).fill(false);
+  const atr2Arr = new Array(n).fill(null);   // ATR(100)/2 -- Basis sowohl für die Kanalbreite als auch fürs TP/SL-Risiko
+
+  let trend = 0, nextTrend = 0;
+  let maxLowPrice = null, minHighPrice = null;
+  let up = null, down = null;
+  let firstValidBar = true;
+
+  for(let i=0;i<n;i++){
+    if(atrArr[i]==null || i < amplitude-1 || highmaArr[i]==null || lowmaArr[i]==null){ trendAt[i] = null; continue; }
+    const atr2 = atrArr[i]/2;
+    const dev = channelDeviation*atr2;
+    atr2Arr[i] = atr2;
+
+    let highPrice = -Infinity, lowPrice = Infinity;
+    for(let j=i-amplitude+1;j<=i;j++){ if(highs[j]>highPrice) highPrice=highs[j]; if(lows[j]<lowPrice) lowPrice=lows[j]; }
+    const highma = highmaArr[i], lowma = lowmaArr[i];
+
+    if(maxLowPrice==null) maxLowPrice = lows[i];
+    if(minHighPrice==null) minHighPrice = highs[i];
+
+    const prevTrend = trend; // entspricht trend[1]
+    const prevLow = i>0 ? lows[i-1] : lows[i];
+    const prevHigh = i>0 ? highs[i-1] : highs[i];
+
+    if(nextTrend===1){
+      maxLowPrice = Math.max(lowPrice, maxLowPrice);
+      if(highma < maxLowPrice && closes[i] < prevLow){
+        trend = 1; nextTrend = 0; minHighPrice = highPrice;
+      }
+    } else {
+      minHighPrice = Math.min(highPrice, minHighPrice);
+      if(lowma > minHighPrice && closes[i] > prevHigh){
+        trend = 0; nextTrend = 1; maxLowPrice = lowPrice;
+      }
+    }
+
+    const flipped = !firstValidBar && trend !== prevTrend;
+    if(trend===0){
+      if(flipped){ up = down!=null ? down : maxLowPrice; buySignal[i] = true; }
+      else up = (up==null) ? maxLowPrice : Math.max(maxLowPrice, up);
+      atrHigh[i] = up+dev; atrLow[i] = up-dev; htLine[i] = up;
+    } else {
+      if(flipped){ down = up!=null ? up : minHighPrice; sellSignal[i] = true; }
+      else down = (down==null) ? minHighPrice : Math.min(minHighPrice, down);
+      atrHigh[i] = down+dev; atrLow[i] = down-dev; htLine[i] = down;
+    }
+    trendAt[i] = trend;
+    firstValidBar = false;
+  }
+  return { trendAt, htLine, atrHigh, atrLow, buySignal, sellSignal, atr2Arr };
+}
+// Risikomanagement-/Performance-Tracking-Logik des Originalskripts: bei jedem Trendwechsel (buy-/sellSignal)
+// wird ein neuer Trade mit SL sowie TP1/TP2/TP3 eröffnet (Chance-Risiko 1:1/1:2/1:3, Abstand = ATR(100)/2 ×
+// baseRiskMult). Jedes erreichte Kursziel zählt SOFORT als Gewinn, der Trade läuft aber bis TP3 ODER SL weiter --
+// wird der SL NACH einem bereits erreichten TP1 getroffen, macht das Original den zuvor gezählten Gewinn wieder
+// rückgängig (wins--/losses--), statt ihn stehen zu lassen. Diese Eigenheit wird hier bewusst unverändert
+// mitportiert (nicht "korrigiert"), da auf ausdrücklichen Wunsch alle Funktionen des Originals 1:1 übernommen
+// werden sollen.
+function computeHalfTrendTrades(highs, lows, closes, ht, riskMult=HALFTREND_RISK_MULT){
+  const n = closes.length;
+  const tradeState = new Array(n).fill(0);   // 0 = flach, 1 = long, -1 = short
+  const activeSL = new Array(n).fill(null);
+  const activeTP1 = new Array(n).fill(null);
+  const activeTP2 = new Array(n).fill(null);
+  const activeTP3 = new Array(n).fill(null);
+  const entryPxAt = new Array(n).fill(null);
+  const entryIdxAt = new Array(n).fill(null);
+  const tpHitEvents = []; // {i, kind:'tp1'|'tp2'|'tp3'|'sl', dir:'long'|'short'}
+
+  let state = 0, sl=null, tp1=null, tp2=null, tp3=null, entryPx=null, entryIdx=null;
+  let tp1Hit=false, tp2Hit=false, tp3Hit=false;
+  let wins=0, losses=0;
+
+  for(let i=0;i<n;i++){
+    if(ht.buySignal[i] || ht.sellSignal[i]){
+      const dist = (ht.atr2Arr[i]||0) * riskMult;
+      entryPx = closes[i]; entryIdx = i;
+      if(ht.buySignal[i]){
+        state = 1; sl = entryPx-dist; tp1 = entryPx+dist; tp2 = entryPx+dist*2; tp3 = entryPx+dist*3;
+      } else {
+        state = -1; sl = entryPx+dist; tp1 = entryPx-dist; tp2 = entryPx-dist*2; tp3 = entryPx-dist*3;
+      }
+      tp1Hit=tp2Hit=tp3Hit=false;
+    }
+    if(state===1 && sl!=null){
+      if(!tp1Hit && highs[i]>=tp1){ tp1Hit=true; wins++; tpHitEvents.push({i,kind:'tp1',dir:'long'}); }
+      if(tp1Hit && !tp2Hit && highs[i]>=tp2){ tp2Hit=true; wins++; tpHitEvents.push({i,kind:'tp2',dir:'long'}); }
+      if(tp2Hit && !tp3Hit && highs[i]>=tp3){ tp3Hit=true; wins++; tpHitEvents.push({i,kind:'tp3',dir:'long'}); state=0; }
+      if(state===1 && lows[i]<=sl){
+        losses++;
+        if(tp1Hit){ wins--; losses--; }
+        tpHitEvents.push({i,kind:'sl',dir:'long'});
+        state=0;
+      }
+    } else if(state===-1 && sl!=null){
+      if(!tp1Hit && lows[i]<=tp1){ tp1Hit=true; wins++; tpHitEvents.push({i,kind:'tp1',dir:'short'}); }
+      if(tp1Hit && !tp2Hit && lows[i]<=tp2){ tp2Hit=true; wins++; tpHitEvents.push({i,kind:'tp2',dir:'short'}); }
+      if(tp2Hit && !tp3Hit && lows[i]<=tp3){ tp3Hit=true; wins++; tpHitEvents.push({i,kind:'tp3',dir:'short'}); state=0; }
+      if(state===-1 && highs[i]>=sl){
+        losses++;
+        if(tp1Hit){ wins--; losses--; }
+        tpHitEvents.push({i,kind:'sl',dir:'short'});
+        state=0;
+      }
+    }
+    tradeState[i]=state; activeSL[i]=sl; activeTP1[i]=tp1; activeTP2[i]=tp2; activeTP3[i]=tp3; entryPxAt[i]=entryPx; entryIdxAt[i]=entryIdx;
+  }
+  const totalClosed = wins+losses;
+  const winRate = totalClosed>0 ? wins/totalClosed : null;
+  return { tradeState, activeSL, activeTP1, activeTP2, activeTP3, entryPxAt, entryIdxAt, tpHitEvents, wins, losses, winRate };
+}
+// Bündelt Trendberechnung + TP/SL-Simulation für EINEN Coin/Zeitrahmen -- genutzt sowohl von der Strategie
+// (#12 in buildStrategiesCore) als auch vom Chart-Overlay (drawHalfTrendOverlay()).
+function computeHalfTrendFull(highs, lows, closes){
+  const ht = computeHalfTrend(highs, lows, closes);
+  const trades = computeHalfTrendTrades(highs, lows, closes, ht);
+  return { ...ht, ...trades };
+}
+// Multi-Asset-Scanner (angepasst): das Original scannt 5 fest hinterlegte Symbole, darunter OANDA-Forex/Gold-
+// Paare (EURUSD, XAUUSD), die über die Binance-EUR-Infrastruktur dieses Tools nicht abrufbar sind. Stattdessen
+// wird hier die aktuell konfigurierte COINS-Liste gescannt (wächst/schrumpft automatisch mit dem frei wählbaren
+// 4. Coin, siehe COINS oben) -- für jeden Coin auf DEMSELBEN Zeitrahmen wie der aktive Chart (entspricht
+// request.security(sym, timeframe.period, trend) im Original). Coins ohne bereits geladene Daten für diesen
+// Zeitrahmen werden mit status:'loading' markiert statt zu blockieren.
+function computeHalfTrendMultiAssetScan(interval){
+  return Object.entries(COINS).map(([coin, meta])=>{
+    const data = ohlcCache[coin+'::'+interval];
+    if(!data || data.closes.length < HALFTREND_AMPLITUDE+2) return { coin, label: meta.label, short: meta.short, status:'loading', trend:null };
+    const ht = computeHalfTrend(data.highs, data.lows, data.closes);
+    let lastIdx = ht.trendAt.length-1;
+    while(lastIdx>=0 && ht.trendAt[lastIdx]==null) lastIdx--;
+    if(lastIdx<0) return { coin, label: meta.label, short: meta.short, status:'loading', trend:null };
+    return { coin, label: meta.label, short: meta.short, status:'ok', trend: ht.trendAt[lastIdx]===0 ? 'long' : 'short' };
+  });
+}
+
 // ---------- Volatilitäts-Kompression / "Squeeze-Screener"-Kennzahlen ----------
 // Perzentilrang eines aktuellen Werts innerhalb einer historischen Vergleichsreihe (0-100): wie viel Prozent
 // der Vergleichswerte liegen bei oder unter dem aktuellen Wert. Niedriger Perzentilrang bei Volatilitäts-
@@ -1797,18 +2084,21 @@ function simulateExits(signal, highs, lows, closes, ctx, mode, param, reentryCoo
   let posType = null, entryPrice = null, entryIdx = null, trailStop = null;
   let lastSwingLow = null, lastSwingHigh = null;
   let entryAtr = null, breakevenLocked = false; // nur für mode 'adaptive' genutzt
+  let tpLadderSl = null, tpLadderTp3 = null;     // nur für mode 'tpladder' genutzt
   let cooldownUntil = -1;
   const atrArr = ctx && ctx.atrArr;
   const swingHighAt = ctx && ctx.swingHighAt;
   const swingLowAt = ctx && ctx.swingLowAt;
   const patternDirAt = ctx && ctx.patternDirAt; // nur für mode 'reversalpattern'/'adaptive' befüllt
   const rsiArrForExit = ctx && ctx.rsiArr;      // nur für mode 'reversalpattern'/'adaptive' befüllt
+  const htAtr2Arr = ctx && ctx.htAtr2Arr;       // nur für mode 'tpladder' befüllt (ATR(100)/2, wie HalfTrend-Overlay)
   const structBars = Math.max(1, Math.round(param || 1));
   const cooldown = reentryCooldown || 0;
 
   const openTrade = (i, type) => {
     posType = type; entryPrice = closes[i]; entryIdx = i; trailStop = null;
     entryAtr = (atrArr && atrArr[i] != null) ? atrArr[i] : null; breakevenLocked = false;
+    tpLadderSl = null; tpLadderTp3 = null;
     trades.push({i, type});
     position[i] = type === 'long' ? 1 : -1;
   };
@@ -1928,6 +2218,25 @@ function simulateExits(signal, highs, lows, closes, ctx, mode, param, reentryCoo
       if(!customExit){
         if(posType === 'long' && closes[i] < trailStop) customExit = true;
         if(posType === 'short' && closes[i] > trailStop) customExit = true;
+      }
+    } else if(mode === 'tpladder'){
+      // HalfTrend-eigenes gestaffeltes TP/SL-System (siehe computeHalfTrendTrades()), hier generisch für ALLE
+      // Strategien nutzbar: Risikoabstand wird EINMALIG bei Einstieg aus ATR(100)/2 der Einstiegskerze fixiert
+      // (bleibt für die Trade-Dauer konstant, wie im Original) -- TP1/TP2 allein schließen die Position noch
+      // nicht, erst TP3 ODER SL. Bei einer Kerze, die rechnerisch beide Schwellen reißt, hat TP3 Vorrang vor SL
+      // (dieselbe Prioritätsreihenfolge wie im Original-Risikomanagement).
+      if(tpLadderSl == null){
+        const a2 = (htAtr2Arr && htAtr2Arr[entryIdx] != null) ? htAtr2Arr[entryIdx] : 0;
+        const dist = a2 * (param || HALFTREND_RISK_MULT);
+        if(posType === 'long'){ tpLadderSl = entryPrice - dist; tpLadderTp3 = entryPrice + dist*3; }
+        else { tpLadderSl = entryPrice + dist; tpLadderTp3 = entryPrice - dist*3; }
+      }
+      if(posType === 'long'){
+        if(highs[i] >= tpLadderTp3) customExit = true;
+        else if(lows[i] <= tpLadderSl) customExit = true;
+      } else {
+        if(lows[i] <= tpLadderTp3) customExit = true;
+        else if(highs[i] >= tpLadderSl) customExit = true;
       }
     }
 
@@ -2168,7 +2477,11 @@ function buildStrategiesCore(coin, interval, key){
   const needsPatternDir = exitMode === 'reversalpattern' || exitMode === 'adaptive';
   const patternDirForExit = needsPatternDir ? computePatternDirSeries(opens, highs, lows, closes) : null;
   const rsiForExit = needsPatternDir ? rsi(closes, 14) : null;
-  const exitCtx = { atrArr: atrForExit, swingHighAt: swingForExit && swingForExit.swingHighAt, swingLowAt: swingForExit && swingForExit.swingLowAt, patternDirAt: patternDirForExit, rsiArr: rsiForExit };
+  // 'tpladder' braucht ATR(100)/2 -- denselben Risikoabstand wie das HalfTrend-Overlay selbst (siehe
+  // computeHalfTrend()) -- unabhängig vom ATR(14), den 'trailing'/'adaptive'/'structure' verwenden.
+  const needsHtAtr = exitMode === 'tpladder';
+  const htAtr2ForExit = needsHtAtr ? atr(highs, lows, closes, HALFTREND_ATR_PERIOD).map(v => v!=null ? v/2 : null) : null;
+  const exitCtx = { atrArr: atrForExit, swingHighAt: swingForExit && swingForExit.swingHighAt, swingLowAt: swingForExit && swingForExit.swingLowAt, patternDirAt: patternDirForExit, rsiArr: rsiForExit, htAtr2Arr: htAtr2ForExit };
   const entryCtx = { times, highs, lows, closes, volumes, higherTF: computeHigherTFTrend(coin, interval) };
 
   // 1. SMA Crossover
@@ -2304,6 +2617,26 @@ function buildStrategiesCore(coin, interval, key){
       else position[i] = position[i-1];
     }
     strategies.emastack = finalizeStrategy(applyEntryFilters(position, entryCtx), highs, lows, closes, exitCtx);
+  }
+  // 11. ML Adaptive Supertrend (K-Means-Volatilitätsregime) -- siehe computeMlAdaptiveSupertrend() weiter oben.
+  // Long, solange der Kurs über der adaptiven Trailing-Stop-Linie liegt, Short darunter (identisches Prinzip
+  // wie die klassische "Supertrend"-Strategie oben, nur mit k-Means-geclustertem statt rohem ATR).
+  {
+    const mlst = computeMlAdaptiveSupertrend(highs, lows, closes);
+    const position = mlst.trendAt.map((t,i)=> t != null ? t : 0);
+    strategies.mlsupertrend = finalizeStrategy(applyEntryFilters(position, entryCtx), highs, lows, closes, exitCtx);
+  }
+  // 12. HalfTrend (BigBeluga) -- siehe computeHalfTrend() weiter oben. Long, solange der Trend gemäß der
+  // HalfTrend-Hysterese-Logik bullisch ist (trend=0 im Original), Short während bärisch (trend=1). Läuft wie
+  // jede andere Strategie durch den global gewählten Exit-Modus/die Entry-Filter -- die eigene TP1/TP2/TP3/SL-
+  // Risikologik des Originalskripts wird UNABHÄNGIG davon separat fürs Chart-Overlay simuliert (siehe
+  // computeHalfTrendFull()/drawHalfTrendOverlay()). Fließt bewusst NICHT in den Trendscore-Konsens ein (siehe
+  // TRENDSCORE_EXCLUDED_STRATS/computeTrendScoreWeights()) -- auf Nutzerwunsch als eigenständige, gleichwertige
+  // Einzelstrategie, ohne den bestehenden 11-Strategien-Konsens zu verändern.
+  {
+    const ht = computeHalfTrend(highs, lows, closes);
+    const position = ht.trendAt.map(t => t===0 ? 1 : (t===1 ? -1 : 0));
+    strategies.halftrend = finalizeStrategy(applyEntryFilters(position, entryCtx), highs, lows, closes, exitCtx);
   }
 
   strategyCache[key] = strategies;
@@ -2548,17 +2881,22 @@ function describePattern(patterns){
   return { title: 'Kein Muster erkannt', text: 'Weder ein Candlestick-Muster an der letzten Kerze noch ein Dreiecksmuster in den letzten bestätigten Swing-Punkten.' };
 }
 
-// ---------- Trendscore: gewichteter Konsens aus allen 10 Strategien ----------
-// Bewusst KEINE 11. Strategie/kein Dropdown-Eintrag -- eine rein additive Zusammenfassung der bereits über
+// ---------- Trendscore: gewichteter Konsens aus allen 11 Strategien ----------
+// Bewusst KEINE eigene Strategie/kein eigener Dropdown-Eintrag -- eine rein additive Zusammenfassung der bereits über
 // buildStrategies() vorhandenen Ergebnisse, nur über einen eigenen Chart-Overlay-Button sichtbar/aktivierbar.
 // Gewichtung nach eigener Backtest-Performance: jede Strategie zählt proportional zu 1 + ihrer Überrendite
 // gegenüber Buy&Hold im selben (bereits geladenen) Zeitraum -- eine Strategie, die exakt wie Buy&Hold abschneidet,
 // hat Gewicht 1; eine, die deutlich besser/schlechter abschneidet, entsprechend mehr/weniger (mit Mindestgewicht
 // 0.02, damit keine Strategie komplett auf 0 fällt und die Gewichtssumme nie 0 wird).
 const TREND_SCORE_THRESHOLD = 0.15;
+// Strategien, die zwar ganz normal in buildStrategiesCore() mitlaufen (Dropdown, Backtest-Tabelle, "Alle
+// Strategien"-Overlay, Sync-Modus, Kombinationsoptimierer, Automatik, ...), aber NICHT in den gewichteten
+// Trendscore-Konsens einfließen sollen. Bisher leer/nicht nötig -- HalfTrend ist die erste solche Strategie
+// (auf ausdrücklichen Nutzerwunsch: eigenständige Einzelstrategie statt Einfluss auf den bestehenden Konsens).
+const TRENDSCORE_EXCLUDED_STRATS = ['halftrend'];
 function computeTrendScoreWeights(strategies){
   const weights = {};
-  Object.keys(strategies).forEach(k=>{
+  Object.keys(strategies).filter(k=>!TRENDSCORE_EXCLUDED_STRATS.includes(k)).forEach(k=>{
     const r = strategies[k];
     const edge = (r.totalReturn || 0) - (r.buyHold || 0);
     weights[k] = Math.max(0.02, 1 + edge);
@@ -2566,7 +2904,7 @@ function computeTrendScoreWeights(strategies){
   return weights;
 }
 function computeTrendScoreSeries(strategies, weights, n){
-  const keys = Object.keys(strategies);
+  const keys = Object.keys(strategies).filter(k=>!TRENDSCORE_EXCLUDED_STRATS.includes(k));
   const weightSum = keys.reduce((s,k)=> s + weights[k], 0) || 1;
   const score = new Array(n).fill(0);
   for(let i=0;i<n;i++){
@@ -2580,7 +2918,7 @@ function computeTrendScoreSeries(strategies, weights, n){
   return score;
 }
 // Wandelt den kontinuierlichen Score in eine diskrete Long/Short/Flach-Position um (carry-forward wie bei den
-// 10 Einzelstrategien) -- erst über der Schwelle zählt der Konsens als eindeutig genug für einen Einstieg.
+// 12 Einzelstrategien) -- erst über der Schwelle zählt der Konsens als eindeutig genug für einen Einstieg.
 function discretizeTrendScore(scoreSeries, threshold){
   const n = scoreSeries.length;
   const position = new Array(n).fill(0);
@@ -2594,7 +2932,7 @@ function discretizeTrendScore(scoreSeries, threshold){
 // Baut denselben exitCtx (ATR/Swing-Punkte fürs Trailing-/Struktur-Exit) wie buildStrategiesCore() für den
 // Trendscore nach, da buildStrategiesCore() seinen internen exitCtx nicht nach außen gibt -- liest bewusst die
 // aktuell aktiven exitMode/exitParam/structureAtrSafetyMult-Globals, damit computeTrendScoreResult() (siehe
-// unten) exakt denselben Exit-Modus anwendet wie die 10 Einzelstrategien, statt fest auf "Exit = nächstes
+// unten) exakt denselben Exit-Modus anwendet wie die 12 Einzelstrategien, statt fest auf "Exit = nächstes
 // Gegensignal" zu bestehen.
 function computeTrendScoreExitResult(position, highs, lows, closes, opens){
   const needsAtr = exitMode === 'trailing' || exitMode === 'adaptive' || (exitMode === 'structure' && structureAtrSafetyMult > 0);
@@ -2604,7 +2942,9 @@ function computeTrendScoreExitResult(position, highs, lows, closes, opens){
   const needsPatternDir = (exitMode === 'reversalpattern' || exitMode === 'adaptive') && opens;
   const patternDirForExit = needsPatternDir ? computePatternDirSeries(opens, highs, lows, closes) : null;
   const rsiForExit = (exitMode === 'reversalpattern' || exitMode === 'adaptive') ? rsi(closes, 14) : null;
-  const exitCtx = { atrArr: atrForExit, swingHighAt: swingForExit && swingForExit.swingHighAt, swingLowAt: swingForExit && swingForExit.swingLowAt, patternDirAt: patternDirForExit, rsiArr: rsiForExit };
+  const needsHtAtr = exitMode === 'tpladder';
+  const htAtr2ForExit = needsHtAtr ? atr(highs, lows, closes, HALFTREND_ATR_PERIOD).map(v => v!=null ? v/2 : null) : null;
+  const exitCtx = { atrArr: atrForExit, swingHighAt: swingForExit && swingForExit.swingHighAt, swingLowAt: swingForExit && swingForExit.swingLowAt, patternDirAt: patternDirForExit, rsiArr: rsiForExit, htAtr2Arr: htAtr2ForExit };
   return finalizeStrategy(position, highs, lows, closes, exitCtx);
 }
 // profile='analyse' (Standard) nutzt die Analyse-Tab-Strategien/-Filter (für Chart-Overlay + Indikator-Panel);
@@ -2963,6 +3303,176 @@ function drawBollBands(ctx, boll, iFrom, iTo, scaleX, scaleY){
   ctx.setLineDash([]);
   ctx.restore();
 }
+const ML_SUPERTREND_COLORS = { bull: { line:'#2dd4a8', fill:'rgba(45,212,168,0.18)' }, bear: { line:'#f85149', fill:'rgba(248,81,73,0.18)' } };
+// Zeichnet das ML Adaptive Supertrend-Overlay: eine gefüllte Fläche zwischen Schlusskurs und der adaptiven
+// Trailing-Stop-Linie (grün/teal während Aufwärtstrend, rot während Abwärtstrend -- Farbwechsel genau an den
+// Kerzen, an denen die Trendrichtung kippt), Dreieck-Marker an jedem Trendwechsel, sowie kleine Zahlen-Labels
+// (1=niedriges/2=mittleres/3=hohes Volatilitäts-Cluster) entlang der Linie, sobald beim Reinzoomen genug Platz
+// dafür ist. Angelehnt an die Optik öffentlich beschriebener "ML Adaptive Supertrend"-Indikatoren (siehe
+// computeMlAdaptiveSupertrend()) -- eigene Umsetzung, keine 1:1-Nachbildung eines fremden Skripts.
+function drawMlSupertrendOverlay(ctx, mlst, d, iFrom, iTo, scaleX, scaleY, xStep){
+  ctx.save();
+  let segStart = null, segTrend = null;
+  function flushSegment(segEndExclusive){
+    if(segStart==null || segEndExclusive<=segStart) return;
+    const color = segTrend===1 ? ML_SUPERTREND_COLORS.bull : ML_SUPERTREND_COLORS.bear;
+    ctx.fillStyle = color.fill;
+    ctx.beginPath();
+    let started = false;
+    for(let j=segStart;j<segEndExclusive;j++){
+      if(mlst.st[j]==null) continue;
+      const x = scaleX(j), y = scaleY(d.closes[j]);
+      if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y);
+    }
+    for(let j=segEndExclusive-1;j>=segStart;j--){
+      if(mlst.st[j]==null) continue;
+      ctx.lineTo(scaleX(j), scaleY(mlst.st[j]));
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = color.line; ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    started = false;
+    for(let j=segStart;j<segEndExclusive;j++){
+      if(mlst.st[j]==null) continue;
+      const x = scaleX(j), y = scaleY(mlst.st[j]);
+      if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+  }
+  for(let i=iFrom;i<=iTo;i++){
+    const t = mlst.trendAt[i];
+    if(t==null){ flushSegment(i); segStart=null; segTrend=null; continue; }
+    if(segTrend==null){ segStart=i; segTrend=t; }
+    else if(t!==segTrend){ flushSegment(i); segStart=i; segTrend=t; }
+  }
+  flushSegment(iTo+1);
+
+  for(let i=Math.max(iFrom,1); i<=iTo; i++){
+    const t = mlst.trendAt[i], prevT = mlst.trendAt[i-1];
+    if(t==null || prevT==null || t===prevT) continue;
+    const x = scaleX(i), y = scaleY(mlst.st[i]);
+    ctx.fillStyle = t===1 ? ML_SUPERTREND_COLORS.bull.line : ML_SUPERTREND_COLORS.bear.line;
+    ctx.beginPath();
+    if(t===1){ ctx.moveTo(x,y+8); ctx.lineTo(x-5,y+16); ctx.lineTo(x+5,y+16); }
+    else { ctx.moveTo(x,y-8); ctx.lineTo(x-5,y-16); ctx.lineTo(x+5,y-16); }
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  if(xStep >= 7){
+    ctx.font = '9px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for(let i=iFrom;i<=iTo;i++){
+      if(mlst.clusterIdx[i]==null || mlst.st[i]==null || mlst.trendAt[i]==null) continue;
+      const t = mlst.trendAt[i];
+      ctx.fillStyle = t===1 ? ML_SUPERTREND_COLORS.bull.line : ML_SUPERTREND_COLORS.bear.line;
+      const x = scaleX(i), y = scaleY(mlst.st[i]) + (t===1 ? 12 : -12);
+      ctx.fillText(String(mlst.clusterIdx[i]+1), x, y);
+    }
+  }
+  ctx.restore();
+}
+const HALFTREND_COLORS = { bull: { line:'#3fb950', fill:'rgba(63,185,80,0.12)' }, bear: { line:'#f85149', fill:'rgba(248,81,73,0.12)' } };
+// Zeichnet das komplette HalfTrend-Overlay unter einem einzigen Button (wie explizit gewünscht): HalfTrend-Linie
+// inkl. ATR-Kanalbänder (Farbe je nach Trend), Dreieck-Marker mit LONG/SHORT-Beschriftung an jedem Trendwechsel,
+// die TP1/TP2/TP3/SL-Zonen des aktuell offenen Trades (Farbverlauf Richtung Kursziel/Stop, wie im Original) und
+// kleine Kreis-Marker an jedem im sichtbaren Bereich bereits getroffenen Kursziel/Stop.
+function drawHalfTrendOverlay(ctx, ht, d, iFrom, iTo, scaleX, scaleY, xStep){
+  ctx.save();
+
+  let segStart = null, segTrend = null;
+  function flushChannel(segEndExclusive){
+    if(segStart==null || segEndExclusive<=segStart) return;
+    const color = segTrend===0 ? HALFTREND_COLORS.bull : HALFTREND_COLORS.bear;
+    ctx.fillStyle = color.fill;
+    ctx.beginPath();
+    let started=false;
+    for(let j=segStart;j<segEndExclusive;j++){
+      if(ht.atrHigh[j]==null) continue;
+      const x=scaleX(j), y=scaleY(ht.atrHigh[j]);
+      if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y);
+    }
+    for(let j=segEndExclusive-1;j>=segStart;j--){
+      if(ht.atrLow[j]==null) continue;
+      ctx.lineTo(scaleX(j), scaleY(ht.atrLow[j]));
+    }
+    ctx.closePath(); ctx.fill();
+
+    ctx.strokeStyle = color.line; ctx.lineWidth = 1.6;
+    ctx.beginPath(); started=false;
+    for(let j=segStart;j<segEndExclusive;j++){
+      if(ht.htLine[j]==null) continue;
+      const x=scaleX(j), y=scaleY(ht.htLine[j]);
+      if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+  }
+  for(let i=iFrom;i<=iTo;i++){
+    const t = ht.trendAt[i];
+    if(t==null){ flushChannel(i); segStart=null; segTrend=null; continue; }
+    if(segTrend==null){ segStart=i; segTrend=t; }
+    else if(t!==segTrend){ flushChannel(i); segStart=i; segTrend=t; }
+  }
+  flushChannel(iTo+1);
+
+  for(let i=Math.max(iFrom,1); i<=iTo; i++){
+    if(!ht.buySignal[i] && !ht.sellSignal[i]) continue;
+    const isBuy = ht.buySignal[i];
+    const x = scaleX(i), y = scaleY(ht.htLine[i]);
+    ctx.fillStyle = isBuy ? HALFTREND_COLORS.bull.line : HALFTREND_COLORS.bear.line;
+    ctx.beginPath();
+    if(isBuy){ ctx.moveTo(x,y+8); ctx.lineTo(x-5,y+16); ctx.lineTo(x+5,y+16); }
+    else { ctx.moveTo(x,y-8); ctx.lineTo(x-5,y-16); ctx.lineTo(x+5,y-16); }
+    ctx.closePath(); ctx.fill();
+    if(xStep >= 24){
+      ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center';
+      ctx.textBaseline = isBuy ? 'top' : 'bottom';
+      ctx.fillText(isBuy ? 'LONG' : 'SHORT', x, y + (isBuy?18:-18));
+    }
+  }
+
+  const lastIdx = d.closes.length-1;
+  if(ht.tradeState[lastIdx] !== 0 && ht.entryIdxAt[lastIdx] != null){
+    const entryIdx = Math.max(iFrom, ht.entryIdxAt[lastIdx]);
+    const x1 = scaleX(entryIdx), x2 = scaleX(iTo);
+    if(x2 > x1){
+      const entryPx = ht.entryPxAt[lastIdx];
+      const sl = ht.activeSL[lastIdx], tp1=ht.activeTP1[lastIdx], tp2=ht.activeTP2[lastIdx], tp3=ht.activeTP3[lastIdx];
+      const yEntry = scaleY(entryPx), ySl = scaleY(sl), yTp3 = scaleY(tp3);
+      const gradProfit = ctx.createLinearGradient(0, yTp3, 0, yEntry);
+      gradProfit.addColorStop(0, 'rgba(63,185,80,0.22)'); gradProfit.addColorStop(1, 'rgba(63,185,80,0.03)');
+      ctx.fillStyle = gradProfit;
+      ctx.fillRect(x1, Math.min(yTp3,yEntry), x2-x1, Math.abs(yEntry-yTp3));
+      const gradRisk = ctx.createLinearGradient(0, yEntry, 0, ySl);
+      gradRisk.addColorStop(0, 'rgba(248,81,73,0.03)'); gradRisk.addColorStop(1, 'rgba(248,81,73,0.22)');
+      ctx.fillStyle = gradRisk;
+      ctx.fillRect(x1, Math.min(yEntry,ySl), x2-x1, Math.abs(ySl-yEntry));
+
+      ctx.setLineDash([4,3]); ctx.lineWidth = 1;
+      [[entryPx,'Einstieg','#c9d1d9'], [tp1,'TP1','#3fb950'], [tp2,'TP2','#3fb950'], [tp3,'TP3','#3fb950'], [sl,'SL','#f85149']].forEach(([val,label,color])=>{
+        if(val==null) return;
+        const y = scaleY(val);
+        ctx.strokeStyle = color;
+        ctx.beginPath(); ctx.moveTo(x1,y); ctx.lineTo(x2,y); ctx.stroke();
+        ctx.fillStyle = color; ctx.font = '9px sans-serif'; ctx.textAlign='left'; ctx.textBaseline='bottom';
+        ctx.fillText(label, x2+3, y+3);
+      });
+      ctx.setLineDash([]);
+    }
+  }
+
+  ht.tpHitEvents.forEach(ev=>{
+    if(ev.i < iFrom || ev.i > iTo) return;
+    const val = ev.kind==='tp1' ? ht.activeTP1[ev.i] : ev.kind==='tp2' ? ht.activeTP2[ev.i] : ev.kind==='tp3' ? ht.activeTP3[ev.i] : ht.activeSL[ev.i];
+    if(val==null) return;
+    const x = scaleX(ev.i), y = scaleY(val);
+    ctx.fillStyle = ev.kind==='sl' ? '#f85149' : '#3fb950';
+    ctx.beginPath(); ctx.arc(x,y,3,0,Math.PI*2); ctx.fill();
+  });
+
+  ctx.restore();
+}
 function drawSwings(ctx, swings, d, iFrom, iTo, scaleX, scaleY, layout){
   const { swingHighAt, swingLowAt, lastSwingLow, lastSwingHigh } = swings;
   ctx.save();
@@ -3255,6 +3765,20 @@ function drawChart(){
       if(l!=null && l<lo) lo=l;
     }
   }
+  if(showMlSupertrend && chart.$mlSupertrend){
+    for(let i=view.start; i<=view.end; i++){
+      const s = chart.$mlSupertrend.st[i];
+      if(s!=null){ if(s<lo) lo=s; if(s>hi) hi=s; }
+    }
+  }
+  if(showHalfTrend && chart.$halfTrend){
+    for(let i=view.start; i<=view.end; i++){
+      const ht = chart.$halfTrend;
+      [ht.atrHigh[i], ht.atrLow[i], ht.activeTP3[i], ht.activeSL[i]].forEach(v=>{
+        if(v!=null){ if(v<lo) lo=v; if(v>hi) hi=v; }
+      });
+    }
+  }
   if(forecastPoints){
     forecastPoints.forEach(p=>{
       [p.price1, p.price2, p.avg].forEach(v=>{ if(v<lo) lo=v; if(v>hi) hi=v; });
@@ -3282,6 +3806,8 @@ function drawChart(){
   drawCandles(ctx, d, iFrom, iTo, scaleX, scaleY, xStep, layout);
   if(showEMAs) drawEMALines(ctx, d.emaSeries, iFrom, iTo, scaleX, scaleY);
   if(showBoll && chart.$boll) drawBollBands(ctx, chart.$boll, iFrom, iTo, scaleX, scaleY);
+  if(showMlSupertrend && chart.$mlSupertrend) drawMlSupertrendOverlay(ctx, chart.$mlSupertrend, d, iFrom, iTo, scaleX, scaleY, xStep);
+  if(showHalfTrend && chart.$halfTrend) drawHalfTrendOverlay(ctx, chart.$halfTrend, d, iFrom, iTo, scaleX, scaleY, xStep);
   if(showSwings && chart.$swings) drawSwings(ctx, chart.$swings, d, iFrom, iTo, scaleX, scaleY, layout);
   if(showPatterns && chart.$patterns) drawPatternOverlay(ctx, chart.$patterns, d, iFrom, iTo, scaleX, scaleY);
   if(showTrendScore && chart.$trendScore) drawTrendScoreOverlay(ctx, chart.$trendScore, d, iFrom, iTo, scaleX, scaleY);
@@ -3426,7 +3952,7 @@ function computeOverlayData(){
   const allStrategies = buildStrategies(activeCoin, activeInterval);
   const n = closes.length;
 
-  // "all" = Sammelanzeige: Signale ALLER 10 Strategien werden gemeinsam eingezeichnet, statt nur der einen
+  // "all" = Sammelanzeige: Signale ALLER 12 Strategien werden gemeinsam eingezeichnet, statt nur der einen
   // im Dropdown gewählten. Pro Kerze wird zusätzlich gemerkt, welche Strategie(n) dort ausgelöst haben, damit
   // das Hover-Banner das transparent macht.
   const keysToShow = stratKey === 'all' ? Object.keys(allStrategies) : stratKey === 'none' ? [] : [stratKey];
@@ -3488,7 +4014,9 @@ function computeChartMeta(d){
   const patterns = computePatternMeta(d.highs, d.lows, d.closes, d.opens, d.closes.length - 1);
   const trendScore = computeTrendScoreResult(activeCoin, activeInterval);
   const boll = computeBollingerBands(d.closes, 20, 2);
-  return { fvg, markers, ichi, swings, srZones, patterns, trendScore, boll };
+  const mlSupertrend = computeMlAdaptiveSupertrend(d.highs, d.lows, d.closes);
+  const halfTrend = computeHalfTrendFull(d.highs, d.lows, d.closes);
+  return { fvg, markers, ichi, swings, srZones, patterns, trendScore, boll, mlSupertrend, halfTrend };
 }
 
 function renderChart(){
@@ -3512,6 +4040,8 @@ function renderChart(){
     $patterns: meta.patterns,
     $trendScore: meta.trendScore,
     $boll: meta.boll,
+    $mlSupertrend: meta.mlSupertrend,
+    $halfTrend: meta.halfTrend,
     $forecast: (showForecast && activeCoin==='bitcoin' && activeInterval==='1d') ? computeCycleForecast(forecastProjectionDays) : null,
     dragging: null,
     crosshairIdx: null,
@@ -3522,6 +4052,8 @@ function renderChart(){
   drawChart();
   updatePatternExplainUI();
   updateTrendScoreExplainUI();
+  updateMlSupertrendExplainUI();
+  updateHalfTrendExplainUI();
 }
 
 // Aktualisiert nur Datensätze/Meta-Infos aus computeOverlayData(), OHNE die Fensterposition selbst anzufassen --
@@ -3538,9 +4070,13 @@ function refreshChartDatasets(){
   chart.$patterns = meta.patterns;
   chart.$trendScore = meta.trendScore;
   chart.$boll = meta.boll;
+  chart.$mlSupertrend = meta.mlSupertrend;
+  chart.$halfTrend = meta.halfTrend;
   chart.$forecast = (showForecast && activeCoin==='bitcoin' && activeInterval==='1d') ? computeCycleForecast(forecastProjectionDays) : null;
   updatePatternExplainUI();
   updateTrendScoreExplainUI();
+  updateMlSupertrendExplainUI();
+  updateHalfTrendExplainUI();
   return d;
 }
 
@@ -3568,7 +4104,7 @@ function renderTable(){
   document.getElementById('compTitle').textContent = `${COINS[coin].label} — ${iv.label}-Kerzen (${count} geladen)`;
   // Shallow copy statt der von buildStrategies() zurückgegebenen (gecachten!) Referenz -- sonst würde das
   // gleich angehängte "trendscore"-Feld dauerhaft im strategyCache landen und andere Stellen verwirren, die
-  // Object.keys(strategies) als "genau die 9 echten Strategien" annehmen (u.a. computeTrendScoreWeights selbst).
+  // Object.keys(strategies) als "genau die 12 echten Strategien" annehmen (z.B. Tabellen-/Vergleichs-Rendering).
   const strategies = { ...buildStrategies(coin, interval) };
   const trendScore = computeTrendScoreResult(coin, interval);
   if(trendScore) strategies.trendscore = trendScore;
@@ -3607,7 +4143,7 @@ async function runReliabilityMatrix(){
     catch(e){ console.warn('Reliability-Matrix: Kerzendaten für', iv, 'nicht ladbar:', e); }
   }
   if(statusEl) statusEl.textContent = 'Berechne…';
-  // 'trendscore' (gewichteter Konsens aller 10 Strategien) läuft als zusätzliche Zeile mit -- computeSignalReliability
+  // 'trendscore' (gewichteter Konsens aller 11 Strategien) läuft als zusätzliche Zeile mit -- computeSignalReliability
   // kennt diesen Sonderfall (siehe dort) und wertet computeTrendScoreResult().position statt einer der 9
   // buildStrategies()-Positionen aus.
   const stratKeys = [...Object.keys(STRAT_LABELS), 'trendscore'];
@@ -4370,7 +4906,7 @@ function runAutoTradeFixedForCoin(coin){
   if(desiredDir) openAutoPosition(coin, desiredDir, price, time, autoTradeStratKey, autoTradeInterval, lastIdx);
   return true;
 }
-// Trendscore-Modus: nutzt statt einer Einzelstrategie den gewichteten Konsens aus allen 10 Strategien
+// Trendscore-Modus: nutzt statt einer Einzelstrategie den gewichteten Konsens aus allen 11 Strategien
 // (computeTrendScoreResult, Profil 'auto' -> eigenständige Automatik-Filter/Exit-Einstellungen) als Entry/Exit-
 // Signal. stratKey wird bewusst als literal 'trendscore' eingefroren (kein echter Strategie-Key), damit
 // determineAutoModeForCoin() eine so eröffnete Position immer wieder hierhin routet, unabhängig vom aktuell
@@ -4834,6 +5370,18 @@ function populateControls(){
     e.currentTarget.classList.toggle('active', showBoll);
     if(chart) drawChart();
   });
+  document.getElementById('toggleMlSupertrendBtn').addEventListener('click', (e)=>{
+    showMlSupertrend = !showMlSupertrend;
+    e.currentTarget.classList.toggle('active', showMlSupertrend);
+    if(chart) drawChart();
+    updateMlSupertrendExplainUI();
+  });
+  document.getElementById('toggleHalfTrendBtn').addEventListener('click', (e)=>{
+    showHalfTrend = !showHalfTrend;
+    e.currentTarget.classList.toggle('active', showHalfTrend);
+    if(chart) drawChart();
+    updateHalfTrendExplainUI();
+  });
   document.getElementById('toggleFvgBtn').addEventListener('click', (e)=>{
     showFVG = !showFVG;
     e.currentTarget.classList.toggle('active', showFVG);
@@ -4952,14 +5500,112 @@ function updateTrendScoreExplainUI(){
   el.style.display = '';
   el.innerHTML = `<strong>Trendscore: ${desc.title}</strong> — Trendlinie: <span style="color:${TREND_SCORE_LONG_COLOR}">blau = long-Konsens</span>, ` +
     `<span style="color:${TREND_SCORE_SHORT_COLOR}">orange = short-Konsens</span>, grau = neutral. Rauten-Marker mit „L"/„S" markieren die ` +
-    `Einstiege des Konsens-Signals. Gewichteter Konsens aus allen 10 Strategien ` +
+    `Einstiege des Konsens-Signals. Gewichteter Konsens aus allen 11 Strategien ` +
     `(Gewicht = 1 + eigene Überrendite ggü. Buy&Hold, mind. 0,02): ${weightList}. Historische Rendite dieses ` +
     `Konsens-Signals im geladenen Zeitraum: ${fmtPct(ts.totalReturn)}, Trefferquote ${ts.winRate!=null ? (ts.winRate*100).toFixed(0)+'%' : '—'}. ` +
     `Reine Heuristik, keine Anlageberatung — über Backtest-Fenster/-Länge lässt sich die Aussagekraft wie bei den ` +
-    `10 Einzelstrategien selbst prüfen.`;
+    `12 Einzelstrategien selbst prüfen.`;
+}
+const ML_SUPERTREND_REGIME_LABELS = ['Niedrig', 'Mittel', 'Hoch'];
+// Zeigt/aktualisiert die Erklärung + den aktuellen Volatilitäts-Regime-Status unter dem Chart -- nur sichtbar,
+// solange der "ML Adaptive Supertrend"-Toggle aktiv ist.
+function updateMlSupertrendExplainUI(){
+  const el = document.getElementById('mlSupertrendExplain');
+  if(!el) return;
+  if(!showMlSupertrend || !chart || !chart.$mlSupertrend){
+    el.style.display = 'none';
+    return;
+  }
+  const mlst = chart.$mlSupertrend;
+  const n = mlst.trendAt.length;
+  let lastIdx = n-1;
+  while(lastIdx >= 0 && (mlst.trendAt[lastIdx]==null || mlst.clusterIdx[lastIdx]==null)) lastIdx--;
+  el.style.display = '';
+  if(lastIdx < 0){
+    el.innerHTML = `<strong>ML Adaptive Supertrend:</strong> noch nicht genug Kerzen für ein Ergebnis.`;
+    return;
+  }
+  const trend = mlst.trendAt[lastIdx];
+  const curIdx = mlst.clusterIdx[lastIdx];
+  const centroids = mlst.clusterCentroids[lastIdx]; // [niedrig, mittel, hoch]
+  const counts = mlst.clusterCounts[lastIdx];
+  const atrVal = mlst.atrArr[lastIdx];
+  // Zeilenreihenfolge hoch->niedrig, wie im Referenz-Tool -- die Zeile des GERADE aktiven Clusters wird
+  // hervorgehoben und bekommt den "Current Volatility"-Text (Analog zur Tabelle im AlgoAlpha-Original).
+  const rows = [2,1,0].map(idx=>{
+    const label = ML_SUPERTREND_REGIME_LABELS[idx];
+    const isCurrent = idx === curIdx;
+    return `<tr${isCurrent ? ' style="background:rgba(255,255,255,0.06);font-weight:600"' : ''}>
+      <td>${idx+1} (${label})</td>
+      <td>${centroids ? centroids[idx].toFixed(2) : '—'}</td>
+      <td>${counts ? counts[idx] : '—'}</td>
+      <td>${isCurrent ? `${label.toUpperCase()} (ATR: ${atrVal!=null ? atrVal.toFixed(2) : '—'})` : ''}</td>
+    </tr>`;
+  }).join('');
+  el.innerHTML = `<strong>ML Adaptive Supertrend</strong> — aktueller Trend ` +
+    `<span style="color:${trend===1 ? ML_SUPERTREND_COLORS.bull.line : ML_SUPERTREND_COLORS.bear.line}">${trend===1?'Bullisch':'Bärisch'}</span>. ` +
+    `Statt eines festen ATR(${ML_SUPERTREND_ATR_PERIOD})-Multiplikators (${ML_SUPERTREND_MULT}×) nutzt die Trailing-Stop-Linie den ATR-Wert des Volatilitäts-Clusters, dem die aktuelle Kerze per k-Means am nächsten liegt (Trainingsfenster: letzte ${ML_SUPERTREND_LOOKBACK} Kerzen).` +
+    `<table style="margin-top:6px"><thead><tr><th>Cluster (Volatilität)</th><th>Cluster-Zentrum (ATR)</th><th>Cluster-Größe</th><th>Aktuelle Volatilität</th></tr></thead><tbody>${rows}</tbody></table>` +
+    `Eigene Umsetzung nach demselben Prinzip wie öffentlich beschriebene "ML Adaptive SuperTrend"-Indikatoren (u.a. AlgoAlpha) -- ATR-Länge, Faktor und Trainingsfenster entsprechen deren bestätigten Standardwerten (10 / 3× / 100 Kerzen), die genaue interne Umsetzung (u.a. Konvergenzdetails) ist eine eigene Neuimplementierung, kein Portierung von deren Quellcode. Reine Heuristik, keine Anlageberatung.`;
+}
+// Zeigt/aktualisiert Linie+Kanal-Erklärung, Performance-Dashboard (Trefferquote, Gewinne/Verluste, aktuelle
+// Position) und Multi-Asset-Scan unter dem Chart -- alles gemeinsam unter dem EINEN HalfTrend-Toggle-Button
+// (wie explizit gewünscht: "ein Button für das Overlay, wo dann die ganzen Visualisierungen erscheinen").
+function updateHalfTrendExplainUI(){
+  const el = document.getElementById('halfTrendExplain');
+  if(!el) return;
+  if(!showHalfTrend || !chart || !chart.$halfTrend){
+    el.style.display = 'none';
+    return;
+  }
+  const ht = chart.$halfTrend;
+  const n = ht.trendAt.length;
+  let lastIdx = n-1;
+  while(lastIdx>=0 && ht.trendAt[lastIdx]==null) lastIdx--;
+  el.style.display = '';
+  if(lastIdx<0){
+    el.innerHTML = `<strong>HalfTrend:</strong> noch nicht genug Kerzen für ein Ergebnis (braucht mind. ${HALFTREND_AMPLITUDE} Kerzen + ATR(${HALFTREND_ATR_PERIOD})-Vorlauf).`;
+    return;
+  }
+  const trend = ht.trendAt[lastIdx];
+  const state = ht.tradeState[lastIdx];
+  const lastClose = chart.$data.closes[lastIdx];
+
+  let currentTradeHtml = 'Keine offene Position';
+  if(state !== 0){
+    const dir = state===1 ? 'LONG' : 'SHORT';
+    const entryPx = ht.entryPxAt[lastIdx];
+    const distPct = entryPx ? ((lastClose-entryPx)/entryPx*100*(state===1?1:-1)) : null;
+    currentTradeHtml = `<span style="color:${state===1?HALFTREND_COLORS.bull.line:HALFTREND_COLORS.bear.line}">${dir}</span>` +
+      (distPct!=null ? ` · ${distPct>=0?'+':''}${distPct.toFixed(2)}% seit Einstieg` : '');
+  }
+  const winRateTxt = ht.winRate!=null ? (ht.winRate*100).toFixed(0)+'%' : '—';
+
+  const scan = computeHalfTrendMultiAssetScan(activeInterval);
+  const scanRows = scan.map(r=>{
+    const tag = r.status==='loading' ? '<span style="color:var(--muted)">lädt…</span>'
+      : `<span style="color:${r.trend==='long'?HALFTREND_COLORS.bull.line:HALFTREND_COLORS.bear.line}">${r.trend==='long'?'LONG':'SHORT'}</span>`;
+    return `<tr><td>${r.short}</td><td>${tag}</td></tr>`;
+  }).join('');
+  const ivLabel = (INTERVALS.find(i=>i.value===activeInterval) || {}).label || activeInterval;
+
+  el.innerHTML = `<strong>HalfTrend Long/Short Signal Engine</strong> — aktueller Trend ` +
+    `<span style="color:${trend===0?HALFTREND_COLORS.bull.line:HALFTREND_COLORS.bear.line}">${trend===0?'Bullisch':'Bärisch'}</span>. ` +
+    `Portierung nach dem vom Nutzer bereitgestellten Pine-Script-v6-Quellcode "HalfTrend Long/Short Signal Engine [BigBeluga]" ` +
+    `(Original-HalfTrend-Konzept: everget; diese Version © BigBeluga, Lizenz CC BY-NC-SA 4.0 -- private, nicht-kommerzielle ` +
+    `Nutzung in diesem Tool, siehe Kommentar bei computeHalfTrend()). Amplitude ${HALFTREND_AMPLITUDE}, Kanal-Faktor ${HALFTREND_CHANNEL_DEV}×, ` +
+    `TP/SL-Abstand = ATR(${HALFTREND_ATR_PERIOD})/2 × ${HALFTREND_RISK_MULT} (TP1/TP2/TP3 = 1×/2×/3× Risiko). Läuft als eigenständige Strategie im ` +
+    `Dropdown mit, fließt aber NICHT in den Trendscore-Konsens ein.` +
+    `<table style="margin-top:6px"><thead><tr><th>Trefferquote</th><th>Gewinne/Verluste</th><th>Ziel-CRV</th><th>Aktuelle Position</th></tr></thead><tbody>` +
+    `<tr><td>${winRateTxt}</td><td>${ht.wins}/${ht.losses}</td><td>1:3</td><td>${currentTradeHtml}</td></tr>` +
+    `</tbody></table>` +
+    `<table style="margin-top:6px"><thead><tr><th colspan="2">Multi-Asset-Scan (${ivLabel})</th></tr></thead><tbody>${scanRows}</tbody></table>` +
+    `Multi-Asset-Scanner angepasst: das Original scannt 5 fest hinterlegte Symbole inkl. OANDA-Forex/Gold (EURUSD, XAUUSD), die über ` +
+    `die Binance-EUR-Infrastruktur dieses Tools nicht abrufbar sind -- stattdessen wird hier die aktuell konfigurierte Coin-Liste ` +
+    `(oben, inkl. frei wählbarem 4. Coin) auf demselben Zeitrahmen gescannt. Reine Heuristik, keine Anlageberatung.`;
 }
 
-// ---------- Exit-Strategie-Auswahl (global für alle 10 Strategien) ----------
+// ---------- Exit-Strategie-Auswahl (global für alle 12 Strategien) ----------
 function applyExitModeChange(){
   strategyCache = {}; // Backtest ist exit-abhängig -> für alle Coins/Intervalle neu berechnen
   Object.keys(COINS).forEach(c=>{
@@ -5679,7 +6325,7 @@ function populateAutoModeUI(){
   [
     {v:'fixed', label:'Feste Strategie'},
     {v:'dynamic', label:'Dynamisch: beste Strategie der letzten N Kerzen'},
-    {v:'trendscore', label:'Trendscore: gewichteter Konsens aller 10 Strategien'}
+    {v:'trendscore', label:'Trendscore: gewichteter Konsens aller 11 Strategien'}
   ].forEach(o=>{
     const opt = document.createElement('option');
     opt.value = o.v; opt.textContent = o.label;
@@ -5937,7 +6583,7 @@ function computeCombinedEquityCurve(perCoin){
 }
 // ---------- Markt-Indikatoren-Panel (Analyse-Tab, unter dem Preis-Chart) ----------
 // Rein deskriptiv, live berechnet aus den bereits geladenen Kerzendaten des aktuell gewählten Coins/Zeitrahmens --
-// unabhängig von den 10 Strategien/Exit-Filtern oben (die verändern hier nichts).
+// unabhängig von den 12 Strategien/Exit-Filtern oben (die verändern hier nichts).
 function fmtVolume(x, coin){
   if(x==null || isNaN(x)) return '—';
   const short = coin && COINS[coin] ? COINS[coin].short : '';
