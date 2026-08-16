@@ -376,8 +376,10 @@
         Berechnet Gewinner/Verlierer direkt aus Bitpandas eigenen Kursdaten (nicht über Alpaca) --
         alles hier ist garantiert bei Bitpanda handelbar. Braucht deinen Bitpanda-Key (Einstellungen,
         Scope "Trading"). Zwei ehrliche Einschränkungen: kein Handelsvolumen verfügbar (nur Preis +
-        Tagesänderung), und der Katalog ist riesig, daher mehrere Anfragen nacheinander -- kann einige
-        Sekunden dauern.
+        Tagesänderung), und der Katalog ist riesig (Bitpanda selbst spricht von über 3.000 Werten,
+        teils mit Mehrfachnotierungen derselben Firma an unterschiedlichen Börsen) -- pro 500 Werte
+        eine eigene Anfrage, bei "~15.000" also bis zu 30 Anfragen nacheinander. Das kann je nach
+        gewählter Tiefe von wenigen Sekunden bis über eine Minute dauern.
       </div>
       <div class="addrow">
         <div class="field">
@@ -392,8 +394,10 @@
           <label>Durchsuchte Werte (mehr = langsamer)</label>
           <select id="bpNativeDepth">
             <option value="1000">~1.000</option>
-            <option value="2500" selected>~2.500</option>
-            <option value="5000">~5.000</option>
+            <option value="2500">~2.500</option>
+            <option value="5000" selected>~5.000</option>
+            <option value="10000">~10.000</option>
+            <option value="15000">~15.000 (kompletter Katalog, dauert am längsten)</option>
           </select>
         </div>
         <div class="field" style="justify-content:flex-end;"><button id="bpNativeLoadBtn">Bitpanda-Gewinner &amp; Verlierer laden</button></div>
