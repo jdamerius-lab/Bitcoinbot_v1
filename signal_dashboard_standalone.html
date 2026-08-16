@@ -419,6 +419,50 @@
 
     <h2 class="section">Ergebnisse <span class="count" id="scanCount">0</span></h2>
     <div id="scanResults"></div>
+
+    <div style="margin-top:32px;padding-top:20px;border-top:2px dashed var(--border);">
+      <div class="eyebrow" style="margin-bottom:10px;">Separater, experimenteller Bereich — unabhängig vom Rest oben</div>
+      <div class="panel">
+        <h2 class="section" style="margin-bottom:6px;">Bitpanda-natives Top-Screening (Beta)</h2>
+        <div class="hint" style="margin-bottom:12px;">
+          Berechnet Gewinner/Verlierer direkt aus Bitpandas eigenen Kursdaten (nicht über Alpaca) --
+          alles hier ist garantiert bei Bitpanda handelbar. Zwei ehrliche Einschränkungen: kein
+          Handelsvolumen verfügbar (nur Preis + Tagesänderung), und der Katalog ist riesig, daher
+          mehrere Anfragen nacheinander -- kann einige Sekunden dauern. Braucht deinen Bitpanda-Key
+          (Einstellungen, Scope "Trading").
+        </div>
+        <div class="addrow">
+          <div class="field">
+            <label>Anzahl je Seite</label>
+            <select id="bpNativeCount">
+              <option value="10" selected>Top 10</option>
+              <option value="20">Top 20</option>
+              <option value="30">Top 30</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Durchsuchte Werte (mehr = langsamer)</label>
+            <select id="bpNativeDepth">
+              <option value="1000">~1.000</option>
+              <option value="2500" selected>~2.500</option>
+              <option value="5000">~5.000</option>
+            </select>
+          </div>
+          <div class="field" style="justify-content:flex-end;"><button id="bpNativeLoadBtn">Bitpanda-Gewinner &amp; Verlierer laden</button></div>
+        </div>
+        <div class="hint" id="bpNativeStatus"></div>
+        <div style="display:flex;gap:20px;flex-wrap:wrap;">
+          <div style="flex:1;min-width:220px;">
+            <div class="hint" style="margin-bottom:6px;color:var(--buy);">Gewinner</div>
+            <div id="bpNativeGainers"></div>
+          </div>
+          <div style="flex:1;min-width:220px;">
+            <div class="hint" style="margin-bottom:6px;color:var(--sell);">Verlierer</div>
+            <div id="bpNativeLosers"></div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
 </div>
@@ -951,6 +995,84 @@ async function fetchAlpacaMovers(marketType, topN, key, secret){
   };
 }
 
+// ============================================================================
+// EIGENSTÄNDIGER, EXPERIMENTELLER BEREICH -- "Bitpanda-natives Top-Screening"
+// Bewusst komplett getrennt vom Rest (eigene Funktion, eigene IDs, eigener
+// Fetch-Pfad) -- falls das nicht zuverlässig klappt, kann es isoliert wieder
+// entfernt werden, ohne Alpaca-Screener oder Watchlist anzufassen.
+// ============================================================================
+async function fetchBitpandaTopMovers(apiKey, maxItems, topN){
+  if (!apiKey){
+    throw new Error('Braucht deinen Bitpanda-Key (Einstellungen, Scope "Trading").');
+  }
+  const pageSize = 500;
+  const maxPages = Math.max(1, Math.ceil(maxItems / pageSize));
+  const allItems = [];
+  let cursor = '';
+  for (let page = 0; page < maxPages; page++){
+    const url = `https://developer.bitpanda.com/v1/ticker?type=equity_security&page_size=${pageSize}` +
+      (cursor ? `&cursor=${encodeURIComponent(cursor)}` : '');
+    let r;
+    try{
+      r = await fetch(url, { headers: { 'X-Api-Key': apiKey } });
+    }catch(e){
+      throw new Error(`Bitpanda-Ticker direkt nicht erreichbar (${e.message}) -- vermutlich CORS.`);
+    }
+    if (r.status === 401){
+      throw new Error('Bitpanda-Ticker HTTP 401 -- Key ungültig oder ohne Scope "Trading".');
+    }
+    if (!r.ok){
+      throw new Error(`Bitpanda-Ticker HTTP ${r.status}` + (allItems.length ? ` (nach ${allItems.length} bereits geladenen Werten)` : ''));
+    }
+    const data = await r.json();
+    const items = data.data || [];
+    allItems.push(...items);
+    if (!data.has_next_page || !data.next_cursor) break;
+    cursor = data.next_cursor;
+  }
+  const withChange = allItems
+    .map(i => ({ symbol: i.symbol, name: i.name, price: parseFloat(i.price), changePct: parseFloat(i.price_change_day) }))
+    .filter(i => !isNaN(i.changePct) && !isNaN(i.price));
+  const sorted = withChange.slice().sort((a, b) => b.changePct - a.changePct);
+  return {
+    gainers: sorted.slice(0, topN),
+    losers: sorted.slice(-topN).reverse(),
+    scanned: allItems.length,
+  };
+}
+
+function renderBpNativeList(containerId, items){
+  document.getElementById(containerId).innerHTML = items.map((item, i) => {
+    const pctStr = `${item.changePct > 0 ? '+' : ''}${fmtNum(item.changePct)}%`;
+    const cls = item.changePct >= 0 ? 'gain' : 'loss';
+    return `<span class="mover-chip ${cls}" data-symbol="${item.symbol}" data-type="stock" title="${item.name || item.symbol}">
+      <span class="rank">#${i+1}</span> ${item.symbol}<span class="scan-chip-name">${item.name || ''}</span> <span class="pct">${pctStr}</span> <span style="color:var(--text-muted);">${fmtNum(item.price)}</span>
+    </span>`;
+  }).join(' ') || '<span class="hint" style="margin:0;">Keine Daten.</span>';
+}
+
+document.getElementById('bpNativeLoadBtn').addEventListener('click', async () => {
+  const status = document.getElementById('bpNativeStatus');
+  if (!settings.bitpandaKey){
+    status.textContent = 'Braucht einen Bitpanda-Key (Einstellungen, Scope "Trading").';
+    return;
+  }
+  const topN = parseInt(document.getElementById('bpNativeCount').value);
+  const maxItems = parseInt(document.getElementById('bpNativeDepth').value);
+  status.textContent = 'Lädt … (mehrere Anfragen nacheinander, kann etwas dauern)';
+  document.getElementById('bpNativeGainers').innerHTML = '';
+  document.getElementById('bpNativeLosers').innerHTML = '';
+  try{
+    const { gainers, losers, scanned } = await fetchBitpandaTopMovers(settings.bitpandaKey, maxItems, topN);
+    renderBpNativeList('bpNativeGainers', gainers);
+    renderBpNativeList('bpNativeLosers', losers);
+    status.textContent = `${scanned} Werte bei Bitpanda durchsucht. Chip anklicken für Chart.`;
+  }catch(e){
+    status.textContent = e.message;
+  }
+});
+
+
 const CORS_PROXIES = [
   u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
   u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
@@ -1073,6 +1195,10 @@ async function fetchBitpandaTicker(symbol, apiKey){
   }catch(e){ return null; } // still silently degrade -- CORS or network issue, non-critical enhancement
 }
 
+// Prüft, welche der übergebenen Symbole bei Bitpanda als equity_security auftauchen.
+// Bewusst nur ein Best-Effort-Abgleich: Bitpanda nutzt bei manchen Werten eigene interne
+// Symbole (z.B. Newmont = "NEWM" statt des echten Marktsymbols "NEM"), die hier nicht
+// erkannt werden -- so ein Fall würde fälschlich als "nicht verfügbar" markiert.
 async function fetchAiComment(analysis, apiKey){
   const votesText = (analysis.votes||[]).map(v =>
     `- ${v.name} (Gewicht ${v.weight}): Score ${v.score>0?'+':''}${v.score} -- ${v.reason}`
