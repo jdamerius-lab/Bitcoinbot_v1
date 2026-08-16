@@ -371,6 +371,48 @@
     </div>
 
     <div class="panel">
+      <h2 class="section" style="margin-bottom:6px;">Bitpanda-natives Top-Screening (Beta)</h2>
+      <div class="hint" style="margin-bottom:12px;">
+        Berechnet Gewinner/Verlierer direkt aus Bitpandas eigenen Kursdaten (nicht über Alpaca) --
+        alles hier ist garantiert bei Bitpanda handelbar. Braucht deinen Bitpanda-Key (Einstellungen,
+        Scope "Trading"). Zwei ehrliche Einschränkungen: kein Handelsvolumen verfügbar (nur Preis +
+        Tagesänderung), und der Katalog ist riesig, daher mehrere Anfragen nacheinander -- kann einige
+        Sekunden dauern.
+      </div>
+      <div class="addrow">
+        <div class="field">
+          <label>Anzahl je Seite</label>
+          <select id="bpNativeCount">
+            <option value="10" selected>Top 10</option>
+            <option value="20">Top 20</option>
+            <option value="30">Top 30</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Durchsuchte Werte (mehr = langsamer)</label>
+          <select id="bpNativeDepth">
+            <option value="1000">~1.000</option>
+            <option value="2500" selected>~2.500</option>
+            <option value="5000">~5.000</option>
+          </select>
+        </div>
+        <div class="field" style="justify-content:flex-end;"><button id="bpNativeLoadBtn">Bitpanda-Gewinner &amp; Verlierer laden</button></div>
+        <div class="field" style="justify-content:flex-end;"><button class="ghost small" id="bpNativeAddBtn" style="display:none;">Zur Scanliste hinzufügen</button></div>
+      </div>
+      <div class="hint" id="bpNativeStatus"></div>
+      <div style="display:flex;gap:20px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:220px;">
+          <div class="hint" style="margin-bottom:6px;color:var(--buy);">Gewinner</div>
+          <div id="bpNativeGainers"></div>
+        </div>
+        <div style="flex:1;min-width:220px;">
+          <div class="hint" style="margin-bottom:6px;color:var(--sell);">Verlierer</div>
+          <div id="bpNativeLosers"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
       <div class="addrow" style="justify-content:space-between;">
         <div class="addrow" style="gap:10px;">
           <div class="field">
@@ -419,50 +461,6 @@
 
     <h2 class="section">Ergebnisse <span class="count" id="scanCount">0</span></h2>
     <div id="scanResults"></div>
-
-    <div style="margin-top:32px;padding-top:20px;border-top:2px dashed var(--border);">
-      <div class="eyebrow" style="margin-bottom:10px;">Separater, experimenteller Bereich — unabhängig vom Rest oben</div>
-      <div class="panel">
-        <h2 class="section" style="margin-bottom:6px;">Bitpanda-natives Top-Screening (Beta)</h2>
-        <div class="hint" style="margin-bottom:12px;">
-          Berechnet Gewinner/Verlierer direkt aus Bitpandas eigenen Kursdaten (nicht über Alpaca) --
-          alles hier ist garantiert bei Bitpanda handelbar. Zwei ehrliche Einschränkungen: kein
-          Handelsvolumen verfügbar (nur Preis + Tagesänderung), und der Katalog ist riesig, daher
-          mehrere Anfragen nacheinander -- kann einige Sekunden dauern. Braucht deinen Bitpanda-Key
-          (Einstellungen, Scope "Trading").
-        </div>
-        <div class="addrow">
-          <div class="field">
-            <label>Anzahl je Seite</label>
-            <select id="bpNativeCount">
-              <option value="10" selected>Top 10</option>
-              <option value="20">Top 20</option>
-              <option value="30">Top 30</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>Durchsuchte Werte (mehr = langsamer)</label>
-            <select id="bpNativeDepth">
-              <option value="1000">~1.000</option>
-              <option value="2500" selected>~2.500</option>
-              <option value="5000">~5.000</option>
-            </select>
-          </div>
-          <div class="field" style="justify-content:flex-end;"><button id="bpNativeLoadBtn">Bitpanda-Gewinner &amp; Verlierer laden</button></div>
-        </div>
-        <div class="hint" id="bpNativeStatus"></div>
-        <div style="display:flex;gap:20px;flex-wrap:wrap;">
-          <div style="flex:1;min-width:220px;">
-            <div class="hint" style="margin-bottom:6px;color:var(--buy);">Gewinner</div>
-            <div id="bpNativeGainers"></div>
-          </div>
-          <div style="flex:1;min-width:220px;">
-            <div class="hint" style="margin-bottom:6px;color:var(--sell);">Verlierer</div>
-            <div id="bpNativeLosers"></div>
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 
 </div>
@@ -1016,7 +1014,7 @@ async function fetchBitpandaTopMovers(apiKey, maxItems, topN){
     try{
       r = await fetch(url, { headers: { 'X-Api-Key': apiKey } });
     }catch(e){
-      throw new Error(`Bitpanda-Ticker direkt nicht erreichbar (${e.message}) -- vermutlich CORS.`);
+      throw new Error(`Bitpanda-Ticker direkt nicht erreichbar (${e.message}) -- vermutlich CORS (z.B. bei file:// statt http(s)://).`);
     }
     if (r.status === 401){
       throw new Error('Bitpanda-Ticker HTTP 401 -- Key ungültig oder ohne Scope "Trading".');
@@ -1041,6 +1039,7 @@ async function fetchBitpandaTopMovers(apiKey, maxItems, topN){
   };
 }
 
+
 function renderBpNativeList(containerId, items){
   document.getElementById(containerId).innerHTML = items.map((item, i) => {
     const pctStr = `${item.changePct > 0 ? '+' : ''}${fmtNum(item.changePct)}%`;
@@ -1050,6 +1049,8 @@ function renderBpNativeList(containerId, items){
     </span>`;
   }).join(' ') || '<span class="hint" style="margin:0;">Keine Daten.</span>';
 }
+
+let lastBpGainers = [], lastBpLosers = [];
 
 document.getElementById('bpNativeLoadBtn').addEventListener('click', async () => {
   const status = document.getElementById('bpNativeStatus');
@@ -1062,14 +1063,31 @@ document.getElementById('bpNativeLoadBtn').addEventListener('click', async () =>
   status.textContent = 'Lädt … (mehrere Anfragen nacheinander, kann etwas dauern)';
   document.getElementById('bpNativeGainers').innerHTML = '';
   document.getElementById('bpNativeLosers').innerHTML = '';
+  document.getElementById('bpNativeAddBtn').style.display = 'none';
   try{
     const { gainers, losers, scanned } = await fetchBitpandaTopMovers(settings.bitpandaKey, maxItems, topN);
+    lastBpGainers = gainers; lastBpLosers = losers;
     renderBpNativeList('bpNativeGainers', gainers);
     renderBpNativeList('bpNativeLosers', losers);
+    document.getElementById('bpNativeAddBtn').style.display = (gainers.length || losers.length) ? '' : 'none';
     status.textContent = `${scanned} Werte bei Bitpanda durchsucht. Chip anklicken für Chart.`;
   }catch(e){
     status.textContent = e.message;
   }
+});
+
+document.getElementById('bpNativeAddBtn').addEventListener('click', () => {
+  let added = 0;
+  [...lastBpGainers, ...lastBpLosers].forEach(item => {
+    if (!scanList.some(i => i.type === 'stock' && i.symbol === item.symbol)){
+      scanList.push({ type: 'stock', symbol: item.symbol });
+      added++;
+    }
+  });
+  saveScanList(scanList);
+  renderScanListChips();
+  const total = lastBpGainers.length + lastBpLosers.length;
+  document.getElementById('bpNativeStatus').textContent = `${added} neue Werte zur Scan-Liste hinzugefügt (${total - added} waren schon drin).`;
 });
 
 
