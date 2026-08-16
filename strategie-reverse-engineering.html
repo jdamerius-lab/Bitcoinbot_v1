@@ -372,6 +372,40 @@
     </div>
   </div>
 
+  <div class="card" id="squeezeAlertCard" style="margin:10px 0 0">
+    <h2 style="font-size:13px;margin:0 0 8px">🔥 Squeeze-Alarm — marktweit</h2>
+    <div class="stats-row">
+      <div class="stat-box" style="border-color:var(--green)">
+        <div class="stat-label">Bullische Squeeze-Kandidaten</div>
+        <div class="stat-value" id="squeezeAlertBullCount" style="color:var(--green)">—</div>
+      </div>
+      <div class="stat-box" style="border-color:var(--red)">
+        <div class="stat-label">Bärische Squeeze-Kandidaten</div>
+        <div class="stat-value" id="squeezeAlertBearCount" style="color:var(--red)">—</div>
+      </div>
+    </div>
+    <div class="row" style="margin-top:10px;gap:10px;align-items:stretch">
+      <div style="flex:1;min-width:220px">
+        <label>Top bullisch (nach Kompression)</label>
+        <div id="squeezeAlertBullList" class="status">—</div>
+      </div>
+      <div style="flex:1;min-width:220px">
+        <label>Top bärisch (nach Kompression)</label>
+        <div id="squeezeAlertBearList" class="status">—</div>
+      </div>
+    </div>
+    <div class="status" id="squeezeAlertStatus" style="margin-top:8px">Noch kein automatischer Scan gelaufen…</div>
+    <div class="footnote">
+      Scannt automatisch alle 30 Minuten (und einmalig beim Laden) sämtliche Binance-EUR-Handelspaare auf dem im
+      Marktscreening-Tab eingestellten Zeitrahmen -- dieselbe Kompressions-Berechnung wie dort (BB-/ATR-Perzentilrang,
+      siehe computeCompressionMetrics()), nur mit deutlich lockerer Schwelle als der dortige "Super-Squeeze"-Filter:
+      ein Coin zählt hier bereits als Kandidat, sobald mindestens 2 von 3-4 betrachteten Zeitrahmen (Haupt-Zeitrahmen +
+      15m/4h/1d) Squeeze ODER Teil-Squeeze zeigen -- unabhängig vom Volumen. Bullisch/Bärisch kommt vom Trendscore-
+      Bias auf dem Haupt-Zeitrahmen. Reine Heuristik zur Früherkennung möglicher marktweiter Ausbrüche, keine
+      Anlageberatung. Details je Coin: Marktscreening-Tab.
+    </div>
+  </div>
+
   <div class="card" id="trendGaugeCard" style="margin:10px 0 0">
     <h2 style="font-size:13px;margin:0 0 8px">Marktphase über alle Zeitrahmen — <span id="trendGaugeCoinLabel">Bitcoin</span></h2>
     <div class="trend-gauge-wrap">
@@ -6852,6 +6886,62 @@ async function runMarketScreening(){
   renderMarketScreeningResults();
   const treffer = marketScreeningResults.filter(r => r.compression.status !== 'normal').length;
   if(statusEl) statusEl.textContent = `Treffer: ${treffer}   Coins geprüft: ${marketScreeningResults.length}   Stand: ${new Date().toLocaleString('de-DE')}`;
+  renderSqueezeAlertCard(); // marktweite Squeeze-Alarm-Kachel bei den Markt-Indikatoren mit denselben Ergebnissen füttern
+}
+// ---------- Squeeze-Alarm (marktweit) -- siehe squeezeAlertCard bei den Markt-Indikatoren ----------
+// Nutzt bewusst dieselben marketScreeningResults wie der Marktscreening-Tab (kein zweiter, separater Scan) --
+// nur die Schwelle für "zählt als Kandidat" ist deutlich lockerer als der dortige "Super-Squeeze"-Filter:
+// mindestens 2 von (Haupt-Zeitrahmen + 15m/4h/1d, doppelte Zeitrahmen zusammengefasst) zeigen Squeeze ODER
+// Teil-Squeeze, und Volumen wird NICHT vorausgesetzt (anders als superSqueeze, das zusätzlich steigendes
+// Volumen verlangt) -- auf ausdrücklichen Nutzerwunsch, um auch früheren/schwächeren Vorlauf sichtbar zu machen.
+const SQUEEZE_ALERT_TF_HIT_THRESHOLD = 2;
+const SQUEEZE_ALERT_AUTO_INTERVAL_MS = 30*60*1000; // alle 30 Minuten
+function computeSqueezeAlertSummary(){
+  const intervalEl = document.getElementById('screeningIntervalSelect');
+  const primaryInterval = intervalEl ? intervalEl.value : '4h';
+  const candidates = [];
+  marketScreeningResults.forEach(r=>{
+    // Alle betrachteten Zeitrahmen inkl. Haupt-Zeitrahmen in einem Objekt zusammenführen -- fällt der
+    // Haupt-Zeitrahmen mit einem der MTF-Zeitrahmen zusammen (z.B. beide "4h"), verschmilzt das automatisch zu
+    // EINEM Eintrag statt doppelt gezählt zu werden.
+    const tfStatuses = { [primaryInterval]: r.compression.status, ...r.mtf };
+    const hitCount = Object.values(tfStatuses).filter(s => s === 'squeeze' || s === 'partial').length;
+    if(hitCount < SQUEEZE_ALERT_TF_HIT_THRESHOLD) return;
+    if(r.bias !== 'bullish' && r.bias !== 'bearish') return; // neutral zählt bewusst in keine der beiden Richtungen
+    candidates.push({ symbol: r.symbol, bias: r.bias, hitCount, kompression: r.compression.kompression ?? 0 });
+  });
+  candidates.sort((a,b)=> b.kompression - a.kompression);
+  const bull = candidates.filter(c=>c.bias==='bullish');
+  const bear = candidates.filter(c=>c.bias==='bearish');
+  return { bull, bear, totalScanned: marketScreeningResults.length, primaryInterval };
+}
+function renderSqueezeAlertCard(){
+  const bullEl = document.getElementById('squeezeAlertBullCount');
+  const bearEl = document.getElementById('squeezeAlertBearCount');
+  const bullListEl = document.getElementById('squeezeAlertBullList');
+  const bearListEl = document.getElementById('squeezeAlertBearList');
+  const statusEl = document.getElementById('squeezeAlertStatus');
+  if(!bullEl) return;
+  if(marketScreeningResults.length === 0){
+    statusEl.textContent = 'Noch kein automatischer Scan gelaufen…';
+    return;
+  }
+  const s = computeSqueezeAlertSummary();
+  bullEl.textContent = String(s.bull.length);
+  bearEl.textContent = String(s.bear.length);
+  const fmtList = (arr) => arr.length
+    ? arr.slice(0,8).map(c => `${c.symbol} (${c.hitCount}/4 TF, Kompr. ${c.kompression})`).join(', ')
+    : 'keine';
+  bullListEl.textContent = fmtList(s.bull);
+  bearListEl.textContent = fmtList(s.bear);
+  const ivLabel = (INTERVALS.find(i=>i.value===s.primaryInterval) || {}).label || s.primaryInterval;
+  statusEl.textContent = `Haupt-Zeitrahmen: ${ivLabel}   Coins geprüft: ${s.totalScanned}   Stand: ${new Date().toLocaleString('de-DE')}`;
+}
+let squeezeAlertTimer = null;
+function startSqueezeAlertAutoRefresh(){
+  if(squeezeAlertTimer) clearInterval(squeezeAlertTimer);
+  runMarketScreening(); // sofort ein erstes Mal, nicht erst nach 30 Minuten warten (kompletter Börsen-Scan, kann etwas dauern)
+  squeezeAlertTimer = setInterval(runMarketScreening, SQUEEZE_ALERT_AUTO_INTERVAL_MS);
 }
 // Spalten-Layout der Ergebnistabelle in Anzeige-Reihenfolge. "sortable:true"-Spalten bekommen ein
 // data-key-Attribut in der Kopfzelle (siehe initScreeningTableSorting()/handleScreeningHeaderClick()) und
@@ -7395,6 +7485,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   selectCoin('bitcoin');
   startChartAutoRefresh();
+  startSqueezeAlertAutoRefresh();
 });
 </script>
 </body>
