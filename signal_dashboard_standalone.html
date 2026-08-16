@@ -152,6 +152,11 @@
   .settings-field label{display:block;font-size:12.5px;color:var(--text-muted);margin-bottom:4px;}
   .settings-field input{width:100%;}
   .settings-field .note{font-size:11px;color:var(--text-muted);margin-top:4px;}
+  .key-len{display:block;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text-muted);margin-top:2px;}
+  .key-input-row{display:flex;gap:6px;align-items:stretch;}
+  .key-input-row input{flex:1;min-width:0;}
+  .key-toggle-btn{background:var(--surface-2);border:1px solid var(--border);color:var(--text-muted);border-radius:8px;padding:0 10px;cursor:pointer;font-size:13px;flex:none;}
+  .key-toggle-btn:hover{color:var(--text);}
   @media (prefers-reduced-motion: reduce){ *{transition:none!important;} }
 </style>
 </head>
@@ -178,23 +183,40 @@
     <div class="settings-grid">
       <div class="settings-field">
         <label>Alpaca API-Key + Secret (empfohlen für Aktien)</label>
-        <input type="password" id="alpacaKey" placeholder="Alpaca API-Key">
-        <input type="password" id="alpacaSecret" placeholder="Alpaca Secret-Key" style="margin-top:6px;">
-        <div class="note">Echte Echtzeit- + Historien-API für Aktien (kostenloser IEX-Feed, alpaca.markets, kein Geld nötig). Wird nur lokal gespeichert, direkt an data.alpaca.markets gesendet — kein Proxy. Bekannter, ungewisser Punkt: Alpacas Daten-API hatte in der Vergangenheit CORS-Probleme mit eigenen Auth-Headern; falls das bei dir auftritt, siehst du eine klare Fehlermeldung und es fällt automatisch auf die anderen Quellen zurück.</div>
+        <div class="key-input-row">
+          <input type="password" id="alpacaKey" placeholder="Alpaca API-Key">
+          <button type="button" class="key-toggle-btn" data-toggle="alpacaKey">👁</button>
+        </div>
+        <span class="key-len" id="alpacaKeyLen"></span>
+        <div class="key-input-row" style="margin-top:6px;">
+          <input type="password" id="alpacaSecret" placeholder="Alpaca Secret-Key">
+          <button type="button" class="key-toggle-btn" data-toggle="alpacaSecret">👁</button>
+        </div>
+        <span class="key-len" id="alpacaSecretLen"></span>
+        <div class="note">Echte Echtzeit- + Historien-API für Aktien (kostenloser IEX-Feed, alpaca.markets, kein Geld nötig). Wird nur lokal gespeichert, direkt an data.alpaca.markets gesendet — kein Proxy. Bekannter, ungewisser Punkt: Alpacas Daten-API hatte in der Vergangenheit CORS-Probleme mit eigenen Auth-Headern; falls das bei dir auftritt, siehst du eine klare Fehlermeldung und es fällt automatisch auf die anderen Quellen zurück. Tipp: Zeichenanzahl unten vergleicht sich leicht zwischen zwei Rechnern, falls ein Key mal nicht funktioniert.</div>
       </div>
       <div class="settings-field">
         <label>Anthropic API-Key (optional)</label>
-        <input type="password" id="anthropicKey" placeholder="sk-ant-...">
+        <div class="key-input-row">
+          <input type="password" id="anthropicKey" placeholder="sk-ant-...">
+          <button type="button" class="key-toggle-btn" data-toggle="anthropicKey">👁</button>
+        </div>
         <div class="note">Für den "KI-Kommentar"-Button. Wird nur in diesem Browser gespeichert (localStorage) und direkt an api.anthropic.com gesendet — nie an Dritte.</div>
       </div>
       <div class="settings-field">
         <label>FMP API-Key (optional)</label>
-        <input type="password" id="fmpKey" placeholder="dein FMP-Key">
+        <div class="key-input-row">
+          <input type="password" id="fmpKey" placeholder="dein FMP-Key">
+          <button type="button" class="key-toggle-btn" data-toggle="fmpKey">👁</button>
+        </div>
         <div class="note">Fallback, falls Alpaca nicht konfiguriert ist und Stooq/Yahoo bei dir blockiert sind, und für Intraday-Zeitrahmen. Läuft bewusst ohne Proxy. Kostenloser Account (250 Anfragen/Tag, End-of-Day) auf financialmodelingprep.com.</div>
       </div>
       <div class="settings-field">
         <label>Bitpanda API-Key (optional)</label>
-        <input type="password" id="bitpandaKey" placeholder="dein Bitpanda-Key (Scope: Trading)">
+        <div class="key-input-row">
+          <input type="password" id="bitpandaKey" placeholder="dein Bitpanda-Key (Scope: Trading)">
+          <button type="button" class="key-toggle-btn" data-toggle="bitpandaKey">👁</button>
+        </div>
         <div class="note">Blendet deinen echten Bitpanda-Live-Preis zum Abgleich ein. Kann je nach Browser an CORS scheitern — wenn ja, wird es einfach stillschweigend übersprungen.</div>
       </div>
     </div>
@@ -737,16 +759,39 @@ document.getElementById('anthropicKey').value = settings.anthropicKey || '';
 document.getElementById('fmpKey').value = settings.fmpKey || '';
 document.getElementById('bitpandaKey').value = settings.bitpandaKey || '';
 
+function updateKeyLen(inputId, lenId){
+  const val = document.getElementById(inputId).value;
+  const trimmed = val.replace(/\s+/g, '');
+  const hasWhitespace = trimmed.length !== val.length;
+  document.getElementById(lenId).textContent = val
+    ? `${trimmed.length} Zeichen${hasWhitespace ? ' (Leerzeichen/Umbruch im Eingabefeld entdeckt und werden beim Speichern entfernt!)' : ''}`
+    : '';
+}
+['alpacaKey','alpacaSecret'].forEach(id => {
+  const lenId = id + 'Len';
+  updateKeyLen(id, lenId);
+  document.getElementById(id).addEventListener('input', () => updateKeyLen(id, lenId));
+});
+
 document.getElementById('settingsToggle').addEventListener('click', () => {
   document.getElementById('settingsPanel').classList.toggle('open');
 });
+document.querySelectorAll('.key-toggle-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const input = document.getElementById(btn.dataset.toggle);
+    const showing = input.type === 'text';
+    input.type = showing ? 'password' : 'text';
+    btn.textContent = showing ? '👁' : '🙈';
+  });
+});
 document.getElementById('saveSettings').addEventListener('click', () => {
+  const clean = (v) => v.replace(/\s+/g, ''); // entfernt Leerzeichen/Umbrüche überall, nicht nur am Rand
   settings = {
-    alpacaKey: document.getElementById('alpacaKey').value.trim(),
-    alpacaSecret: document.getElementById('alpacaSecret').value.trim(),
-    anthropicKey: document.getElementById('anthropicKey').value.trim(),
-    fmpKey: document.getElementById('fmpKey').value.trim(),
-    bitpandaKey: document.getElementById('bitpandaKey').value.trim(),
+    alpacaKey: clean(document.getElementById('alpacaKey').value),
+    alpacaSecret: clean(document.getElementById('alpacaSecret').value),
+    anthropicKey: clean(document.getElementById('anthropicKey').value),
+    fmpKey: clean(document.getElementById('fmpKey').value),
+    bitpandaKey: clean(document.getElementById('bitpandaKey').value),
   };
   saveSettingsToStorage(settings);
   document.getElementById('settingsPanel').classList.remove('open');
@@ -860,8 +905,11 @@ async function fetchAlpacaMostActive(topN, by, key, secret){
   }catch(e){
     throw new Error(`Alpaca-Screener direkt nicht erreichbar (${e.message}) -- vermutlich dasselbe CORS-Thema wie bei den Kursdaten.`);
   }
-  if (r.status === 401 || r.status === 403){
-    throw new Error(`Alpaca-Screener HTTP ${r.status} -- dieser Endpunkt braucht laut Doku "Echtzeit-SIP-Daten", das ist normalerweise ein kostenpflichtiges Alpaca-Feature. Dein kostenloser Account hat vermutlich keinen Zugriff darauf.`);
+  if (r.status === 401){
+    throw new Error(`Alpaca-Screener HTTP 401 (nicht autorisiert) -- das deutet auf einen ungültigen/falschen API-Key oder Secret hin, unabhängig vom Screener. Prüf, ob derselbe Key auch bei Watchlist/Chart funktioniert -- wenn nicht, ist der Key selbst das Problem, nicht die Berechtigung.`);
+  }
+  if (r.status === 403){
+    throw new Error(`Alpaca-Screener HTTP 403 (Zugriff verweigert) -- Key ist gültig, aber dieser Endpunkt braucht laut Doku "Echtzeit-SIP-Daten", ein kostenpflichtiges Alpaca-Feature. Dein Account hat vermutlich keine Berechtigung dafür.`);
   }
   if (!r.ok) throw new Error(`Alpaca-Screener HTTP ${r.status}`);
   const data = await r.json();
@@ -882,8 +930,11 @@ async function fetchAlpacaMovers(marketType, topN, key, secret){
   }catch(e){
     throw new Error(`Alpaca-Movers direkt nicht erreichbar (${e.message}) -- vermutlich dasselbe CORS-Thema wie bei den Kursdaten.`);
   }
-  if (r.status === 401 || r.status === 403){
-    throw new Error(`Alpaca-Movers HTTP ${r.status} -- braucht laut Doku "Echtzeit-SIP-Daten" (kostenpflichtiges Feature). Dein kostenloser Account hat vermutlich keinen Zugriff.`);
+  if (r.status === 401){
+    throw new Error(`Alpaca-Movers HTTP 401 (nicht autorisiert) -- deutet auf einen ungültigen/falschen API-Key oder Secret hin, unabhängig vom Screener. Prüf, ob derselbe Key bei Watchlist/Chart funktioniert.`);
+  }
+  if (r.status === 403){
+    throw new Error(`Alpaca-Movers HTTP 403 (Zugriff verweigert) -- Key ist gültig, aber dieser Endpunkt braucht laut Doku "Echtzeit-SIP-Daten" (kostenpflichtiges Feature). Dein Account hat vermutlich keine Berechtigung dafür.`);
   }
   if (!r.ok) throw new Error(`Alpaca-Movers HTTP ${r.status}`);
   const data = await r.json();
