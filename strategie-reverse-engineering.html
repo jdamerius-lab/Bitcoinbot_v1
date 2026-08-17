@@ -308,6 +308,12 @@
           <button class="secondary" id="toggleBollBtn">Bollinger-Bänder</button>
           <button class="secondary" id="toggleMlSupertrendBtn">ML Adaptive Supertrend</button>
           <button class="secondary" id="toggleHalfTrendBtn" title="HalfTrend Long/Short Signal Engine (Portierung nach BigBeluga/everget, CC BY-NC-SA 4.0) -- Linie, Kanal, TP/SL-Zonen, Performance- und Multi-Asset-Dashboard">HalfTrend</button>
+          <button class="secondary" id="toggleMtfDayBtn" title="Korridor aus den letzten 24 Kerzen des übergeordneten Zeitrahmens (höchstes Hoch/tiefstes Tief) + Einstiegstrigger auf dem nächstkleineren Zeitrahmen">MTF-Day</button>
+          <button class="secondary" id="toggleMtfSwingBtn" title="Korridor aus den letzten 4 Swing-Hochs/-Tiefs des übergeordneten Zeitrahmens + Einstiegstrigger auf dem nächstkleineren Zeitrahmen">MTF-Swing</button>
+          <span id="mtfCorridorTfWrap" style="display:inline-flex;align-items:center;gap:4px">
+            <label id="mtfCorridorTfLabel" style="margin:0;font-size:11px">Korridor-Zeitrahmen</label>
+            <select id="mtfCorridorTfSelect" style="width:auto"></select>
+          </span>
           <button class="secondary" id="toggleFvgBtn">FVG</button>
           <button class="secondary" id="toggleFibBtn">Fibonacci</button>
           <button class="secondary" id="toggleIchimokuBtn">Ichimoku</button>
@@ -427,7 +433,7 @@
 
   <div class="footnote">
     Blaues Dreieck unten = Long-Einstieg, oranges Dreieck oben = Short-Einstieg. Hohler Kreis = Ausstieg. Standardmäßig zeigt
-    der Chart die Signale <strong>aller</strong> 12 Strategien gleichzeitig (Overlay „Alle Strategien"); beim Darüberfahren
+    der Chart die Signale <strong>aller</strong> 14 Strategien gleichzeitig (Overlay „Alle Strategien"); beim Darüberfahren
     verrät das Banner oben rechts, welche Strategie(n) genau ausgelöst haben. Alarm-Blöcke zeigen die jeweils letzten
     Signale je Coin (neu → alt) — bei Intervallen bis 30 Min zeitbasiert (30-Minuten-Fenster), bei größeren Intervallen
     kerzenbasiert (letzte 15 Kerzen), da ein festes Zeitfenster dort zu schnell leerläuft. Ältere Signale bleiben trotzdem
@@ -437,6 +443,7 @@
   <div class="exit-banner-desc" id="trendScoreExplain" style="display:none"></div>
   <div class="exit-banner-desc" id="mlSupertrendExplain" style="display:none"></div>
   <div class="exit-banner-desc" id="halfTrendExplain" style="display:none"></div>
+  <div class="exit-banner-desc" id="mtfCorridorExplain" style="display:none"></div>
 
   <div class="alert-blocks" id="alertBlocksWrap"></div>
 </div>
@@ -446,7 +453,7 @@
   <div class="exit-banner">
     <div class="exit-banner-row">
       <div>
-        <label>Exit-Strategie (gilt für alle 12 Strategien)</label>
+        <label>Exit-Strategie (gilt für alle 14 Strategien)</label>
         <select id="exitModeSelect"></select>
       </div>
       <div id="exitParamWrap" style="display:none">
@@ -492,20 +499,20 @@
       — welcher Zeitrahmen als "höher" gilt, ist per Select frei wählbar (Standard: deutlich größerer Sprung statt
       nur der nächstgrößeren Kerze, damit der Trend dort wirklich unabhängig ist). Swing-Breakout: Wechsel nur bei
       Schlusskurs jenseits des letzten Swing-Hochs/-Tiefs, statt nur einer Indikator-Schwelle. Alle Filter einzeln
-      an/abschaltbar, kombinierbar, gelten für alle 12 Strategien.
+      an/abschaltbar, kombinierbar, gelten für alle 14 Strategien.
     </div>
   </div>
 </div>
 
 <div class="bottom-note">
   Live-Kerzenchart über die öffentliche Binance-API (BTCEUR / ETHEUR / SOLEUR) mit Fadenkreuz-Cursor, EMAs, Fair-Value-Gaps
-  und Fibonacci-Retracement. Standardmäßig laufen die 12 Strategien immer long ODER short, Ausstieg = nächstes Gegensignal
+  und Fibonacci-Retracement. Standardmäßig laufen die 14 Strategien immer long ODER short, Ausstieg = nächstes Gegensignal
   (reine Annahme, keine echte Exit-Logik). Über das Exit-Strategie-Banner unter dem Chart lässt sich das für alle 10
   Strategien gemeinsam auf ein fixes Stop-Loss/Take-Profit, einen ATR-Trailing-Stop oder ein Zeitlimit umstellen — dann
   kann eine Position auch zwischenzeitlich flach sein. Der Chart zeigt
-  standardmäßig die Signale aller 12 Strategien gleichzeitig (per Dropdown auf eine einzelne Strategie einschränkbar); das
+  standardmäßig die Signale aller 14 Strategien gleichzeitig (per Dropdown auf eine einzelne Strategie einschränkbar); das
   Hover-Banner oben rechts nennt beim Darüberfahren die genauen auslösenden Strategien. Die Alarm-Blöcke scannen
-  alle 12 Strategien je Coin auf dem eingestellten Zeitrahmen: bei Intervallen bis 30 Minuten zeitbasiert (30-Min-Fenster),
+  alle 14 Strategien je Coin auf dem eingestellten Zeitrahmen: bei Intervallen bis 30 Minuten zeitbasiert (30-Min-Fenster),
   bei größeren Intervallen kerzenbasiert (letzte 15 Kerzen), jeweils mit Uhrzeit, neueste zuerst. Live-Preis läuft über
   einen Binance-WebSocket (Fallback: Polling) und färbt sich grün/rot je nach Kursrichtung. Zoom per Mausrad oder Buttons
   hält die neueste Kerze am rechten Rand fest. Historie wird beim Zurückscrollen/-zoomen automatisch im Hintergrund
@@ -563,7 +570,7 @@
       </div>
     </div>
     <div class="exit-banner-desc" id="optimizerResult">
-      Testet alle 12 Entry-Strategien × 5 Exit-Strategien (Standard-Parameter je Exit-Modus) für den aktuell
+      Testet alle 14 Entry-Strategien × 5 Exit-Strategien (Standard-Parameter je Exit-Modus) für den aktuell
       gewählten Coin/Zeitrahmen über die letzten N Kerzen und zeigt die beste Kombination an. Sie wird NICHT
       automatisch übernommen — dafür erst auf „Aktivieren" klicken. Ist „Filter mit verfeinern" aktiv, wird
       zusätzlich für genau diese Gewinner-Kombination die beste Einstellung der vier Entry-Filter gesucht
@@ -668,7 +675,7 @@
   <div class="exit-banner">
     <div class="exit-banner-row">
       <div>
-        <label>Exit-Strategie (gilt für alle 12 Strategien, nur Automatik)</label>
+        <label>Exit-Strategie (gilt für alle 14 Strategien, nur Automatik)</label>
         <select id="autoExitModeSelect"></select>
       </div>
       <div id="autoExitParamWrap" style="display:none">
@@ -800,7 +807,7 @@
   <div class="exit-banner-desc">
     Fragt alle 30 Sekunden die öffentlichen, offenen Perp-Positionen der angegebenen Hyperliquid-Wallet ab
     (<code>clearinghouseState</code> — öffentlich einsehbar, kein API-Key nötig) und bildet neu auftauchende bzw.
-    verschwindende Positionen als eigenständige Paper-Trades nach, komplett unabhängig von den 12 Strategien oben.
+    verschwindende Positionen als eigenständige Paper-Trades nach, komplett unabhängig von den 14 Strategien oben.
     Die Rendite bei Schließung ist eine <strong>Näherung</strong> aus dem zuletzt bekannten unrealisierten
     Gewinn/Verlust der Wallet (unrealizedPnl ÷ Positionswert), nicht der exakte Fill-Preis. Reine Beobachtung,
     keine echte Order-Ausführung, kein Bezug zu einem eigenen Bitvavo-/Binance-/Hyperliquid-Konto. Vergangene
@@ -950,7 +957,9 @@ const STRAT_LABELS = {
   pattern:    "Muster-Erkennung",
   emastack:   "EMA-Trend (9/20/50)",
   mlsupertrend: "ML Adaptive Supertrend (K-Means)",
-  halftrend:  "HalfTrend (BigBeluga)"
+  halftrend:  "HalfTrend (BigBeluga)",
+  mtfday:     "MTF-Day-Korridor",
+  mtfswing:   "MTF-Swing-Korridor"
 };
 const STRAT_LABELS_FULL = {
   sma:        "SMA-Crossover (Trendfolge)",
@@ -964,7 +973,9 @@ const STRAT_LABELS_FULL = {
   pattern:    "Muster-Erkennung (Candlestick + Dreiecke)",
   emastack:   "EMA-Trend (9/20/50-Stack, Trendfolge)",
   mlsupertrend: "ML Adaptive Supertrend (K-Means-Volatilitätsregime, Trendfolge)",
-  halftrend:  "HalfTrend Long/Short Signal Engine (Trendfolge, Hysterese-Kanal, Portierung nach BigBeluga/everget)"
+  halftrend:  "HalfTrend Long/Short Signal Engine (Trendfolge, Hysterese-Kanal, Portierung nach BigBeluga/everget)",
+  mtfday:     "MTF-Day-Korridor (24-Kerzen-Korridor des übergeordneten Zeitrahmens + Einstiegstrigger)",
+  mtfswing:   "MTF-Swing-Korridor (Swing-Punkt-Korridor des übergeordneten Zeitrahmens + Einstiegstrigger)"
 };
 const EMA_CONFIGS = [
   {period:9,   color:'#ffe9a8', label:'EMA 9'},
@@ -999,7 +1010,7 @@ const EXIT_MODES = {
   adaptive: { label:'Adaptiver Profit-Protect-Exit (Trailing + Breakeven + Reversal)', paramLabel:'ATR-Multiplikator (Trailing-Phase)', paramDefault:3, min:0.5, max:8, step:0.1,
     desc:'Gestaffelter Exit in drei Phasen, gedacht speziell fürs unbeaufsichtigte Automatik-Trading: (1) direkt nach dem Einstieg schützt nur ein ganz normaler ATR-Trailing-Stop (X × ATR(14)) gegen eine sofortige Fehlbewegung — frühe Reversal-Muster werden hier bewusst ignoriert, das ist zu diesem Zeitpunkt meist nur Rauschen um den Einstieg. (2) Sobald der Trade um mindestens 1×ATR im Plus liegt, wird der Stop mindestens auf Breakeven angehoben — ab hier ist der Trade abgesichert, ein Fehlschlag kostet höchstens noch Gebühren/Slippage. (3) Ist dieser Breakeven-Schutz erreicht UND taucht danach ein Candlestick-Umkehrmuster, ein Dreiecks-Ausbruch gegen die Position oder eine RSI-Erschöpfung auf, wird SOFORT ausgestiegen, statt auf den nachlaufenden Trailing-Stop zu warten — genau das soll verhindern, dass bereits erzielter Gewinn erst wieder komplett abgegeben wird, bevor der Exit reagiert. Der ATR-Trailing-Stop selbst läuft die ganze Zeit als letztes Sicherheitsnetz mit.' },
   tpladder: { label:'HalfTrend TP1/TP2/TP3-Leiter (BigBeluga)', paramLabel:'Risiko-Multiplikator (SL-Abstand = ATR(100)/2 × X, TP3 = 3× davon)', paramDefault:3, min:0.5, max:8, step:0.1,
-    desc:'Das eigene Take-Profit/Stop-Loss-System des HalfTrend-Overlays (siehe HalfTrend-Toggle-Button), hier als Exit-Modus für ALLE 12 Strategien nutzbar — z.B. im Automatik-Trading. Bei Einstieg wird ein Risikoabstand = ATR(100)/2 × X festgelegt, TP1/TP2/TP3 liegen im Verhältnis 1×/2×/3× davon entfernt. Anders als beim fixen "Stop-Loss/Take-Profit"-Modus (1:2, sofortiger Exit) schließt die Position hier erst bei TP3 ODER Stop-Loss vollständig — ein bloßes Erreichen von TP1/TP2 allein beendet den Trade noch nicht, die Position bleibt weiter offen in Richtung TP3.' }
+    desc:'Das eigene Take-Profit/Stop-Loss-System des HalfTrend-Overlays (siehe HalfTrend-Toggle-Button), hier als Exit-Modus für ALLE 14 Strategien nutzbar — z.B. im Automatik-Trading. Bei Einstieg wird ein Risikoabstand = ATR(100)/2 × X festgelegt, TP1/TP2/TP3 liegen im Verhältnis 1×/2×/3× davon entfernt. Anders als beim fixen "Stop-Loss/Take-Profit"-Modus (1:2, sofortiger Exit) schließt die Position hier erst bei TP3 ODER Stop-Loss vollständig — ein bloßes Erreichen von TP1/TP2 allein beendet den Trade noch nicht, die Position bleibt weiter offen in Richtung TP3.' }
 };
 let exitMode = 'reversal';
 let exitParam = null;
@@ -1035,6 +1046,8 @@ let showEMAs = false;
 let showBoll = false;
 let showMlSupertrend = false;
 let showHalfTrend = false;
+let showMtfDay = false;
+let showMtfSwing = false;
 let showFVG = false;
 let showFib = false;
 let showIchimoku = false;
@@ -1161,7 +1174,7 @@ const AUTO_TRADE_LS_KEYS = {
 };
 
 // ---------- Wallet-Copy-Trading (Hyperliquid, experimentell) ----------
-// Eigenständiges, von den 12 Strategien komplett unabhängiges Paper-Trading-Modul: fragt periodisch die
+// Eigenständiges, von den 14 Strategien komplett unabhängiges Paper-Trading-Modul: fragt periodisch die
 // öffentlichen offenen Positionen einer Hyperliquid-Wallet ab (kein API-Key nötig, siehe hlFetchClearinghouseState)
 // und bildet Positions-Änderungen als Trades nach. Läuft nur, wenn hlWalletCopyEnabled true ist und eine
 // syntaktisch gültige Adresse eingetragen wurde.
@@ -1844,6 +1857,188 @@ function computeHalfTrendMultiAssetScan(interval){
   });
 }
 
+// ---------- MTF-Overlay (Day-/Swing-Korridor + Einstiegstrigger auf kleinerem Zeitrahmen) ----------
+// Eigene Nutzer-Idee, keine Portierung eines bekannten Skripts. Drei Zeitebenen gleichzeitig im Spiel:
+// 1) PARENT-Zeitrahmen (übergeordnet, per Dropdown wählbar -- Standard = NEXT_HIGHER_TF): liefert den
+//    Kurskorridor. "Day" = höchstes Hoch/tiefstes Tief der letzten 24 Parent-Kerzen. "Swing" = höchstes/
+//    tiefstes der letzten 4 bestätigten Swing-Hochs/-Tiefs des Parent-Zeitrahmens (echte Marktstruktur statt
+//    fixer Kerzenzahl -- auf Nutzerwunsch).
+// 2) AKTIVER Zeitrahmen (der gerade im Chart gewählte, "Bezugszeitrahmen"): zeigt, wo der Kurs gerade im Korridor
+//    steht, UND liefert per SMA(20)-Trend (bullisch/bärisch) den Trend-Filter für die Einstiegstrigger.
+// 3) ENTRY-Zeitrahmen (eine Stufe UNTER dem aktiven, automatisch ermittelt): liefert den Einstiegstrigger --
+//    3 Kerzen in dieselbe Richtung, eine Momentum-Kerze (Körper deutlich über Durchschnitt) oder eine
+//    Engulfing-Kerze (nutzt dieselbe Erkennung wie die "Muster"-Strategie). Ein Trigger zählt NUR, wenn seine
+//    Richtung mit dem SMA(20)-Trend des Bezugszeitrahmens übereinstimmt -- so wird immer nur mit dem Trend
+//    gehandelt, nie dagegen (auf Nutzerwunsch).
+// Exit: TP = das ferne Korridor-Ende in Trade-Richtung, SL = das gegenüberliegende Korridor-Ende (symmetrisch).
+const MTF_CORRIDOR_DAY_LOOKBACK = 24;
+const MTF_CORRIDOR_SWING_POINTS = 4;
+const MTF_CORRIDOR_SWING_PIVOT_BARS = 5; // Bestätigungsfenster je Seite für die Swing-Punkte (wie findSwingPoints() sonst auch)
+const MTF_MOMENTUM_CANDLE_MULT = 1.8;    // Körper >= 1.8x Durchschnittskörper der letzten MTF_MOMENTUM_LOOKBACK Kerzen
+const MTF_MOMENTUM_LOOKBACK = 10;
+// Per Basis-Intervall wählbarer Parent-Zeitrahmen für den Korridor (eigene, von NEXT_HIGHER_TF UNABHÄNGIGE
+// Override-Map, gleiche Struktur/Defaults -- steuert sowohl die Chart-Overlay-Zeichnung als auch die
+// Strategie-Signale mtfday/mtfswing, analog dazu, wie NEXT_HIGHER_TF bereits den MTF-Filter beeinflusst).
+let MTF_CORRIDOR_TF = { ...DEFAULT_NEXT_HIGHER_TF };
+function setMtfCorridorTfOverride(interval, value){
+  if(!value || value === DEFAULT_NEXT_HIGHER_TF[interval]){
+    if(DEFAULT_NEXT_HIGHER_TF[interval]) MTF_CORRIDOR_TF[interval] = DEFAULT_NEXT_HIGHER_TF[interval];
+    else delete MTF_CORRIDOR_TF[interval];
+  } else {
+    MTF_CORRIDOR_TF[interval] = value;
+  }
+}
+// Eine Stufe kleiner als das übergebene Intervall (gemäß Reihenfolge in INTERVALS), null falls es das kleinste ist.
+function nextLowerTF(interval){
+  const idx = INTERVALS.findIndex(i=>i.value===interval);
+  if(idx <= 0) return null;
+  return INTERVALS[idx-1].value;
+}
+// Einstiegstrigger je Kerze auf dem Entry-Zeitrahmen: null oder {dir:1|-1, kind:'engulfing'|'momentum'|'3candles'}.
+// Prüfreihenfolge (erste passende gewinnt): Engulfing vor Momentum vor 3-Kerzen -- eine Engulfing-Kerze ist per
+// Definition auch eine "große" Kerze, soll aber als eigenständiger, spezifischerer Trigger gemeldet werden statt
+// als generischer Momentum-Treffer.
+function computeMtfEntryTriggers(opens, highs, lows, closes){
+  const n = closes.length;
+  const triggers = new Array(n).fill(null);
+  for(let i=1;i<n;i++){
+    const candle = computeCandlePatternAt(opens, highs, lows, closes, i);
+    if(candle && candle.name && candle.name.includes('Engulfing') && candle.direction !== 0){
+      triggers[i] = { dir: candle.direction, kind: 'engulfing' };
+      continue;
+    }
+    if(i >= MTF_MOMENTUM_LOOKBACK){
+      let sumBody = 0;
+      for(let j=i-MTF_MOMENTUM_LOOKBACK;j<i;j++) sumBody += Math.abs(closes[j]-opens[j]);
+      const avgBody = sumBody / MTF_MOMENTUM_LOOKBACK;
+      const body = Math.abs(closes[i]-opens[i]);
+      const dir = closes[i]>opens[i] ? 1 : (closes[i]<opens[i] ? -1 : 0);
+      if(avgBody > 0 && body >= avgBody*MTF_MOMENTUM_CANDLE_MULT && dir !== 0){
+        triggers[i] = { dir, kind: 'momentum' };
+        continue;
+      }
+    }
+    if(i >= 2){
+      const dirs = [i-2,i-1,i].map(j => closes[j]>opens[j] ? 1 : (closes[j]<opens[j] ? -1 : 0));
+      if(dirs[0]!==0 && dirs[0]===dirs[1] && dirs[1]===dirs[2]) triggers[i] = { dir: dirs[0], kind: '3candles' };
+    }
+  }
+  return triggers;
+}
+const MTF_TRIGGER_LABELS = { engulfing:'Engulfing-Kerze', momentum:'Momentum-Kerze', '3candles':'3 Kerzen gleiche Richtung' };
+// Self-contained TP/SL-Simulation für die Chart-Overlay-Anzeige (Performance-Dashboard) -- TP/SL sind die
+// Korridor-Enden zum Einstiegszeitpunkt (bleiben für die Trade-Dauer fix, wie beim HalfTrend-Overlay). Ein neuer
+// Trigger in Gegenrichtung überschreibt eine offene Position sofort (frisches Signal); bei einem Trigger in
+// dieselbe Richtung während bereits eine Position offen ist, passiert nichts (kein Nachlegen/Pyramidisieren).
+function computeMtfCorridorTrades(closes, highs, lows, corridorUpperAt, corridorLowerAt, triggersAt){
+  const n = highs.length;
+  const tradeState = new Array(n).fill(0);
+  const activeSL = new Array(n).fill(null);
+  const activeTP = new Array(n).fill(null);
+  const entryPxAt = new Array(n).fill(null);
+  const entryIdxAt = new Array(n).fill(null);
+  let state = 0, sl = null, tp = null, entryPx = null, entryIdx = null;
+  let wins = 0, losses = 0;
+  for(let i=0;i<n;i++){
+    const trig = triggersAt[i];
+    if(trig && trig.dir !== 0 && corridorUpperAt[i] != null && corridorLowerAt[i] != null && trig.dir !== state){
+      state = trig.dir; entryIdx = i; entryPx = closes[i];
+      tp = state===1 ? corridorUpperAt[i] : corridorLowerAt[i];
+      sl = state===1 ? corridorLowerAt[i] : corridorUpperAt[i];
+    }
+    if(state===1 && tp!=null){
+      if(highs[i] >= tp){ wins++; state=0; }
+      else if(lows[i] <= sl){ losses++; state=0; }
+    } else if(state===-1 && tp!=null){
+      if(lows[i] <= tp){ wins++; state=0; }
+      else if(highs[i] >= sl){ losses++; state=0; }
+    }
+    tradeState[i]=state; activeSL[i]=sl; activeTP[i]=tp; entryIdxAt[i]=entryIdx; entryPxAt[i]=entryPx;
+  }
+  const totalClosed = wins+losses;
+  return { tradeState, activeSL, activeTP, entryPxAt, entryIdxAt, wins, losses, winRate: totalClosed ? wins/totalClosed : null };
+}
+// Bündelt Korridor + Einstiegstrigger + TP/SL-Simulation für EINEN Coin/aktiven-Zeitrahmen/Modus ('day'|'swing').
+// Kausal: für jede aktive Kerze wird der Korridor/Trigger NUR aus zu diesem Zeitpunkt bereits bekannten Parent-/
+// Entry-Kerzen abgeleitet (mapToHigherTF() liefert je Zeitstempel den zuletzt abgeschlossenen Index der jeweils
+// anderen Zeitreihe -- kein Blick in die Zukunft). Liefert null, solange Parent- oder Entry-Zeitrahmen-Daten für
+// diesen Coin noch nicht geladen sind (siehe ensureMtfCorridorData()).
+// Trend-Filter (auf Nutzerwunsch): ein Einstiegstrigger auf dem Entry-Zeitrahmen zählt nur, wenn seine Richtung
+// mit dem Trend des BEZUGS-Zeitrahmens (dem aktiven Zeitrahmen selbst, activeTrendAt = Schlusskurs vs. SMA(20),
+// exakt dieselbe Definition wie beim bestehenden MTF-Filter/computeHigherTFTrend) übereinstimmt -- so wird immer
+// nur mit dem übergeordneten Trend gehandelt, nie dagegen. Wirkt an der Quelle (triggersAt), fließt daher
+// gleichermaßen in Chart-Marker, das mtfday/mtfswing-Strategiesignal UND die TP/SL-Dashboard-Simulation ein.
+function computeMtfCorridorSeries(coin, interval, mode){
+  const data = ohlcCache[coin+'::'+interval];
+  if(!data) return null;
+  const { times, highs, lows, closes } = data;
+  const n = times.length;
+
+  const parentInterval = MTF_CORRIDOR_TF[interval] || DEFAULT_NEXT_HIGHER_TF[interval];
+  const entryInterval = nextLowerTF(interval);
+  const parentData = parentInterval ? ohlcCache[coin+'::'+parentInterval] : null;
+  const entryData = entryInterval ? ohlcCache[coin+'::'+entryInterval] : null;
+  if(!parentData || !entryData) return null;
+
+  const activeToParent = mapToHigherTF(times, parentData.times);
+  const activeToEntry = mapToHigherTF(times, entryData.times);
+  const entryTriggersFull = computeMtfEntryTriggers(entryData.opens, entryData.highs, entryData.lows, entryData.closes);
+  const parentSwing = mode === 'swing' ? findSwingPoints(parentData.highs, parentData.lows, MTF_CORRIDOR_SWING_PIVOT_BARS) : null;
+  const activeSma = sma(closes, 20);
+  const activeTrendAt = closes.map((c,j)=> activeSma[j]==null ? null : (c>=activeSma[j] ? 1 : -1));
+
+  const corridorUpperAt = new Array(n).fill(null);
+  const corridorLowerAt = new Array(n).fill(null);
+  const triggersAt = new Array(n).fill(null);
+  const rawPosition = new Array(n).fill(0);
+
+  // Für 'swing': die letzten MTF_CORRIDOR_SWING_POINTS bestätigten Punkte laufend mitführen statt bei jeder
+  // aktiven Kerze neu über die gesamte Parent-Historie zu scannen (Performance: O(Parent-Kerzen) statt
+  // O(aktive Kerzen × Parent-Kerzen)) -- pIdx ist dank mapToHigherTF() monoton steigend.
+  let swingHighsSeen = [], swingLowsSeen = [], lastPIdx = -1;
+
+  for(let i=0;i<n;i++){
+    const pIdx = activeToParent[i];
+    if(pIdx >= 0){
+      if(mode === 'day'){
+        const from = pIdx - MTF_CORRIDOR_DAY_LOOKBACK + 1;
+        if(from >= 0){
+          let hi=-Infinity, lo=Infinity;
+          for(let j=from;j<=pIdx;j++){ if(parentData.highs[j]>hi) hi=parentData.highs[j]; if(parentData.lows[j]<lo) lo=parentData.lows[j]; }
+          corridorUpperAt[i] = hi; corridorLowerAt[i] = lo;
+        }
+      } else {
+        for(let j=lastPIdx+1;j<=pIdx;j++){
+          if(parentSwing.swingHighAt[j]) swingHighsSeen.push(parentData.highs[j]);
+          if(parentSwing.swingLowAt[j]) swingLowsSeen.push(parentData.lows[j]);
+        }
+        lastPIdx = pIdx;
+        if(swingHighsSeen.length >= MTF_CORRIDOR_SWING_POINTS && swingLowsSeen.length >= MTF_CORRIDOR_SWING_POINTS){
+          const lastHighs = swingHighsSeen.slice(-MTF_CORRIDOR_SWING_POINTS);
+          const lastLows = swingLowsSeen.slice(-MTF_CORRIDOR_SWING_POINTS);
+          corridorUpperAt[i] = Math.max(...lastHighs); corridorLowerAt[i] = Math.min(...lastLows);
+        }
+      }
+    }
+    const eIdx = activeToEntry[i];
+    if(eIdx >= 0 && corridorUpperAt[i] != null){
+      const trig = entryTriggersFull[eIdx];
+      // Trigger zählt nur, solange der Kurs noch WÄHREND des Korridors steht (sonst wäre in Trade-Richtung kein
+      // Platz mehr bis zum TP), UND nur, wenn seine Richtung mit dem Trend des Bezugszeitrahmens übereinstimmt
+      // (Trend-Filter, s.o.) -- Gegen-Trend-Trigger werden komplett verworfen, nicht nur ausgeblendet.
+      if(trig && trig.dir !== 0 && closes[i] < corridorUpperAt[i] && closes[i] > corridorLowerAt[i]
+         && activeTrendAt[i] !== null && trig.dir === activeTrendAt[i]){
+        triggersAt[i] = trig;
+        rawPosition[i] = trig.dir;
+      }
+    }
+    if(rawPosition[i]===0 && i>0) rawPosition[i] = rawPosition[i-1];
+  }
+
+  const trades = computeMtfCorridorTrades(closes, highs, lows, corridorUpperAt, corridorLowerAt, triggersAt);
+  return { corridorUpperAt, corridorLowerAt, triggersAt, rawPosition, activeTrendAt, parentInterval, entryInterval, ...trades };
+}
+
 // ---------- Volatilitäts-Kompression / "Squeeze-Screener"-Kennzahlen ----------
 // Perzentilrang eines aktuellen Werts innerhalb einer historischen Vergleichsreihe (0-100): wie viel Prozent
 // der Vergleichswerte liegen bei oder unter dem aktuellen Wert. Niedriger Perzentilrang bei Volatilitäts-
@@ -2075,6 +2270,26 @@ function computeHigherTFTrend(coin, interval){
   const avg = sma(higherData.closes, 20);
   const trend = higherData.closes.map((c,j)=> avg[j]==null ? null : (c>=avg[j] ? 1 : -1));
   return { trend, times: higherData.times };
+}
+// Lädt bei Bedarf im Hintergrund die Parent- (Korridor) und Entry- (Einstiegstrigger) Zeitrahmen-Daten für das
+// MTF-Overlay nach -- analog zu computeHigherTFTrend() oben, nur für zwei Zeitrahmen statt einem. Wird nur
+// aufgerufen, solange mindestens einer der beiden MTF-Overlay-Buttons aktiv ist (kein unnötiges Laden im Hintergrund).
+let pendingMtfCorridorFetch = {};
+function ensureMtfCorridorData(coin, interval){
+  const parentInterval = MTF_CORRIDOR_TF[interval] || DEFAULT_NEXT_HIGHER_TF[interval];
+  const entryInterval = nextLowerTF(interval);
+  [parentInterval, entryInterval].forEach(iv=>{
+    if(!iv) return;
+    const key = coin+'::'+iv;
+    if(ohlcCache[key] || pendingMtfCorridorFetch[key]) return;
+    pendingMtfCorridorFetch[key] = true;
+    ensureData(coin, iv).then(()=>{
+      delete pendingMtfCorridorFetch[key];
+      if(activeCoin===coin && activeInterval===interval && (showMtfDay || showMtfSwing)){
+        updateChartInPlace();
+      }
+    }).catch(()=>{ delete pendingMtfCorridorFetch[key]; });
+  });
 }
 function applyMTFFilter(rawSignal, higherTF, lowerTimes){
   if(!higherTF) return rawSignal;
@@ -2672,6 +2887,26 @@ function buildStrategiesCore(coin, interval, key){
     const position = ht.trendAt.map(t => t===0 ? 1 : (t===1 ? -1 : 0));
     strategies.halftrend = finalizeStrategy(applyEntryFilters(position, entryCtx), highs, lows, closes, exitCtx);
   }
+  // 13./14. MTF-Overlay Day-/Swing-Korridor (eigene Nutzer-Idee, siehe computeMtfCorridorSeries() weiter oben).
+  // Position kommt aus den Einstiegstriggern (Engulfing/Momentum-Kerze/3-Kerzen-Folge) auf dem Entry-Zeitrahmen,
+  // solange der Kurs innerhalb des Parent-Zeitrahmen-Korridors steht. Braucht Parent-/Entry-Zeitrahmen-Daten --
+  // solange die (noch) nicht geladen sind, bleibt die Position flach (0) statt zu crashen; ensureMtfCorridorData()
+  // stößt das Nachladen an, damit die Strategien auch dann irgendwann "scharf" werden, wenn der Nutzer nur die
+  // Backtest-Tabelle ansieht (unabhängig davon, ob die Overlay-Buttons gerade aktiv sind) -- ABER nur für den
+  // aktuell angezeigten Coin/Zeitrahmen, sonst würden Hintergrundschleifen wie die Marktphasen-Gauge (alle 11
+  // Zeitrahmen) oder das Marktscreening (alle Coins) ungewollt zusätzliche Parent-/Entry-Zeitrahmen nachladen.
+  // Fließen bewusst NICHT in den Trendscore-Konsens ein (siehe TRENDSCORE_EXCLUDED_STRATS) -- genau wie HalfTrend
+  // eigenständige, gleichwertige Einzelstrategien.
+  {
+    if(coin===activeCoin && interval===activeInterval) ensureMtfCorridorData(coin, interval);
+    const mtfDay = computeMtfCorridorSeries(coin, interval, 'day');
+    const positionDay = mtfDay ? mtfDay.rawPosition : new Array(n).fill(0);
+    strategies.mtfday = finalizeStrategy(applyEntryFilters(positionDay, entryCtx), highs, lows, closes, exitCtx);
+
+    const mtfSwing = computeMtfCorridorSeries(coin, interval, 'swing');
+    const positionSwing = mtfSwing ? mtfSwing.rawPosition : new Array(n).fill(0);
+    strategies.mtfswing = finalizeStrategy(applyEntryFilters(positionSwing, entryCtx), highs, lows, closes, exitCtx);
+  }
 
   strategyCache[key] = strategies;
   return strategies;
@@ -2925,9 +3160,9 @@ function describePattern(patterns){
 const TREND_SCORE_THRESHOLD = 0.15;
 // Strategien, die zwar ganz normal in buildStrategiesCore() mitlaufen (Dropdown, Backtest-Tabelle, "Alle
 // Strategien"-Overlay, Sync-Modus, Kombinationsoptimierer, Automatik, ...), aber NICHT in den gewichteten
-// Trendscore-Konsens einfließen sollen. Bisher leer/nicht nötig -- HalfTrend ist die erste solche Strategie
-// (auf ausdrücklichen Nutzerwunsch: eigenständige Einzelstrategie statt Einfluss auf den bestehenden Konsens).
-const TRENDSCORE_EXCLUDED_STRATS = ['halftrend'];
+// Trendscore-Konsens einfließen sollen -- auf ausdrücklichen Nutzerwunsch: eigenständige Einzelstrategien statt
+// Einfluss auf den bestehenden Konsens (HalfTrend, dann ebenso für MTF-Day/-Swing-Korridor).
+const TRENDSCORE_EXCLUDED_STRATS = ['halftrend', 'mtfday', 'mtfswing'];
 function computeTrendScoreWeights(strategies){
   const weights = {};
   Object.keys(strategies).filter(k=>!TRENDSCORE_EXCLUDED_STRATS.includes(k)).forEach(k=>{
@@ -3507,6 +3742,95 @@ function drawHalfTrendOverlay(ctx, ht, d, iFrom, iTo, scaleX, scaleY, xStep){
 
   ctx.restore();
 }
+// "Star Trek"-Laserstrahl-Optik: obere Korridorgrenze in Cyan, untere in Magenta, jeweils mit weichem Glow
+// (mehrere Stroke-Durchgänge, außen breiter/transparenter, innen schmaler/heller) statt einer harten Linie.
+const MTF_CORRIDOR_COLORS = { upper: '#00e5ff', lower: '#ff2df0' };
+// Zeichnet EIN MTF-Overlay (Day ODER Swing, je nach mode) -- Korridor-Laserlinien + transparente Füllfläche,
+// Positions-Label ("X% im Korridor"), Einstiegstrigger-Marker (grün=long/rot=short, E/M/3 = Engulfing/Momentum/
+// 3-Kerzen) und die TP/SL-Zone des aktuell offenen Trades (grün Richtung TP, rot Richtung SL -- Korridor-Enden).
+function drawMtfCorridorOverlay(ctx, mtf, d, iFrom, iTo, scaleX, scaleY, xStep, mode){
+  if(!mtf) return;
+  ctx.save();
+  const x1All = scaleX(iFrom), x2All = scaleX(iTo);
+
+  function glowLine(x1, x2, y1, y2, color){
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+    ctx.strokeStyle = color; ctx.globalAlpha = 0.12; ctx.lineWidth = 7; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+    ctx.globalAlpha = 0.35; ctx.lineWidth = 3; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+    ctx.globalAlpha = 0.9; ctx.lineWidth = 1.2; ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  const lastIdx = d.closes.length-1;
+  const upperNow = mtf.corridorUpperAt[lastIdx], lowerNow = mtf.corridorLowerAt[lastIdx];
+  if(upperNow != null && lowerNow != null){
+    const yUpper = scaleY(upperNow), yLower = scaleY(lowerNow);
+    const grad = ctx.createLinearGradient(0, yUpper, 0, yLower);
+    grad.addColorStop(0, 'rgba(0,229,255,0.10)'); grad.addColorStop(1, 'rgba(255,45,240,0.10)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x1All, yUpper, x2All-x1All, yLower-yUpper);
+    glowLine(x1All, x2All, yUpper, yUpper, MTF_CORRIDOR_COLORS.upper);
+    glowLine(x1All, x2All, yLower, yLower, MTF_CORRIDOR_COLORS.lower);
+
+    // Position im Korridor: 0% = am unteren, 100% = am oberen Ende.
+    const lastClose = d.closes[lastIdx];
+    const span = upperNow - lowerNow;
+    const posPct = span > 0 ? Math.max(0, Math.min(100, ((lastClose-lowerNow)/span)*100)) : 50;
+    ctx.font = '10px sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
+    ctx.fillStyle = '#e6edf3';
+    const modeLabel = mode==='swing' ? 'MTF-Swing' : 'MTF-Day';
+    ctx.fillText(`${modeLabel}: ${posPct.toFixed(0)}% im Korridor`, x2All-4, scaleY(lastClose)-4);
+  }
+
+  // Einstiegstrigger-Marker (kleine Raute, grün=long/rot=short) + Kürzel für die Trigger-Art.
+  ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for(let i=iFrom;i<=iTo;i++){
+    const trig = mtf.triggersAt[i];
+    if(!trig) continue;
+    const x = scaleX(i), y = scaleY(trig.dir===1 ? d.lows[i] : d.highs[i]) + (trig.dir===1 ? 14 : -14);
+    const color = trig.dir===1 ? '#3fb950' : '#f85149';
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.moveTo(x,y-6); ctx.lineTo(x+6,y); ctx.lineTo(x,y+6); ctx.lineTo(x-6,y); ctx.closePath(); ctx.fill();
+    if(xStep >= 16){
+      ctx.fillStyle = '#0b0e14';
+      ctx.fillText(trig.kind==='engulfing'?'E':trig.kind==='momentum'?'M':'3', x, y);
+    }
+  }
+
+  // TP/SL-Zone des aktuell offenen Trades (Korridor-Enden zum Einstiegszeitpunkt, bleiben fürs Trade-Dauer fix).
+  if(mtf.tradeState[lastIdx] !== 0 && mtf.entryIdxAt[lastIdx] != null){
+    const entryIdx = Math.max(iFrom, mtf.entryIdxAt[lastIdx]);
+    const x1 = scaleX(entryIdx), x2 = scaleX(iTo);
+    if(x2 > x1){
+      const entryPx = mtf.entryPxAt[lastIdx];
+      const tp = mtf.activeTP[lastIdx], sl = mtf.activeSL[lastIdx];
+      const yEntry = scaleY(entryPx), yTp = scaleY(tp), ySl = scaleY(sl);
+      const gradProfit = ctx.createLinearGradient(0, yTp, 0, yEntry);
+      gradProfit.addColorStop(0, 'rgba(63,185,80,0.20)'); gradProfit.addColorStop(1, 'rgba(63,185,80,0.03)');
+      ctx.fillStyle = gradProfit;
+      ctx.fillRect(x1, Math.min(yTp,yEntry), x2-x1, Math.abs(yEntry-yTp));
+      const gradRisk = ctx.createLinearGradient(0, yEntry, 0, ySl);
+      gradRisk.addColorStop(0, 'rgba(248,81,73,0.03)'); gradRisk.addColorStop(1, 'rgba(248,81,73,0.20)');
+      ctx.fillStyle = gradRisk;
+      ctx.fillRect(x1, Math.min(yEntry,ySl), x2-x1, Math.abs(ySl-yEntry));
+
+      ctx.setLineDash([4,3]); ctx.lineWidth = 1; ctx.font = '9px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+      [[entryPx,'Einstieg','#c9d1d9'], [tp,'TP (Korridor-Ende)','#3fb950'], [sl,'SL (Korridor-Ende)','#f85149']].forEach(([val,label,color])=>{
+        if(val==null) return;
+        const y = scaleY(val);
+        ctx.strokeStyle = color;
+        ctx.beginPath(); ctx.moveTo(x1,y); ctx.lineTo(x2,y); ctx.stroke();
+        ctx.fillStyle = color;
+        ctx.fillText(label, x2+3, y+3);
+      });
+      ctx.setLineDash([]);
+    }
+  }
+
+  ctx.restore();
+}
 function drawSwings(ctx, swings, d, iFrom, iTo, scaleX, scaleY, layout){
   const { swingHighAt, swingLowAt, lastSwingLow, lastSwingHigh } = swings;
   ctx.save();
@@ -3813,6 +4137,14 @@ function drawChart(){
       });
     }
   }
+  [[showMtfDay, chart.$mtfDay], [showMtfSwing, chart.$mtfSwing]].forEach(([show, mtf])=>{
+    if(!show || !mtf) return;
+    for(let i=view.start; i<=view.end; i++){
+      [mtf.corridorUpperAt[i], mtf.corridorLowerAt[i]].forEach(v=>{
+        if(v!=null){ if(v<lo) lo=v; if(v>hi) hi=v; }
+      });
+    }
+  });
   if(forecastPoints){
     forecastPoints.forEach(p=>{
       [p.price1, p.price2, p.avg].forEach(v=>{ if(v<lo) lo=v; if(v>hi) hi=v; });
@@ -3842,6 +4174,8 @@ function drawChart(){
   if(showBoll && chart.$boll) drawBollBands(ctx, chart.$boll, iFrom, iTo, scaleX, scaleY);
   if(showMlSupertrend && chart.$mlSupertrend) drawMlSupertrendOverlay(ctx, chart.$mlSupertrend, d, iFrom, iTo, scaleX, scaleY, xStep);
   if(showHalfTrend && chart.$halfTrend) drawHalfTrendOverlay(ctx, chart.$halfTrend, d, iFrom, iTo, scaleX, scaleY, xStep);
+  if(showMtfDay && chart.$mtfDay) drawMtfCorridorOverlay(ctx, chart.$mtfDay, d, iFrom, iTo, scaleX, scaleY, xStep, 'day');
+  if(showMtfSwing && chart.$mtfSwing) drawMtfCorridorOverlay(ctx, chart.$mtfSwing, d, iFrom, iTo, scaleX, scaleY, xStep, 'swing');
   if(showSwings && chart.$swings) drawSwings(ctx, chart.$swings, d, iFrom, iTo, scaleX, scaleY, layout);
   if(showPatterns && chart.$patterns) drawPatternOverlay(ctx, chart.$patterns, d, iFrom, iTo, scaleX, scaleY);
   if(showTrendScore && chart.$trendScore) drawTrendScoreOverlay(ctx, chart.$trendScore, d, iFrom, iTo, scaleX, scaleY);
@@ -3986,7 +4320,7 @@ function computeOverlayData(){
   const allStrategies = buildStrategies(activeCoin, activeInterval);
   const n = closes.length;
 
-  // "all" = Sammelanzeige: Signale ALLER 12 Strategien werden gemeinsam eingezeichnet, statt nur der einen
+  // "all" = Sammelanzeige: Signale ALLER 14 Strategien werden gemeinsam eingezeichnet, statt nur der einen
   // im Dropdown gewählten. Pro Kerze wird zusätzlich gemerkt, welche Strategie(n) dort ausgelöst haben, damit
   // das Hover-Banner das transparent macht.
   const keysToShow = stratKey === 'all' ? Object.keys(allStrategies) : stratKey === 'none' ? [] : [stratKey];
@@ -4050,7 +4384,10 @@ function computeChartMeta(d){
   const boll = computeBollingerBands(d.closes, 20, 2);
   const mlSupertrend = computeMlAdaptiveSupertrend(d.highs, d.lows, d.closes);
   const halfTrend = computeHalfTrendFull(d.highs, d.lows, d.closes);
-  return { fvg, markers, ichi, swings, srZones, patterns, trendScore, boll, mlSupertrend, halfTrend };
+  // Jeweils nur berechnen, wenn der zugehörige Overlay-Button aktiv ist (spart Rechenzeit, wenn ungenutzt).
+  const mtfDay = showMtfDay ? computeMtfCorridorSeries(activeCoin, activeInterval, 'day') : null;
+  const mtfSwing = showMtfSwing ? computeMtfCorridorSeries(activeCoin, activeInterval, 'swing') : null;
+  return { fvg, markers, ichi, swings, srZones, patterns, trendScore, boll, mlSupertrend, halfTrend, mtfDay, mtfSwing };
 }
 
 function renderChart(){
@@ -4076,6 +4413,8 @@ function renderChart(){
     $boll: meta.boll,
     $mlSupertrend: meta.mlSupertrend,
     $halfTrend: meta.halfTrend,
+    $mtfDay: meta.mtfDay,
+    $mtfSwing: meta.mtfSwing,
     $forecast: (showForecast && activeCoin==='bitcoin' && activeInterval==='1d') ? computeCycleForecast(forecastProjectionDays) : null,
     dragging: null,
     crosshairIdx: null,
@@ -4088,6 +4427,7 @@ function renderChart(){
   updateTrendScoreExplainUI();
   updateMlSupertrendExplainUI();
   updateHalfTrendExplainUI();
+  updateMtfCorridorExplainUI();
 }
 
 // Aktualisiert nur Datensätze/Meta-Infos aus computeOverlayData(), OHNE die Fensterposition selbst anzufassen --
@@ -4106,11 +4446,14 @@ function refreshChartDatasets(){
   chart.$boll = meta.boll;
   chart.$mlSupertrend = meta.mlSupertrend;
   chart.$halfTrend = meta.halfTrend;
+  chart.$mtfDay = meta.mtfDay;
+  chart.$mtfSwing = meta.mtfSwing;
   chart.$forecast = (showForecast && activeCoin==='bitcoin' && activeInterval==='1d') ? computeCycleForecast(forecastProjectionDays) : null;
   updatePatternExplainUI();
   updateTrendScoreExplainUI();
   updateMlSupertrendExplainUI();
   updateHalfTrendExplainUI();
+  updateMtfCorridorExplainUI();
   return d;
 }
 
@@ -4521,6 +4864,9 @@ function switchToInterval(iv){
   activeInterval = iv;
   updateLoadMoreButtonState();
   refreshHigherTFSelect(document.getElementById('mtfHigherTfSelect'), document.getElementById('mtfHigherTfLabel'), activeInterval);
+  refreshHigherTFSelect(document.getElementById('mtfCorridorTfSelect'), document.getElementById('mtfCorridorTfLabel'), activeInterval);
+  { const mtfSelEl = document.getElementById('mtfCorridorTfSelect'); if(mtfSelEl) mtfSelEl.value = MTF_CORRIDOR_TF[activeInterval] || DEFAULT_NEXT_HIGHER_TF[activeInterval] || ''; }
+  if(showMtfDay || showMtfSwing) ensureMtfCorridorData(activeCoin, activeInterval);
   loadAndRender();
   kickOffOtherTimeframeMonitoring();
   ensureAllTimeframesLoadedForGauge(activeCoin);
@@ -4539,6 +4885,9 @@ function switchToCoinAndInterval(coin, iv){
   activeInterval = iv;
   updateLoadMoreButtonState();
   refreshHigherTFSelect(document.getElementById('mtfHigherTfSelect'), document.getElementById('mtfHigherTfLabel'), activeInterval);
+  refreshHigherTFSelect(document.getElementById('mtfCorridorTfSelect'), document.getElementById('mtfCorridorTfLabel'), activeInterval);
+  { const mtfSelEl = document.getElementById('mtfCorridorTfSelect'); if(mtfSelEl) mtfSelEl.value = MTF_CORRIDOR_TF[activeInterval] || DEFAULT_NEXT_HIGHER_TF[activeInterval] || ''; }
+  if(showMtfDay || showMtfSwing) ensureMtfCorridorData(activeCoin, activeInterval);
   loadAndRender();
   startTicker();
   kickOffOtherTimeframeMonitoring();
@@ -5161,6 +5510,7 @@ async function selectCoin(coin){
   activeCoin = coin;
   document.querySelectorAll('#coinTabs .tab').forEach(b=>b.classList.toggle('active', b.dataset.coin===coin));
   updateLoadMoreButtonState();
+  if(showMtfDay || showMtfSwing) ensureMtfCorridorData(activeCoin, activeInterval);
   if(!ohlcCache[coin+'::'+activeInterval]){
     await loadAndRender();
   } else {
@@ -5416,6 +5766,18 @@ function populateControls(){
     if(chart) drawChart();
     updateHalfTrendExplainUI();
   });
+  document.getElementById('toggleMtfDayBtn').addEventListener('click', (e)=>{
+    showMtfDay = !showMtfDay;
+    e.currentTarget.classList.toggle('active', showMtfDay);
+    if(showMtfDay) ensureMtfCorridorData(activeCoin, activeInterval);
+    if(chart){ refreshChartDatasets(); drawChart(); }
+  });
+  document.getElementById('toggleMtfSwingBtn').addEventListener('click', (e)=>{
+    showMtfSwing = !showMtfSwing;
+    e.currentTarget.classList.toggle('active', showMtfSwing);
+    if(showMtfSwing) ensureMtfCorridorData(activeCoin, activeInterval);
+    if(chart){ refreshChartDatasets(); drawChart(); }
+  });
   document.getElementById('toggleFvgBtn').addEventListener('click', (e)=>{
     showFVG = !showFVG;
     e.currentTarget.classList.toggle('active', showFVG);
@@ -5639,7 +6001,86 @@ function updateHalfTrendExplainUI(){
     `(oben, inkl. frei wählbarem 4. Coin) auf demselben Zeitrahmen gescannt. Reine Heuristik, keine Anlageberatung.`;
 }
 
-// ---------- Exit-Strategie-Auswahl (global für alle 12 Strategien) ----------
+// Baut den Erklärtext-Block für EIN aktives MTF-Overlay (Day oder Swing) -- Korridor-Herkunft, Position im
+// Korridor, letzter Einstiegstrigger und die TP/SL-Performance der eigenständigen Korridor-Simulation.
+function mtfCorridorExplainSection(mtf, mode, coin, interval){
+  const modeLabel = mode==='swing' ? 'MTF-Swing' : 'MTF-Day';
+  if(!mtf){
+    return `<strong>${modeLabel}:</strong> Daten für übergeordneten/untergeordneten Zeitrahmen werden geladen…`;
+  }
+  const n = mtf.corridorUpperAt.length;
+  let lastIdx = n-1;
+  while(lastIdx>=0 && (mtf.corridorUpperAt[lastIdx]==null || mtf.corridorLowerAt[lastIdx]==null)) lastIdx--;
+  if(lastIdx<0){
+    return `<strong>${modeLabel}:</strong> noch nicht genug Kerzen im übergeordneten Zeitrahmen für einen Korridor.`;
+  }
+  const upper = mtf.corridorUpperAt[lastIdx], lower = mtf.corridorLowerAt[lastIdx];
+  const lastClose = ohlcCache[coin+'::'+interval].closes[lastIdx];
+  const span = upper - lower;
+  const posPct = span>0 ? Math.max(0, Math.min(100, ((lastClose-lower)/span*100))) : 50;
+
+  // letzten (nicht-null) Einstiegstrigger im sichtbaren Verlauf finden für den "letztes Signal"-Hinweis.
+  let trigIdx = lastIdx;
+  while(trigIdx>=0 && !mtf.triggersAt[trigIdx]) trigIdx--;
+  const trigHtml = trigIdx>=0
+    ? `<span style="color:${mtf.triggersAt[trigIdx].dir===1?'#3fb950':'#f85149'}">${mtf.triggersAt[trigIdx].dir===1?'LONG':'SHORT'}</span> · ${MTF_TRIGGER_LABELS[mtf.triggersAt[trigIdx].kind]} (vor ${lastIdx-trigIdx} Kerze${lastIdx-trigIdx===1?'':'n'})`
+    : 'noch kein Trigger im geladenen Verlauf';
+
+  const state = mtf.tradeState[lastIdx];
+  let currentTradeHtml = 'Keine offene Position';
+  if(state!==0){
+    const dir = state===1 ? 'LONG' : 'SHORT';
+    const entryPx = mtf.entryPxAt[lastIdx];
+    const distPct = entryPx ? ((lastClose-entryPx)/entryPx*100*(state===1?1:-1)) : null;
+    currentTradeHtml = `<span style="color:${state===1?'#3fb950':'#f85149'}">${dir}</span>` +
+      (distPct!=null ? ` · ${distPct>=0?'+':''}${distPct.toFixed(2)}% seit Einstieg` : '') +
+      ` · TP <span style="color:${MTF_CORRIDOR_COLORS.upper}">${mtf.activeTP[lastIdx].toFixed(2)}</span>` +
+      ` · SL <span style="color:${MTF_CORRIDOR_COLORS.lower}">${mtf.activeSL[lastIdx].toFixed(2)}</span>`;
+  }
+  const winRateTxt = mtf.winRate!=null ? (mtf.winRate*100).toFixed(0)+'%' : '—';
+  const parentLabel = (INTERVALS.find(i=>i.value===mtf.parentInterval)||{}).label || mtf.parentInterval || '—';
+  const entryLabel = (INTERVALS.find(i=>i.value===mtf.entryInterval)||{}).label || mtf.entryInterval || '—';
+  const activeLabel = (INTERVALS.find(i=>i.value===interval)||{}).label || interval;
+  const corridorDesc = mode==='swing'
+    ? `letzte ${MTF_CORRIDOR_SWING_POINTS} bestätigten Swing-Hochs/-Tiefs`
+    : `letzte ${MTF_CORRIDOR_DAY_LOOKBACK} Kerzen (höchstes Hoch / tiefstes Tief)`;
+  const trend = mtf.activeTrendAt[lastIdx];
+  const trendHtml = trend==null
+    ? '<span style="color:var(--muted)">noch nicht genug Kerzen (SMA 20)</span>'
+    : `<span style="color:${trend===1?'#3fb950':'#f85149'}">${trend===1?'Bullisch':'Bärisch'}</span> (SMA 20 auf ${activeLabel})`;
+
+  return `<strong>${modeLabel}-Korridor</strong> — Korridor-Zeitrahmen ${parentLabel} (${corridorDesc}), Einstiegstrigger auf ${entryLabel}, ` +
+    `gefiltert nach dem Trend des Bezugszeitrahmens (${activeLabel}): nur Trigger IN Trendrichtung zählen, Gegen-Trend-Trigger werden verworfen. ` +
+    `Trend des Bezugszeitrahmens: ${trendHtml}. ` +
+    `Aktueller Kurs steht bei <strong>${posPct.toFixed(0)}%</strong> im Korridor ` +
+    `(<span style="color:${MTF_CORRIDOR_COLORS.lower}">${lower.toFixed(2)}</span> – <span style="color:${MTF_CORRIDOR_COLORS.upper}">${upper.toFixed(2)}</span>). ` +
+    `Letztes Trigger-Signal: ${trigHtml}.` +
+    `<table style="margin-top:6px"><thead><tr><th>Trefferquote</th><th>Gewinne/Verluste</th><th>Exit-Regel</th><th>Aktuelle Position</th></tr></thead><tbody>` +
+    `<tr><td>${winRateTxt}</td><td>${mtf.wins}/${mtf.losses}</td><td>TP/SL = gegenüberliegende Korridor-Enden</td><td>${currentTradeHtml}</td></tr>` +
+    `</tbody></table>`;
+}
+// Zeigt die Erklär-/Dashboard-Panels für die aktiven MTF-Overlays (Day und/oder Swing, unabhängig voneinander
+// zuschaltbar) -- Korridor-Herkunft, Position im Korridor, Einstiegstrigger-Logik und die TP/SL-Performance
+// der eigenständigen Korridor-Simulation (siehe computeMtfCorridorTrades()). Eigene Nutzer-Idee, keine
+// Portierung eines bekannten Skripts -- fließt nicht in den Trendscore-Konsens ein.
+function updateMtfCorridorExplainUI(){
+  const el = document.getElementById('mtfCorridorExplain');
+  if(!el) return;
+  if(!showMtfDay && !showMtfSwing){
+    el.style.display = 'none';
+    return;
+  }
+  el.style.display = '';
+  const sections = [];
+  if(showMtfDay) sections.push(mtfCorridorExplainSection(chart && chart.$mtfDay, 'day', activeCoin, activeInterval));
+  if(showMtfSwing) sections.push(mtfCorridorExplainSection(chart && chart.$mtfSwing, 'swing', activeCoin, activeInterval));
+  el.innerHTML = sections.join('<hr style="border-color:var(--border);margin:8px 0">') +
+    `Einstiegstrigger auf dem nächstkleineren Zeitrahmen: ${MTF_TRIGGER_LABELS['3candles']} (Richtungsbestätigung), ` +
+    `${MTF_TRIGGER_LABELS['momentum']} (Kerzenkörper ≥ ${MTF_MOMENTUM_CANDLE_MULT}× Ø-Körper) oder ${MTF_TRIGGER_LABELS['engulfing']} -- Priorität: Engulfing > Momentum > 3-Kerzen. ` +
+    `Läuft als eigenständige Strategie im Dropdown mit, fließt aber NICHT in den Trendscore-Konsens ein. Reine Heuristik, keine Anlageberatung.`;
+}
+
+// ---------- Exit-Strategie-Auswahl (global für alle 14 Strategien) ----------
 function applyExitModeChange(){
   strategyCache = {}; // Backtest ist exit-abhängig -> für alle Coins/Intervalle neu berechnen
   Object.keys(COINS).forEach(c=>{
@@ -6047,6 +6488,22 @@ function populateMtfHigherTfUI(){
   refreshHigherTFSelect(sel, label, activeInterval);
   sel.addEventListener('change', ()=>{
     setHigherTFOverride(activeInterval, sel.value);
+  });
+}
+// Dropdown für den Korridor-Zeitrahmen des MTF-Overlays (MTF-Day/MTF-Swing-Buttons) -- eigene, von
+// mtfHigherTfSelect (Entry-Filter) unabhängige Auswahl, nutzt aber dieselbe generische refreshHigherTFSelect()-
+// Hilfsfunktion (alle Zeitrahmen echt höher als der aktive, Standard = NEXT_HIGHER_TF).
+function populateMtfCorridorTfUI(){
+  const sel = document.getElementById('mtfCorridorTfSelect');
+  const label = document.getElementById('mtfCorridorTfLabel');
+  refreshHigherTFSelect(sel, label, activeInterval);
+  sel.value = MTF_CORRIDOR_TF[activeInterval] || DEFAULT_NEXT_HIGHER_TF[activeInterval] || '';
+  sel.addEventListener('change', ()=>{
+    setMtfCorridorTfOverride(activeInterval, sel.value);
+    if(showMtfDay || showMtfSwing){
+      ensureMtfCorridorData(activeCoin, activeInterval);
+      updateChartInPlace();
+    }
   });
 }
 function populateAutoMtfHigherTfUI(){
@@ -6617,7 +7074,7 @@ function computeCombinedEquityCurve(perCoin){
 }
 // ---------- Markt-Indikatoren-Panel (Analyse-Tab, unter dem Preis-Chart) ----------
 // Rein deskriptiv, live berechnet aus den bereits geladenen Kerzendaten des aktuell gewählten Coins/Zeitrahmens --
-// unabhängig von den 12 Strategien/Exit-Filtern oben (die verändern hier nichts).
+// unabhängig von den 14 Strategien/Exit-Filtern oben (die verändern hier nichts).
 function fmtVolume(x, coin){
   if(x==null || isNaN(x)) return '—';
   const short = coin && COINS[coin] ? COINS[coin].short : '';
@@ -7423,6 +7880,7 @@ document.addEventListener('DOMContentLoaded', () => {
   populateVolumeFilterUI();
   populateMtfFilterUI();
   populateMtfHigherTfUI();
+  populateMtfCorridorTfUI();
   populateSwingBreakoutUI();
   populateOptimizerWalkForwardUI();
   document.getElementById('optimizerBtn').addEventListener('click', runComboOptimizer);

@@ -177,6 +177,7 @@
   <div class="tabbar">
     <button class="tab-btn active" data-tab="watchlist">Watchlist</button>
     <button class="tab-btn" data-tab="screening">Marktscreening</button>
+    <button class="tab-btn" data-tab="chartanalyse">Chart-Analyse</button>
   </div>
 
   <div class="panel settings-panel" id="settingsPanel">
@@ -465,6 +466,110 @@
 
     <h2 class="section">Ergebnisse <span class="count" id="scanCount">0</span></h2>
     <div id="scanResults"></div>
+  </div>
+
+  <div id="chartAnalyseView" style="display:none">
+    <div class="panel">
+      <div class="hint" style="margin-bottom:12px;">
+        Top-Down-Ansatz: <b style="color:var(--text);">Korridor</b> (Hoch/Tief der letzten 24 Kerzen im größten
+        Zeitrahmen) + <b style="color:var(--text);">Richtung</b> (EMA20-Steigung im mittleren Zeitrahmen) +
+        <b style="color:var(--text);">Einstiegssignal</b> im kleinsten Zeitrahmen, sobald eins von drei
+        Mustern in Richtung der übergeordneten Tendenz auftaucht: 3 Kerzen gleiche Richtung in Folge,
+        eine Momentumkerze (deutlich größer als der jüngste Durchschnitt), oder eine Engulfing-Kerze.
+      </div>
+      <div class="addrow">
+        <div class="field">
+          <label>Typ</label>
+          <select id="caType">
+            <option value="crypto">Krypto</option>
+            <option value="stock">Aktie</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Symbol</label>
+          <input type="text" id="caSymbol" placeholder="z. B. BTC-EUR oder NVDA" list="symbolHints">
+        </div>
+        <div class="field" style="min-width:280px;">
+          <label>Zeitrahmen-Preset</label>
+          <select id="caPreset">
+            <option value="standard" selected>Standard: 1 Std. Korridor / 15 Min. Richtung / 5 Min. Einstieg</option>
+            <option value="higher">Höher: 1 Tag Korridor / 4 Std. Richtung / 1 Std. Einstieg</option>
+            <option value="custom">Individuell</option>
+          </select>
+        </div>
+        <div class="field" style="justify-content:flex-end;"><button id="caRunBtn">Analysieren</button></div>
+      </div>
+      <div class="addrow" id="caCustomRow" style="display:none;">
+        <div class="field">
+          <label>Korridor-Zeitrahmen (Hoch/Tief, letzte 24 Kerzen)</label>
+          <select id="caCorridorTf">
+            <option value="1d">1 Tag</option>
+            <option value="4h">4 Stunden</option>
+            <option value="1h" selected>1 Stunde</option>
+            <option value="15m">15 Minuten</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Richtungs-Zeitrahmen (EMA20-Steigung)</label>
+          <select id="caDirectionTf">
+            <option value="4h">4 Stunden</option>
+            <option value="1h">1 Stunde</option>
+            <option value="15m" selected>15 Minuten</option>
+            <option value="5m">5 Minuten</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Einstiegs-Zeitrahmen (Signalsuche)</label>
+          <select id="caEntryTf">
+            <option value="1h">1 Stunde</option>
+            <option value="15m">15 Minuten</option>
+            <option value="5m" selected>5 Minuten</option>
+            <option value="1m">1 Minute</option>
+          </select>
+        </div>
+      </div>
+      <div class="hint" id="caStatus"></div>
+    </div>
+
+    <div class="panel" id="caResultPanel" style="display:none;">
+      <div class="card-head" style="margin-bottom:10px;">
+        <div><div class="asset-tag" id="caTag"></div><div class="sym" id="caSym"></div></div>
+      </div>
+      <div class="addrow" style="gap:22px;margin-bottom:6px;flex-wrap:wrap;">
+        <div>Kerzen im Chart: <b id="caCandleTf" style="font-family:'IBM Plex Mono',monospace;color:var(--accent);"></b></div>
+        <div>Korridor: <b id="caCorridorRange" style="font-family:'IBM Plex Mono',monospace;"></b></div>
+        <div>Richtung: <span class="badge" id="caDirectionBadge" style="margin:0;"></span></div>
+        <div>Letztes Signal: <b id="caLastSignal" style="font-family:'IBM Plex Mono',monospace;"></b></div>
+      </div>
+      <div class="hint" style="margin-bottom:10px;">▲/▼-Marker unter/über den Kerzen zeigen erkannte Einstiegssignale, farblich nach Richtung (grün=long, rot=short), Symbol nach Auslöser (3=3-Kerzen-Folge, M=Momentum, E=Engulfing). Blass dargestellte Marker laufen gegen die aktuelle übergeordnete Richtung -- nur volle Marker sind "bestätigte" Top-Down-Signale.</div>
+      <div class="addrow" style="justify-content:flex-end;margin-bottom:6px;">
+        <button class="ghost small" id="caZoomOut" title="Rauszoomen">−</button>
+        <button class="ghost small" id="caZoomIn" title="Reinzoomen" style="margin-left:6px;">+</button>
+        <button class="ghost small" id="caZoomReset" style="margin-left:6px;">Zoom zurücksetzen</button>
+      </div>
+      <div id="caChartBody"></div>
+    </div>
+
+    <div class="addrow" style="align-items:stretch;gap:16px;">
+      <div class="panel" style="flex:1;min-width:280px;">
+        <h2 class="section" style="margin-bottom:6px;">1 Stunde · 7 Tage</h2>
+        <div id="caRefHourly"></div>
+      </div>
+      <div class="panel" style="flex:1;min-width:280px;">
+        <h2 class="section" style="margin-bottom:6px;">1 Tag · 6 Monate</h2>
+        <div id="caRefDaily"></div>
+      </div>
+    </div>
+    <div class="addrow" style="align-items:stretch;gap:16px;">
+      <div class="panel" style="flex:1;min-width:280px;">
+        <h2 class="section" style="margin-bottom:6px;">4 Stunden · 1 Monat</h2>
+        <div id="caRef4h"></div>
+      </div>
+      <div class="panel" style="flex:1;min-width:280px;">
+        <h2 class="section" style="margin-bottom:6px;">1 Woche · 1 Jahr</h2>
+        <div id="caRefWeekly"></div>
+      </div>
+    </div>
   </div>
 
 </div>
@@ -1453,7 +1558,7 @@ const dataStore = {};
 let lastChartGeometry = null; // von renderChart(big:true) gesetzt, für den Interaktions-Handler (Fadenkreuz/Zoom)
 
 function renderChart(data, opts={}){
-  const { big = false } = opts;
+  const { big = false, instanceId = 'scan' } = opts;
   const candles = data.candles;
   if (!candles || candles.length < 5) return '';
   const width = 600;
@@ -1468,6 +1573,13 @@ function renderChart(data, opts={}){
       if (v !== null && v !== undefined){ yMin = Math.min(yMin, v); yMax = Math.max(yMax, v); }
     });
     if (data.entryZone){ yMin = Math.min(yMin, data.entryZone[0]); yMax = Math.max(yMax, data.entryZone[1]); }
+  }
+  if (data.corridorHigh != null && data.corridorLow != null){
+    yMin = Math.min(yMin, data.corridorLow);
+    yMax = Math.max(yMax, data.corridorHigh);
+  }
+  if (data.backgroundCandles && data.backgroundCandles.length){
+    data.backgroundCandles.forEach(bc => { yMin = Math.min(yMin, bc.l); yMax = Math.max(yMax, bc.h); });
   }
   const pad = (yMax - yMin) * 0.08 || Math.abs(yMax) * 0.01 || 1;
   yMin -= pad; yMax += pad;
@@ -1489,6 +1601,8 @@ function renderChart(data, opts={}){
   if (data.nearestSupport != null) levelLabels.push({ value: data.nearestSupport, text: 'S', color: 'var(--buy)' });
   if (data.stopLoss) levelLabels.push({ value: data.stopLoss, text: 'Stop', color: 'var(--hold)' });
   if (big && data.target) levelLabels.push({ value: data.target, text: 'Ziel', color: 'var(--buy)' });
+  if (data.corridorHigh != null) levelLabels.push({ value: data.corridorHigh, text: 'Korridor-Hoch', color: 'var(--accent)' });
+  if (data.corridorLow != null) levelLabels.push({ value: data.corridorLow, text: 'Korridor-Tief', color: 'var(--accent)' });
 
   const allLabelTexts = [...axisLabels, ...levelLabels].map(l => l.text);
   const maxBadgeW = allLabelTexts.length
@@ -1521,6 +1635,10 @@ function renderChart(data, opts={}){
     const y1 = y(data.entryZone[1]), y2 = y(data.entryZone[0]);
     bgParts.push(`<rect x="${padLeft}" y="${y1.toFixed(1)}" width="${plotW}" height="${(y2-y1).toFixed(1)}" fill="var(--buy)" opacity="0.08"/>`);
   }
+  if (data.corridorHigh != null && data.corridorLow != null){
+    const y1 = y(data.corridorHigh), y2 = y(data.corridorLow);
+    bgParts.push(`<rect x="${padLeft}" y="${y1.toFixed(1)}" width="${plotW}" height="${(y2-y1).toFixed(1)}" fill="var(--accent)" opacity="0.06"/>`);
+  }
   levelLabels.forEach(l => {
     const yy = y(l.value);
     bgParts.push(`<line x1="${padLeft}" x2="${width-padRight}" y1="${yy.toFixed(1)}" y2="${yy.toFixed(1)}" stroke="${l.color}" stroke-width="1" stroke-dasharray="3,3" opacity="0.75"/>`);
@@ -1536,6 +1654,22 @@ function renderChart(data, opts={}){
   emaLine(20, 'var(--accent)');
   emaLine(50, '#e0b256');
 
+  // Blass im Hintergrund: gröberer Zeitrahmen (z.B. 15-Min-Kerzen hinter 5-Min-Kerzen),
+  // als breite Kerzen über den jeweils zugehörigen Indexbereich gezeichnet -- läuft VOR den
+  // normalen Kerzen, damit sie optisch dahinter liegen.
+  (data.backgroundCandles || []).forEach(bc => {
+    const xStart = x(bc.startIdx) - bodyW / 2;
+    const xEnd = x(bc.endIdx) + bodyW / 2;
+    const bw = Math.max(1, xEnd - xStart);
+    const up = bc.c >= bc.o;
+    const color = up ? 'var(--buy)' : 'var(--sell)';
+    const yTop = Math.min(y(bc.o), y(bc.c));
+    const bodyH = Math.max(1, Math.abs(y(bc.c) - y(bc.o)));
+    const xMid = (xStart + xEnd) / 2;
+    bgParts.push(`<line x1="${xMid.toFixed(1)}" x2="${xMid.toFixed(1)}" y1="${y(bc.h).toFixed(1)}" y2="${y(bc.l).toFixed(1)}" stroke="${color}" stroke-width="1" opacity="0.18"/>`);
+    bgParts.push(`<rect x="${xStart.toFixed(1)}" y="${yTop.toFixed(1)}" width="${bw.toFixed(1)}" height="${bodyH.toFixed(1)}" fill="${color}" opacity="0.14"/>`);
+  });
+
   candles.forEach((c,i) => {
     const xi = x(i);
     const up = c.c >= c.o;
@@ -1544,6 +1678,25 @@ function renderChart(data, opts={}){
     const bodyH = Math.max(1, Math.abs(y(c.c) - y(c.o)));
     bgParts.push(`<line x1="${xi.toFixed(1)}" x2="${xi.toFixed(1)}" y1="${y(c.h).toFixed(1)}" y2="${y(c.l).toFixed(1)}" stroke="${color}" stroke-width="1"/>`);
     bgParts.push(`<rect x="${(xi-bodyW/2).toFixed(1)}" y="${yTop.toFixed(1)}" width="${bodyW.toFixed(1)}" height="${bodyH.toFixed(1)}" fill="${color}"/>`);
+  });
+
+  const SIGNAL_LETTER = { '3candles': '3', momentum: 'M', engulfing: 'E' };
+  (data.entrySignals || []).forEach(sig => {
+    const c = candles[sig.index];
+    if (!c) return;
+    const xi = x(sig.index);
+    const color = sig.direction === 'bullish' ? 'var(--buy)' : 'var(--sell)';
+    const letter = SIGNAL_LETTER[sig.type] || '?';
+    const op = sig.aligned === false ? 0.35 : 1; // gegen die Richtung laufende Signale gedämpft darstellen
+    if (sig.direction === 'bullish'){
+      const yy = y(c.l) + 9;
+      bgParts.push(`<polygon points="${xi.toFixed(1)},${(yy-3.5).toFixed(1)} ${(xi-3).toFixed(1)},${(yy+2.5).toFixed(1)} ${(xi+3).toFixed(1)},${(yy+2.5).toFixed(1)}" fill="${color}" opacity="${op}"/>`);
+      bgParts.push(`<text x="${xi.toFixed(1)}" y="${(yy+11).toFixed(1)}" text-anchor="middle" font-size="7" font-weight="700" fill="${color}" opacity="${op}" font-family="'IBM Plex Mono',monospace">${letter}</text>`);
+    } else {
+      const yy = y(c.h) - 9;
+      bgParts.push(`<polygon points="${xi.toFixed(1)},${(yy+3.5).toFixed(1)} ${(xi-3).toFixed(1)},${(yy-2.5).toFixed(1)} ${(xi+3).toFixed(1)},${(yy-2.5).toFixed(1)}" fill="${color}" opacity="${op}"/>`);
+      bgParts.push(`<text x="${xi.toFixed(1)}" y="${(yy-6).toFixed(1)}" text-anchor="middle" font-size="7" font-weight="700" fill="${color}" opacity="${op}" font-family="'IBM Plex Mono',monospace">${letter}</text>`);
+    }
   });
 
   if (big && volH > 0){
@@ -1561,23 +1714,30 @@ function renderChart(data, opts={}){
   }
 
   if (big){
-    lastChartGeometry = { width, height, padLeft, padRight, padTop, plotH, plotW, xStep, n, yMin, yMax };
+    const geometry = { width, height, padLeft, padRight, padTop, plotH, plotW, xStep, n, yMin, yMax };
+    if (instanceId === 'ca') lastCaChartGeometry = geometry;
+    else lastChartGeometry = geometry;
   }
 
   const overlayHtml = overlayLabels.map(l =>
     `<div class="chart-label-badge" style="top:${l.topPct.toFixed(2)}%;color:${l.color};">${l.text}</div>`
   ).join('');
 
+  const hoverInfoId = `chartHoverInfo-${instanceId}`;
+  const priceLabelId = `crosshairPriceLabel-${instanceId}`;
+  const hoverInfoHtml = big ? `<div class="chart-hover-info" id="${hoverInfoId}"></div>` : '';
+
   return `<div class="chart-wrap">
+    ${instanceId === 'ca' ? hoverInfoHtml : ''}
     <div class="chart-plot-area">
       <svg viewBox="0 0 ${width} ${height}" class="chart-svg${big?' big':''}" preserveAspectRatio="none" data-n="${n}">${bgParts.join('')}${big ? `
         <line id="crosshairV" x1="0" y1="${padTop}" x2="0" y2="${padTop+plotH}" stroke="var(--text-muted)" stroke-width="1" stroke-dasharray="2,2" opacity="0" pointer-events="none"/>
         <line id="crosshairH" x1="${padLeft}" y1="0" x2="${width-padRight}" y2="0" stroke="var(--text-muted)" stroke-width="1" stroke-dasharray="2,2" opacity="0" pointer-events="none"/>
       ` : ''}</svg>
-      ${big ? `<div class="chart-label-overlay">${overlayHtml}<div class="chart-label-badge crosshair-price" id="crosshairPriceLabel"></div></div>` : ''}
+      ${big ? `<div class="chart-label-overlay">${overlayHtml}<div class="chart-label-badge crosshair-price" id="${priceLabelId}"></div></div>` : ''}
     </div>
-    <div class="chart-legend"><span class="lg ema20">EMA20</span><span class="lg ema50">EMA50</span>${data.nearestSupport!=null?'<span class="lg sup">S = Support</span>':''}${data.nearestResistance!=null?'<span class="lg res">W = Widerstand</span>':''}${big?'<span style="color:var(--text-muted);">Scrollen = Zoom, Ziehen = Verschieben</span>':''}</div>
-    ${big ? '<div class="chart-hover-info" id="chartHoverInfo"></div>' : ''}
+    <div class="chart-legend"><span class="lg ema20">EMA20</span><span class="lg ema50">EMA50</span>${data.nearestSupport!=null?'<span class="lg sup">S = Support</span>':''}${data.nearestResistance!=null?'<span class="lg res">W = Widerstand</span>':''}${data.corridorHigh!=null?'<span style="color:var(--accent);">Schattierte Fläche = Korridor</span>':''}${(data.backgroundCandles&&data.backgroundCandles.length)?'<span style="color:var(--text-muted);">Blasse breite Kerzen = mittlerer Zeitrahmen</span>':''}${big?'<span style="color:var(--text-muted);">Scrollen = Zoom, Ziehen = Verschieben</span>':''}</div>
+    ${instanceId !== 'ca' ? hoverInfoHtml : ''}
   </div>`;
 }
 
@@ -1784,6 +1944,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     const tab = btn.dataset.tab;
     document.getElementById('watchlistView').style.display = tab === 'watchlist' ? '' : 'none';
     document.getElementById('screeningView').style.display = tab === 'screening' ? '' : 'none';
+    document.getElementById('chartAnalyseView').style.display = tab === 'chartanalyse' ? '' : 'none';
   });
 });
 
@@ -2134,15 +2295,160 @@ function renderBigChart(){
   const visible = all.slice(start, end);
   const sliceData = { ...currentChartData, candles: visible };
   document.getElementById('scanChartBody').innerHTML =
-    (renderChart(sliceData, { big: true }) || '<div class="hint">Keine Kerzendaten verfügbar.</div>') +
+    (renderChart(sliceData, { big: true, instanceId: 'scan' }) || '<div class="hint">Keine Kerzendaten verfügbar.</div>') +
     `<div class="chart-zoom-controls"><span class="hint" style="margin:0;">${visible.length} von ${all.length} Kerzen sichtbar</span></div>`;
   attachChartInteraction();
+}
+
+// Einfaches Fadenkreuz (kein Zoom/Pan) für den Chart-Analyse-Tab -- eigene,
+// von der Screening-Chart-Logik unabhängige Funktion, damit sich die beiden
+// nicht gegenseitig beeinflussen.
+let lastCaChartGeometry = null;
+let caCurrentChartData = null;   // {candles, backgroundCandles, ...} -- volle, ungezoomte Historie
+let caChartVisibleRange = null;  // {start, end} Indizes in caCurrentChartData.candles
+const caChartDragState = { dragging: false, startX: 0, startRange: null };
+
+// Schneidet die (gegen die volle Historie berechneten) Hintergrund-Kerzen auf den
+// aktuell sichtbaren Zoom-Ausschnitt zurecht und verschiebt ihre Indizes entsprechend.
+function sliceBackgroundCandles(backgroundCandles, start, end){
+  const visibleLen = end - start;
+  const result = [];
+  (backgroundCandles || []).forEach(bc => {
+    const newStart = bc.startIdx - start;
+    const newEnd = bc.endIdx - start;
+    if (newEnd < 0 || newStart >= visibleLen) return; // komplett außerhalb des Ausschnitts
+    result.push({
+      startIdx: Math.max(0, newStart),
+      endIdx: Math.min(visibleLen - 1, newEnd),
+      o: bc.o, h: bc.h, l: bc.l, c: bc.c,
+    });
+  });
+  return result;
+}
+
+function renderCaBigChart(){
+  if (!caCurrentChartData || !caCurrentChartData.candles) return;
+  const all = caCurrentChartData.candles;
+  const { start, end } = caChartVisibleRange;
+  const visible = all.slice(start, end);
+  const sliceData = {
+    ...caCurrentChartData,
+    candles: visible,
+    backgroundCandles: sliceBackgroundCandles(caCurrentChartData.backgroundCandles, start, end),
+  };
+  document.getElementById('caChartBody').innerHTML =
+    (renderChart(sliceData, { big: true, instanceId: 'ca' }) || '<div class="hint">Zu wenig Kerzendaten für einen Chart.</div>') +
+    `<div class="chart-zoom-controls"><span class="hint" style="margin:0;">${visible.length} von ${all.length} Kerzen sichtbar</span></div>`;
+  attachCaChartInteraction(visible);
+}
+
+function zoomCaChart(factor){
+  if (!caCurrentChartData || !caCurrentChartData.candles) return;
+  const total = caCurrentChartData.candles.length;
+  const rangeSize = caChartVisibleRange.end - caChartVisibleRange.start;
+  let newSize = Math.round(rangeSize * factor);
+  newSize = Math.max(12, Math.min(total, newSize));
+  const newEnd = total; // beim Zoomen bleibt die aktuellste Kerze immer ganz rechts
+  const newStart = Math.max(0, newEnd - newSize);
+  caChartVisibleRange = { start: newStart, end: newEnd };
+  renderCaBigChart();
+}
+
+window.addEventListener('mousemove', (e) => {
+  if (!caChartDragState.dragging || !caCurrentChartData) return;
+  const svg = document.querySelector('#caChartBody .chart-svg');
+  if (!svg) return;
+  const total = caCurrentChartData.candles.length;
+  const rangeSize = caChartDragState.startRange.end - caChartDragState.startRange.start;
+  const rect = svg.getBoundingClientRect();
+  const dxPixels = e.clientX - caChartDragState.startX;
+  const candlesPerPixel = rangeSize / rect.width;
+  const shift = Math.round(-dxPixels * candlesPerPixel);
+  let newStart = caChartDragState.startRange.start + shift;
+  let newEnd = caChartDragState.startRange.end + shift;
+  if (newStart < 0){ newStart = 0; newEnd = rangeSize; }
+  if (newEnd > total){ newEnd = total; newStart = total - rangeSize; }
+  caChartVisibleRange = { start: newStart, end: newEnd };
+  renderCaBigChart();
+});
+window.addEventListener('mouseup', () => { caChartDragState.dragging = false; });
+
+document.getElementById('caZoomIn').addEventListener('click', () => zoomCaChart(0.8));
+document.getElementById('caZoomOut').addEventListener('click', () => zoomCaChart(1.25));
+document.getElementById('caZoomReset').addEventListener('click', () => {
+  if (!caCurrentChartData || !caCurrentChartData.candles) return;
+  caChartVisibleRange = { start: 0, end: caCurrentChartData.candles.length };
+  renderCaBigChart();
+});
+
+function attachCaChartInteraction(candles){
+  const svg = document.querySelector('#caChartBody .chart-svg');
+  if (!svg) return;
+  const hoverInfo = document.getElementById('chartHoverInfo-ca');
+  const priceLabel = document.getElementById('crosshairPriceLabel-ca');
+
+  svg.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    zoomCaChart(e.deltaY < 0 ? 0.955 : 1/0.955);
+  }, { passive: false });
+
+  svg.addEventListener('mousedown', (e) => {
+    caChartDragState.dragging = true;
+    caChartDragState.startX = e.clientX;
+    caChartDragState.startRange = { ...caChartVisibleRange };
+  });
+
+  svg.addEventListener('mousemove', (e) => {
+    if (caChartDragState.dragging || !lastCaChartGeometry || !candles || !candles.length) return;
+    const g = lastCaChartGeometry;
+    const rect = svg.getBoundingClientRect();
+    const relX = (e.clientX - rect.left) / rect.width;
+    const relY = (e.clientY - rect.top) / rect.height;
+
+    const viewBoxX = relX * g.width;
+    const idxFloat = (viewBoxX - g.padLeft) / g.plotW * candles.length;
+    const idx = Math.max(0, Math.min(candles.length - 1, Math.floor(idxFloat)));
+    const c = candles[idx];
+    if (!c) return;
+
+    const dateStr = fmtCandleTime(c.t, currentCaInterval);
+    if (hoverInfo) hoverInfo.innerHTML = `${dateStr} &nbsp; O <b>${fmtNum(c.o)}</b> &nbsp; H <b>${fmtNum(c.h)}</b> &nbsp; L <b>${fmtNum(c.l)}</b> &nbsp; C <b>${fmtNum(c.c)}</b> &nbsp; Vol <b>${fmtNum(c.v)}</b>`;
+
+    const xStep = g.plotW / candles.length;
+    const xPos = g.padLeft + idx * xStep + xStep / 2;
+    const yPos = relY * g.height;
+    const priceAtCursor = g.yMax - (yPos - g.padTop) / g.plotH * (g.yMax - g.yMin);
+
+    const vLine = svg.querySelector('#crosshairV');
+    const hLine = svg.querySelector('#crosshairH');
+    if (vLine){ vLine.setAttribute('x1', xPos.toFixed(1)); vLine.setAttribute('x2', xPos.toFixed(1)); vLine.setAttribute('opacity', '0.8'); }
+    if (yPos >= g.padTop && yPos <= g.padTop + g.plotH){
+      if (hLine){ hLine.setAttribute('y1', yPos.toFixed(1)); hLine.setAttribute('y2', yPos.toFixed(1)); hLine.setAttribute('opacity', '0.8'); }
+      if (priceLabel){
+        priceLabel.style.top = ((yPos / g.height) * 100).toFixed(2) + '%';
+        priceLabel.textContent = fmtNum(priceAtCursor);
+        priceLabel.style.opacity = '1';
+      }
+    } else {
+      if (hLine) hLine.setAttribute('opacity', '0');
+      if (priceLabel) priceLabel.style.opacity = '0';
+    }
+  });
+
+  svg.addEventListener('mouseleave', () => {
+    if (hoverInfo) hoverInfo.innerHTML = '';
+    ['crosshairV', 'crosshairH'].forEach(id => {
+      const el = svg.querySelector('#' + id);
+      if (el) el.setAttribute('opacity', '0');
+    });
+    if (priceLabel) priceLabel.style.opacity = '0';
+  });
 }
 
 function attachChartInteraction(){
   const svg = document.querySelector('#scanChartBody .chart-svg');
   if (!svg) return;
-  const hoverInfo = document.getElementById('chartHoverInfo');
+  const hoverInfo = document.getElementById('chartHoverInfo-scan');
 
   svg.addEventListener('wheel', (e) => {
     e.preventDefault();
@@ -2184,7 +2490,7 @@ function attachChartInteraction(){
 
     const vLine = svg.querySelector('#crosshairV');
     const hLine = svg.querySelector('#crosshairH');
-    const priceLabel = document.getElementById('crosshairPriceLabel');
+    const priceLabel = document.getElementById('crosshairPriceLabel-scan');
     if (vLine){ vLine.setAttribute('x1', xPos.toFixed(1)); vLine.setAttribute('x2', xPos.toFixed(1)); vLine.setAttribute('opacity', '0.8'); }
     if (yPos >= g.padTop && yPos <= g.padTop + g.plotH){
       if (hLine){ hLine.setAttribute('y1', yPos.toFixed(1)); hLine.setAttribute('y2', yPos.toFixed(1)); hLine.setAttribute('opacity', '0.8'); }
@@ -2205,7 +2511,7 @@ function attachChartInteraction(){
       const el = svg.querySelector('#'+id);
       if (el) el.setAttribute('opacity', '0');
     });
-    const priceLabel = document.getElementById('crosshairPriceLabel');
+    const priceLabel = document.getElementById('crosshairPriceLabel-scan');
     if (priceLabel) priceLabel.style.opacity = '0';
   });
 }
@@ -2283,6 +2589,256 @@ document.getElementById('scanResults').addEventListener('click', (e) => {
 });
 document.getElementById('scanChartClose').addEventListener('click', () => {
   document.getElementById('scanChartPanel').style.display = 'none';
+});
+
+// ============================================================
+// Chart-Analyse-Tab: Korridor (Hoch/Tief) + Richtung (EMA-Steigung)
+// + Einstiegssignal (3-Kerzen-Folge / Momentumkerze / Engulfing)
+// ============================================================
+
+function toEpochMs(t){
+  if (typeof t === 'number') return t > 2e10 ? t : t * 1000; // Sekunden vs. Millisekunden
+  const parsed = new Date(t).getTime();
+  return isNaN(parsed) ? 0 : parsed;
+}
+
+// Ordnet die (gröberen) Richtungs-Kerzen den (feineren) Einstiegs-Kerzen per Zeitstempel
+// zu, damit sie als breite, blasse "Hintergrund-Kerzen" über den passenden Bereich gezeichnet
+// werden können -- unabhängig davon, wie viele Einstiegs-Kerzen jeweils hineinfallen.
+function alignDirectionCandles(directionCandles, entryCandles){
+  if (!directionCandles.length || !entryCandles.length) return [];
+  const entryTimes = entryCandles.map(c => toEpochMs(c.t));
+  const dirTimes = directionCandles.map(c => toEpochMs(c.t));
+  const results = [];
+  for (let i = 0; i < directionCandles.length; i++){
+    const startT = dirTimes[i];
+    const endT = i < directionCandles.length - 1 ? dirTimes[i + 1] : Infinity;
+    let startIdx = -1, endIdx = -1;
+    for (let j = 0; j < entryTimes.length; j++){
+      if (entryTimes[j] >= startT && entryTimes[j] < endT){
+        if (startIdx === -1) startIdx = j;
+        endIdx = j;
+      }
+    }
+    if (startIdx === -1) continue;
+    const dc = directionCandles[i];
+    results.push({ startIdx, endIdx, o: dc.o, h: dc.h, l: dc.l, c: dc.c });
+  }
+  return results;
+}
+
+function computeCorridor(candles, lookback = 24){
+  const slice = candles.slice(-lookback);
+  if (!slice.length) return null;
+  return {
+    high: Math.max(...slice.map(c => c.h)),
+    low: Math.min(...slice.map(c => c.l)),
+  };
+}
+
+function computeDirection(candles, emaPeriod = 20, lookback = 5){
+  const closes = candles.map(c => c.c);
+  const series = emaSeries(closes, emaPeriod);
+  const validIdx = [];
+  series.forEach((v, i) => { if (v !== null) validIdx.push(i); });
+  if (validIdx.length < lookback + 1) return 'neutral';
+  const recentIdx = validIdx[validIdx.length - 1];
+  const pastIdx = validIdx[validIdx.length - 1 - lookback];
+  const recent = series[recentIdx], past = series[pastIdx];
+  if (past === 0) return 'neutral';
+  const diffPct = (recent - past) / Math.abs(past);
+  if (diffPct > 0.001) return 'bullish';
+  if (diffPct < -0.001) return 'bearish';
+  return 'neutral';
+}
+
+function detectEntrySignals(candles, direction){
+  const signals = [];
+  const n = candles.length;
+  const aligned = (dir) => direction === 'neutral' ? undefined : dir === direction;
+
+  // 1) Drei Kerzen in Folge in dieselbe Richtung
+  for (let i = 2; i < n; i++){
+    const [c0, c1, c2] = [candles[i-2], candles[i-1], candles[i]];
+    const allBull = c0.c > c0.o && c1.c > c1.o && c2.c > c2.o;
+    const allBear = c0.c < c0.o && c1.c < c1.o && c2.c < c2.o;
+    if (allBull) signals.push({ index: i, type: '3candles', direction: 'bullish', aligned: aligned('bullish') });
+    if (allBear) signals.push({ index: i, type: '3candles', direction: 'bearish', aligned: aligned('bearish') });
+  }
+
+  // 2) Momentumkerze -- Körper deutlich größer als der jüngste Durchschnitt
+  const bodies = candles.map(c => Math.abs(c.c - c.o));
+  const avgWindow = 10;
+  for (let i = avgWindow; i < n; i++){
+    const avgBody = bodies.slice(i - avgWindow, i).reduce((a, b) => a + b, 0) / avgWindow;
+    if (avgBody <= 0) continue;
+    const bull = candles[i].c > candles[i].o;
+    if (bodies[i] > avgBody * 1.8){
+      if (bull) signals.push({ index: i, type: 'momentum', direction: 'bullish', aligned: aligned('bullish') });
+      else signals.push({ index: i, type: 'momentum', direction: 'bearish', aligned: aligned('bearish') });
+    }
+  }
+
+  // 3) Engulfing-Kerze -- Körper umschließt komplett den der Vorkerze
+  for (let i = 1; i < n; i++){
+    const prev = candles[i-1], cur = candles[i];
+    const bullEngulf = cur.c > cur.o && prev.c < prev.o && cur.c >= prev.o && cur.o <= prev.c;
+    const bearEngulf = cur.c < cur.o && prev.c > prev.o && cur.o >= prev.c && cur.c <= prev.o;
+    if (bullEngulf) signals.push({ index: i, type: 'engulfing', direction: 'bullish', aligned: aligned('bullish') });
+    if (bearEngulf) signals.push({ index: i, type: 'engulfing', direction: 'bearish', aligned: aligned('bearish') });
+  }
+
+  return signals.sort((a, b) => a.index - b.index);
+}
+
+const CA_PRESETS = {
+  standard: { corridor: '1h', direction: '15m', entry: '5m' },
+  higher:   { corridor: '1d', direction: '4h', entry: '1h' },
+};
+const CA_TF_LABELS = { '1m':'1 Minute', '5m':'5 Minuten', '15m':'15 Minuten', '30m':'30 Minuten', '1h':'1 Stunde', '4h':'4 Stunden', '12h':'12 Stunden', '1d':'1 Tag', '1w':'1 Woche', '1mo':'1 Monat' };
+const CA_SIGNAL_NAMES = { '3candles': '3 Kerzen gleiche Richtung', momentum: 'Momentumkerze', engulfing: 'Engulfing-Kerze' };
+
+document.getElementById('caPreset').addEventListener('change', (e) => {
+  const custom = e.target.value === 'custom';
+  document.getElementById('caCustomRow').style.display = custom ? '' : 'none';
+});
+
+let currentCaInterval = null;
+let caAutoRefreshTimer = null;
+let caAutoRefreshTick = 0;
+
+async function runChartAnalysisOnce(isAutoRefresh){
+  const status = document.getElementById('caStatus');
+  const type = document.getElementById('caType').value;
+  const symbol = document.getElementById('caSymbol').value.trim().toUpperCase();
+  if (!symbol){ if (!isAutoRefresh) status.textContent = 'Bitte ein Symbol eingeben.'; return; }
+
+  const presetKey = document.getElementById('caPreset').value;
+  let tf;
+  if (presetKey === 'custom'){
+    tf = {
+      corridor: document.getElementById('caCorridorTf').value,
+      direction: document.getElementById('caDirectionTf').value,
+      entry: document.getElementById('caEntryTf').value,
+    };
+  } else {
+    tf = CA_PRESETS[presetKey];
+  }
+  currentCaInterval = tf.entry;
+
+  if (!isAutoRefresh){
+    status.textContent = `Lädt … (Korridor ${tf.corridor}, Richtung ${tf.direction}, Einstieg ${tf.entry})`;
+    document.getElementById('caResultPanel').style.display = 'none';
+  }
+
+  try{
+    const [corridorData, directionData, entryData, hourlyRefData, dailyRefData, ref4hData, weeklyRefData] = await Promise.all([
+      getAnalysisFor({ type, symbol, interval: tf.corridor }, { includeCandles: true, includeBitpanda: false, candleLimit: 30 }),
+      getAnalysisFor({ type, symbol, interval: tf.direction }, { includeCandles: true, includeBitpanda: false, candleLimit: 60 }),
+      getAnalysisFor({ type, symbol, interval: tf.entry }, { includeCandles: true, includeBitpanda: false, candleLimit: 200 }),
+      getAnalysisFor({ type, symbol, interval: '1h' }, { includeCandles: true, includeBitpanda: false, candleLimit: type === 'crypto' ? 168 : 46 }).catch(e => ({ error: e.message })),
+      getAnalysisFor({ type, symbol, interval: '1d' }, { includeCandles: true, includeBitpanda: false, candleLimit: type === 'crypto' ? 180 : 126 }).catch(e => ({ error: e.message })),
+      getAnalysisFor({ type, symbol, interval: '4h' }, { includeCandles: true, includeBitpanda: false, candleLimit: type === 'crypto' ? 180 : 34 }).catch(e => ({ error: e.message })),
+      getAnalysisFor({ type, symbol, interval: '1w' }, { includeCandles: true, includeBitpanda: false, candleLimit: 52 }).catch(e => ({ error: e.message })),
+    ]);
+    if (corridorData.error) throw new Error(`Korridor (${tf.corridor}): ${corridorData.error}`);
+    if (directionData.error) throw new Error(`Richtung (${tf.direction}): ${directionData.error}`);
+    if (entryData.error) throw new Error(`Einstieg (${tf.entry}): ${entryData.error}`);
+
+    const corridor = computeCorridor(corridorData.candles, 24);
+    const direction = computeDirection(directionData.candles, 20, 5);
+    const signals = detectEntrySignals(entryData.candles, direction);
+    // Für "letztes Signal" bevorzugt eins nehmen, das mit der übergeordneten Richtung übereinstimmt
+    // (aligned=true) -- notfalls das jüngste unabhängig von der Übereinstimmung.
+    const alignedSignals = signals.filter(s => s.aligned === true);
+    const lastAligned = alignedSignals.length ? alignedSignals[alignedSignals.length - 1] : null;
+    const lastAny = signals.length ? signals[signals.length - 1] : null;
+
+    document.getElementById('caTag').textContent = `${type === 'crypto' ? 'Krypto' : 'Aktie'} · Korridor ${tf.corridor} / Richtung ${tf.direction} / Einstieg ${tf.entry}`;
+    document.getElementById('caSym').textContent = `${symbol}${fullName(symbol) ? ' — ' + fullName(symbol) : ''}`;
+    document.getElementById('caCandleTf').textContent = CA_TF_LABELS[tf.entry] || tf.entry;
+    document.getElementById('caCorridorRange').textContent = corridor ? `${fmtNum(corridor.low)} – ${fmtNum(corridor.high)}` : '–';
+
+    const dirBadge = document.getElementById('caDirectionBadge');
+    const dirCls = direction === 'bullish' ? 'buy' : direction === 'bearish' ? 'sell' : 'hold';
+    dirBadge.className = `badge ${dirCls}`;
+    dirBadge.textContent = direction === 'bullish' ? 'Bullisch' : direction === 'bearish' ? 'Bärisch' : 'Neutral';
+
+    function describeSignal(sig){
+      const ago = entryData.candles.length - 1 - sig.index;
+      const dirText = sig.direction === 'bullish' ? 'long' : 'short';
+      const alignText = sig.aligned === false ? ' (gegen die Richtung, unbestätigt)' : (sig.aligned === true ? ' (bestätigt)' : '');
+      return `${CA_SIGNAL_NAMES[sig.type]} ${dirText}${alignText}, vor ${ago} Kerzen`;
+    }
+    let lastSignalText;
+    if (!lastAny){
+      lastSignalText = 'Kein Signal in der Historie gefunden';
+    } else if (!lastAligned || lastAligned.index === lastAny.index){
+      lastSignalText = describeSignal(lastAny);
+    } else {
+      lastSignalText = `${describeSignal(lastAny)} — letztes bestätigtes: ${describeSignal(lastAligned)}`;
+    }
+    document.getElementById('caLastSignal').textContent = lastSignalText;
+
+    const backgroundCandles = alignDirectionCandles(directionData.candles, entryData.candles);
+
+    // Zoomstufe merken: bei Auto-Refresh die BREITE des bisherigen Ausschnitts beibehalten
+    // (rechtsverankert auf die neue aktuellste Kerze), bei einem frischen manuellen Klick
+    // dagegen wieder auf die volle Historie zurücksetzen.
+    const prevWindowSize = (isAutoRefresh && caChartVisibleRange && caCurrentChartData)
+      ? (caChartVisibleRange.end - caChartVisibleRange.start)
+      : null;
+
+    caCurrentChartData = {
+      ...entryData,
+      candles: entryData.candles,
+      corridorHigh: corridor ? corridor.high : null,
+      corridorLow: corridor ? corridor.low : null,
+      entrySignals: signals,
+      backgroundCandles,
+      nearestSupport: null, nearestResistance: null, stopLoss: null, target: null, entryZone: null,
+    };
+    const total = entryData.candles.length;
+    const windowSize = prevWindowSize != null ? Math.min(prevWindowSize, total) : total;
+    caChartVisibleRange = { start: Math.max(0, total - windowSize), end: total };
+
+    document.getElementById('caResultPanel').style.display = '';
+    renderCaBigChart();
+
+    if (hourlyRefData.error){
+      document.getElementById('caRefHourly').innerHTML = `<div class="error-text">${hourlyRefData.error}</div>`;
+    } else {
+      document.getElementById('caRefHourly').innerHTML = renderChart(hourlyRefData, {}) || '<div class="hint">Zu wenig Kerzendaten.</div>';
+    }
+    if (dailyRefData.error){
+      document.getElementById('caRefDaily').innerHTML = `<div class="error-text">${dailyRefData.error}</div>`;
+    } else {
+      document.getElementById('caRefDaily').innerHTML = renderChart(dailyRefData, {}) || '<div class="hint">Zu wenig Kerzendaten.</div>';
+    }
+    if (ref4hData.error){
+      document.getElementById('caRef4h').innerHTML = `<div class="error-text">${ref4hData.error}</div>`;
+    } else {
+      document.getElementById('caRef4h').innerHTML = renderChart(ref4hData, {}) || '<div class="hint">Zu wenig Kerzendaten.</div>';
+    }
+    if (weeklyRefData.error){
+      document.getElementById('caRefWeekly').innerHTML = `<div class="error-text">${weeklyRefData.error}</div>`;
+    } else {
+      document.getElementById('caRefWeekly').innerHTML = renderChart(weeklyRefData, {}) || '<div class="hint">Zu wenig Kerzendaten.</div>';
+    }
+
+    caAutoRefreshTick++;
+    status.textContent = `${signals.length} Signal(e) in der Einstiegs-Historie gefunden. ` +
+      `Auto-Aktualisierung an (alle 30 Sek.), letztes Update: ${new Date().toLocaleTimeString('de-DE')} (#${caAutoRefreshTick}).`;
+  }catch(e){
+    status.textContent = e.message;
+  }
+}
+
+document.getElementById('caRunBtn').addEventListener('click', () => {
+  if (caAutoRefreshTimer) clearInterval(caAutoRefreshTimer);
+  caAutoRefreshTick = 0;
+  runChartAnalysisOnce(false);
+  caAutoRefreshTimer = setInterval(() => runChartAnalysisOnce(true), 30000);
 });
 
 </script>
