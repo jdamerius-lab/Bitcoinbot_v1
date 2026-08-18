@@ -10,7 +10,7 @@
 <title>Strategie Reverse-Engineering Dashboard — BTC / ETH / SOL</title>
 <style>
   :root{
-    --bg:#0b0e14; --panel:#141a24; --chartbg:#1a1f2e; --border:#262c3a; --text:#e6edf3;
+    --bg:#0b0e14; --panel:#141a24; --chartbg:#1a1f2e; --pricechartbg:#000000; --border:#262c3a; --text:#e6edf3;
     --muted:#8b949e; --accent:#58a6ff; --green:#3fb950; --red:#f85149; --amber:#d29922;
     --long:#38bdf8; --short:#fb923c;
   }
@@ -43,7 +43,7 @@
   .pos{color:var(--green)} .neg{color:var(--red)}
   .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
   .toolgroup{display:flex;gap:6px;flex-wrap:wrap}
-  .chart-wrap{position:relative;height:460px;background:var(--chartbg);border-radius:8px;margin:0 100px}
+  .chart-wrap{position:relative;height:460px;background:var(--pricechartbg);border-radius:8px;margin:0 100px}
   .chart-wrap canvas#priceChart{display:block;width:100%;height:100%;cursor:crosshair}
   .equity-wrap{position:relative;height:180px;background:var(--chartbg);border-radius:8px;margin-top:8px}
   .equity-wrap canvas{display:block;width:100%;height:100%}
@@ -314,6 +314,7 @@
             <label id="mtfCorridorTfLabel" style="margin:0;font-size:11px">Korridor-Zeitrahmen</label>
             <select id="mtfCorridorTfSelect" style="width:auto"></select>
           </span>
+          <button class="secondary" id="toggleDailyBoxBtn" title="Transparente grüne/rote Box um die Kerzen je Kalendertag -- Grenzen oben/unten = Tageshoch/Tagestief, Farbe nach Tagesschluss (bullisch/bärisch)">DailyBox</button>
           <button class="secondary" id="toggleFvgBtn">FVG</button>
           <button class="secondary" id="toggleFibBtn">Fibonacci</button>
           <button class="secondary" id="toggleIchimokuBtn">Ichimoku</button>
@@ -1048,6 +1049,7 @@ let showMlSupertrend = false;
 let showHalfTrend = false;
 let showMtfDay = false;
 let showMtfSwing = false;
+let showDailyBox = false;
 let showFVG = false;
 let showFib = false;
 let showIchimoku = false;
@@ -3005,6 +3007,37 @@ function detectSRZones(highs, lows, bars=5, tolerancePct=0.006, maxZones=4){
   return { resistance: cluster(highPivots), support: cluster(lowPivots) };
 }
 
+// ---------- DailyBox-Overlay: transparente grüne/rote Box um die Kerzen je Kalendertag ----------
+// Eigene Nutzer-Idee, keine Portierung eines bekannten Skripts. Gruppiert die Kerzen des aktiven Zeitrahmens nach
+// LOKALEM Kalendertag (Zeitzone des Browsers/Betriebssystems der Person, die das Tool nutzt -- NICHT UTC-Mitternacht,
+// damit der Tageswechsel auch optisch um Mitternacht der eigenen Zeitzone liegt statt z.B. um 2 Uhr nachts bei
+// UTC+2). dayKey ist der Zeitstempel der lokalen Mitternacht des jeweiligen Tages (new Date(t).setHours(0,0,0,0)),
+// das übernimmt die DST-Umstellung automatisch korrekt von der JS-Date-Implementierung. Je Tag: Box-Grenzen oben/
+// unten = Tageshoch/-tief (höchstes High / tiefstes Low aller Kerzen dieses Tages), Farbe = grün, wenn der Tag
+// bullisch schloss (letzter Schlusskurs >= erster Eröffnungskurs des Tages, dieselbe Regel wie bei einzelnen
+// Kerzen), sonst rot. Rein visuell -- keine eigene Strategie, fließt nirgends in Backtest/Trendscore ein. Bei
+// Tages- oder größeren Zeitrahmen (1d/3d/1w/1M) entspricht eine Box im Regelfall genau einer Kerze.
+function computeDailyBoxes(times, opens, highs, lows, closes){
+  const n = times.length;
+  const boxes = [];
+  let cur = null;
+  for(let i=0;i<n;i++){
+    const dayKey = new Date(times[i]).setHours(0,0,0,0);
+    if(!cur || cur.dayKey !== dayKey){
+      if(cur) boxes.push(cur);
+      cur = { dayKey, startIdx:i, endIdx:i, dayOpen:opens[i], dayClose:closes[i], dayHigh:highs[i], dayLow:lows[i] };
+    } else {
+      cur.endIdx = i;
+      cur.dayClose = closes[i];
+      if(highs[i] > cur.dayHigh) cur.dayHigh = highs[i];
+      if(lows[i] < cur.dayLow) cur.dayLow = lows[i];
+    }
+  }
+  if(cur) boxes.push(cur);
+  boxes.forEach(b=>{ b.bullish = b.dayClose >= b.dayOpen; });
+  return boxes;
+}
+
 // ---------- Muster-Erkennung: Candlestick- (Hammer/Shooting Star/Engulfing/Doji) und Chart-Muster (Dreiecke) ----------
 // Rein heuristisch (siehe Erklärungstexte unten) -- dient sowohl als 9. Backtest-Strategie als auch der Live-Anzeige/
 // dem Chart-Overlay. Alle Funktionen arbeiten ausschließlich mit bereits vergangenen Kerzen (kein Blick in die
@@ -3831,6 +3864,35 @@ function drawMtfCorridorOverlay(ctx, mtf, d, iFrom, iTo, scaleX, scaleY, xStep, 
 
   ctx.restore();
 }
+const DAILYBOX_COLORS = { bull: { fill:'rgba(63,185,80,0.10)', line:'rgba(63,185,80,0.5)' }, bear: { fill:'rgba(248,81,73,0.10)', line:'rgba(248,81,73,0.5)' } };
+// Zeichnet für jeden sichtbaren Kalendertag eine transparente Box um dessen Kerzen (Grenzen oben/unten =
+// Tageshoch/-tief), grün bei bullischem, rot bei bärischem Tagesschluss. Datums-Label nur bei genug Platz
+// (xStep-Schwelle, wie bei den übrigen zoom-abhängigen Beschriftungen im Chart).
+function drawDailyBoxOverlay(ctx, boxes, iFrom, iTo, scaleX, scaleY, xStep){
+  if(!boxes || !boxes.length) return;
+  ctx.save();
+  boxes.forEach(box=>{
+    if(box.endIdx < iFrom || box.startIdx > iTo) return;
+    const x1 = scaleX(Math.max(box.startIdx, iFrom)) - xStep/2;
+    const x2 = scaleX(Math.min(box.endIdx, iTo)) + xStep/2;
+    const yTop = scaleY(box.dayHigh), yBottom = scaleY(box.dayLow);
+    const c = box.bullish ? DAILYBOX_COLORS.bull : DAILYBOX_COLORS.bear;
+    ctx.fillStyle = c.fill;
+    ctx.fillRect(x1, yTop, x2-x1, yBottom-yTop);
+    ctx.strokeStyle = c.line; ctx.lineWidth = 1;
+    ctx.strokeRect(x1, yTop, x2-x1, yBottom-yTop);
+    if(xStep >= 10 && box.startIdx >= iFrom){
+      // Lokale Datumsteile statt toISOString() (die würde wieder auf UTC umrechnen und so nahe Mitternacht ein
+      // falsches Datum anzeigen können) -- dayKey ist bereits der Zeitstempel der lokalen Mitternacht.
+      const dt = new Date(box.dayKey);
+      const label = dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0');
+      ctx.font = '9px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      ctx.fillStyle = c.line;
+      ctx.fillText(label, x1+2, yTop+2);
+    }
+  });
+  ctx.restore();
+}
 function drawSwings(ctx, swings, d, iFrom, iTo, scaleX, scaleY, layout){
   const { swingHighAt, swingLowAt, lastSwingLow, lastSwingHigh } = swings;
   ctx.save();
@@ -4145,6 +4207,13 @@ function drawChart(){
       });
     }
   });
+  if(showDailyBox && chart.$dailyBox){
+    chart.$dailyBox.forEach(box=>{
+      if(box.endIdx < view.start || box.startIdx > view.end) return;
+      if(box.dayHigh>hi) hi=box.dayHigh;
+      if(box.dayLow<lo) lo=box.dayLow;
+    });
+  }
   if(forecastPoints){
     forecastPoints.forEach(p=>{
       [p.price1, p.price2, p.avg].forEach(v=>{ if(v<lo) lo=v; if(v>hi) hi=v; });
@@ -4168,6 +4237,7 @@ function drawChart(){
   if(showIchimoku && chart.$ichi) drawIchimoku(ctx, chart.$ichi, iFrom, iTo, scaleX, scaleY);
   if(showFVG && chart.$fvg) drawFVGs(ctx, chart.$fvg, iFrom, iTo, scaleX, scaleY);
   if(showFib) drawFib(ctx, layout, rawLo, rawHi, scaleY);
+  if(showDailyBox && chart.$dailyBox) drawDailyBoxOverlay(ctx, chart.$dailyBox, iFrom, iTo, scaleX, scaleY, xStep);
 
   drawCandles(ctx, d, iFrom, iTo, scaleX, scaleY, xStep, layout);
   if(showEMAs) drawEMALines(ctx, d.emaSeries, iFrom, iTo, scaleX, scaleY);
@@ -4387,7 +4457,8 @@ function computeChartMeta(d){
   // Jeweils nur berechnen, wenn der zugehörige Overlay-Button aktiv ist (spart Rechenzeit, wenn ungenutzt).
   const mtfDay = showMtfDay ? computeMtfCorridorSeries(activeCoin, activeInterval, 'day') : null;
   const mtfSwing = showMtfSwing ? computeMtfCorridorSeries(activeCoin, activeInterval, 'swing') : null;
-  return { fvg, markers, ichi, swings, srZones, patterns, trendScore, boll, mlSupertrend, halfTrend, mtfDay, mtfSwing };
+  const dailyBox = computeDailyBoxes(d.times, d.opens, d.highs, d.lows, d.closes);
+  return { fvg, markers, ichi, swings, srZones, patterns, trendScore, boll, mlSupertrend, halfTrend, mtfDay, mtfSwing, dailyBox };
 }
 
 function renderChart(){
@@ -4415,6 +4486,7 @@ function renderChart(){
     $halfTrend: meta.halfTrend,
     $mtfDay: meta.mtfDay,
     $mtfSwing: meta.mtfSwing,
+    $dailyBox: meta.dailyBox,
     $forecast: (showForecast && activeCoin==='bitcoin' && activeInterval==='1d') ? computeCycleForecast(forecastProjectionDays) : null,
     dragging: null,
     crosshairIdx: null,
@@ -4448,6 +4520,7 @@ function refreshChartDatasets(){
   chart.$halfTrend = meta.halfTrend;
   chart.$mtfDay = meta.mtfDay;
   chart.$mtfSwing = meta.mtfSwing;
+  chart.$dailyBox = meta.dailyBox;
   chart.$forecast = (showForecast && activeCoin==='bitcoin' && activeInterval==='1d') ? computeCycleForecast(forecastProjectionDays) : null;
   updatePatternExplainUI();
   updateTrendScoreExplainUI();
@@ -5777,6 +5850,11 @@ function populateControls(){
     e.currentTarget.classList.toggle('active', showMtfSwing);
     if(showMtfSwing) ensureMtfCorridorData(activeCoin, activeInterval);
     if(chart){ refreshChartDatasets(); drawChart(); }
+  });
+  document.getElementById('toggleDailyBoxBtn').addEventListener('click', (e)=>{
+    showDailyBox = !showDailyBox;
+    e.currentTarget.classList.toggle('active', showDailyBox);
+    if(chart) drawChart();
   });
   document.getElementById('toggleFvgBtn').addEventListener('click', (e)=>{
     showFVG = !showFVG;

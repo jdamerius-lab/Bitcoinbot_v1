@@ -152,6 +152,14 @@
   .settings-field label{display:block;font-size:12.5px;color:var(--text-muted);margin-bottom:4px;}
   .settings-field input{width:100%;}
   .settings-field .note{font-size:11px;color:var(--text-muted);margin-top:4px;}
+  .symbol-search-wrap{position:relative;}
+  .symbol-search-results{position:absolute;top:100%;left:0;right:0;z-index:50;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;margin-top:4px;max-height:260px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.35);display:none;}
+  .symbol-search-results.open{display:block;}
+  .symbol-search-item{padding:7px 10px;cursor:pointer;font-size:12px;display:flex;justify-content:space-between;gap:10px;align-items:baseline;}
+  .symbol-search-item:hover, .symbol-search-item.active{background:var(--surface);}
+  .symbol-search-item .ssi-sym{font-family:'IBM Plex Mono',monospace;color:var(--text);white-space:nowrap;}
+  .symbol-search-item .ssi-name{color:var(--text-muted);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .symbol-search-empty{padding:8px 10px;font-size:11.5px;color:var(--text-muted);}
   .key-len{display:block;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text-muted);margin-top:2px;}
   .key-input-row{display:flex;gap:6px;align-items:stretch;}
   .key-input-row input{flex:1;min-width:0;}
@@ -235,14 +243,11 @@
         </select>
       </div>
       <div class="field">
-        <label>Symbol</label>
-        <input type="text" id="addSymbol" placeholder="z. B. BTC-EUR oder ASML" list="symbolHints">
-        <datalist id="symbolHints">
-          <option value="BTC-EUR"></option><option value="ETH-EUR"></option>
-          <option value="SOL-EUR"></option><option value="XRP-EUR"></option>
-          <option value="ASML"></option><option value="ASML.NL"></option>
-          <option value="RIO"></option><option value="AAPL"></option>
-        </datalist>
+        <label>Symbol -- Name oder Ticker eintippen</label>
+        <div class="symbol-search-wrap">
+          <input type="text" id="addSymbol" placeholder="z. B. Apple oder BTC-EUR" autocomplete="off">
+          <div class="symbol-search-results" id="addSymbolResults"></div>
+        </div>
       </div>
       <div class="field">
         <label>Zeitrahmen</label>
@@ -361,8 +366,11 @@
           </select>
         </div>
         <div class="field">
-          <label>Symbol zur Scan-Liste hinzufügen</label>
-          <input type="text" id="scanAddSymbol" placeholder="z. B. NVDA" list="symbolHints">
+          <label>Symbol zur Scan-Liste hinzufügen -- Name oder Ticker</label>
+          <div class="symbol-search-wrap">
+            <input type="text" id="scanAddSymbol" placeholder="z. B. Nvidia oder NVDA" autocomplete="off">
+            <div class="symbol-search-results" id="scanAddSymbolResults"></div>
+          </div>
         </div>
         <div class="field" style="justify-content:flex-end;"><button id="scanAddBtn">+ Hinzufügen</button></div>
         <div class="field" style="justify-content:flex-end;"><button class="ghost small" id="scanResetBtn">Standardliste</button></div>
@@ -486,8 +494,11 @@
           </select>
         </div>
         <div class="field">
-          <label>Symbol</label>
-          <input type="text" id="caSymbol" placeholder="z. B. BTC-EUR oder NVDA" list="symbolHints">
+          <label>Symbol -- Name oder Ticker</label>
+          <div class="symbol-search-wrap">
+            <input type="text" id="caSymbol" placeholder="z. B. Tesla oder BTC-EUR" autocomplete="off">
+            <div class="symbol-search-results" id="caSymbolResults"></div>
+          </div>
         </div>
         <div class="field" style="min-width:280px;">
           <label>Zeitrahmen-Preset</label>
@@ -541,11 +552,12 @@
         <div>Richtung: <span class="badge" id="caDirectionBadge" style="margin:0;"></span></div>
         <div>Letztes Signal: <b id="caLastSignal" style="font-family:'IBM Plex Mono',monospace;"></b></div>
       </div>
-      <div class="hint" style="margin-bottom:10px;">▲/▼-Marker unter/über den Kerzen zeigen erkannte Einstiegssignale, farblich nach Richtung (grün=long, rot=short), Symbol nach Auslöser (3=3-Kerzen-Folge, M=Momentum, E=Engulfing). Blass dargestellte Marker laufen gegen die aktuelle übergeordnete Richtung -- nur volle Marker sind "bestätigte" Top-Down-Signale.</div>
+      <div class="hint" style="margin-bottom:10px;">▲/▼-Marker unter/über den Kerzen zeigen erkannte Einstiegssignale, farblich nach Richtung (grün=long, rot=short), Symbol nach Auslöser (3=3-Kerzen-Folge, M=Momentum, E=Engulfing). Blass dargestellte Marker laufen gegen die aktuelle übergeordnete Richtung -- nur volle Marker sind "bestätigte" Top-Down-Signale. Bei der Tagesbox: durchgezogene Linien = Hoch/Tief aus echten Tageskerzen; fein gepunktete, blasse Linien = nur aus den sichtbaren Stundenkerzen geschätzt (z.B. falls die 1-Tag-Referenzkachel keine Daten hat).</div>
       <div class="addrow" style="justify-content:flex-end;margin-bottom:6px;">
         <button class="ghost small" id="caZoomOut" title="Rauszoomen">−</button>
         <button class="ghost small" id="caZoomIn" title="Reinzoomen" style="margin-left:6px;">+</button>
         <button class="ghost small" id="caZoomReset" style="margin-left:6px;">Zoom zurücksetzen</button>
+        <button class="ghost small" id="caDailyBoxToggle" style="margin-left:14px;">Tagesbox: aus</button>
       </div>
       <div id="caChartBody"></div>
     </div>
@@ -1555,10 +1567,146 @@ function fmtCandleTime(t, interval){
 }
 
 const dataStore = {};
+
+// ============================================================
+// Echte Symbol-Suche (Name oder Ticker) für Watchlist, Marktscreening
+// und Chart-Analyse -- lädt die jeweilige Assetliste einmalig und
+// durchsucht sie dann rein lokal im Browser (kein Server-Roundtrip
+// pro Tastenanschlag).
+// ============================================================
+let stockAssetListCache = null; // Promise, damit parallele Aufrufe nicht mehrfach laden
+let cryptoAssetListCache = null;
+
+async function loadStockAssetList(){
+  if (!settings.alpacaKey || !settings.alpacaSecret){
+    return { items: [], error: 'Braucht einen Alpaca-Key + Secret (Einstellungen).' };
+  }
+  if (stockAssetListCache) return stockAssetListCache;
+  stockAssetListCache = (async () => {
+    let r;
+    try{
+      r = await fetch('https://paper-api.alpaca.markets/v2/assets?status=active&asset_class=us_equity', {
+        headers: { 'APCA-API-KEY-ID': settings.alpacaKey, 'APCA-API-SECRET-KEY': settings.alpacaSecret }
+      });
+    }catch(e){
+      return { items: [], error: `Aktien-Suche: Anfrage fehlgeschlagen (${e.message}) -- vermutlich CORS oder kein Netzwerk.` };
+    }
+    if (r.status === 401 || r.status === 403){
+      return { items: [], error: `Aktien-Suche: HTTP ${r.status} -- Alpaca-Key/Secret ungültig oder ohne Berechtigung für die Trading-API (paper-api.alpaca.markets). Prüf, ob derselbe Key bei den normalen Kursdaten funktioniert.` };
+    }
+    if (!r.ok){
+      return { items: [], error: `Aktien-Suche: HTTP ${r.status}` };
+    }
+    const data = await r.json();
+    const items = data
+      .filter(a => a.tradable && a.exchange !== 'OTC')
+      .map(a => ({ symbol: a.symbol, name: a.name }));
+    return { items, error: null };
+  })();
+  return stockAssetListCache;
+}
+
+async function loadCryptoAssetList(){
+  if (cryptoAssetListCache) return cryptoAssetListCache;
+  cryptoAssetListCache = (async () => {
+    try{
+      const r = await fetch('https://api.binance.com/api/v3/exchangeInfo');
+      if (!r.ok) return [];
+      const data = await r.json();
+      return (data.symbols || [])
+        .filter(s => s.quoteAsset === 'EUR' && s.status === 'TRADING')
+        .map(s => {
+          const sym = `${s.baseAsset}-EUR`;
+          return { symbol: sym, name: fullName(sym) || s.baseAsset };
+        });
+    }catch(e){ return []; }
+  })();
+  return cryptoAssetListCache;
+}
+
+function searchAssetList(list, query){
+  const q = query.trim().toUpperCase();
+  if (!q) return [];
+  const scored = [];
+  for (const item of list){
+    const sym = item.symbol.toUpperCase();
+    const name = (item.name || '').toUpperCase();
+    let score = -1;
+    if (sym === q) score = 100;
+    else if (sym.startsWith(q)) score = 80;
+    else if (name.startsWith(q)) score = 60;
+    else if (sym.includes(q)) score = 40;
+    else if (name.includes(q)) score = 20;
+    if (score > -1) scored.push({ item, score });
+  }
+  scored.sort((a, b) => b.score - a.score || a.item.symbol.length - b.item.symbol.length);
+  return scored.slice(0, 10).map(s => s.item);
+}
+
+function attachSymbolSearch(inputId, typeSelectId, resultsId){
+  const input = document.getElementById(inputId);
+  const results = document.getElementById(resultsId);
+  const typeSelect = typeSelectId ? document.getElementById(typeSelectId) : null;
+  let currentQueryToken = 0;
+
+  function renderResults(items, errors){
+    const errorHtml = (errors && errors.length)
+      ? errors.map(e => `<div class="symbol-search-empty" style="color:var(--sell);">${e}</div>`).join('')
+      : '';
+    if (!items.length){
+      results.innerHTML = errorHtml || '<div class="symbol-search-empty">Keine Treffer.</div>';
+      results.classList.add('open');
+      return;
+    }
+    results.innerHTML = errorHtml + items.map(it =>
+      `<div class="symbol-search-item" data-symbol="${it.symbol}" data-type="${it._type || ''}"><span class="ssi-sym">${it.symbol}</span><span class="ssi-name">${it.name || ''}</span></div>`
+    ).join('');
+    results.classList.add('open');
+  }
+
+  async function runSearch(){
+    const q = input.value;
+    if (q.trim().length < 1){ results.classList.remove('open'); results.innerHTML = ''; return; }
+    const myToken = ++currentQueryToken;
+    const wantType = typeSelect ? typeSelect.value : null;
+
+    const errors = [];
+    const lists = [];
+    if (!wantType || wantType === 'crypto'){
+      lists.push(loadCryptoAssetList().then(l => l.map(i => ({ ...i, _type: 'crypto' }))));
+    }
+    if (!wantType || wantType === 'stock'){
+      lists.push(loadStockAssetList().then(res => {
+        if (res.error) errors.push(res.error);
+        return res.items.map(i => ({ ...i, _type: 'stock' }));
+      }));
+    }
+    const loaded = (await Promise.all(lists)).flat();
+    if (myToken !== currentQueryToken) return; // Eingabe hat sich inzwischen geändert, altes Ergebnis verwerfen
+
+    const matches = searchAssetList(loaded, q);
+    renderResults(matches, errors);
+  }
+
+  input.addEventListener('input', () => { runSearch(); });
+  input.addEventListener('focus', () => { if (input.value.trim()) runSearch(); });
+  input.addEventListener('blur', () => { setTimeout(() => results.classList.remove('open'), 150); });
+
+  results.addEventListener('mousedown', (e) => {
+    const el = e.target.closest('.symbol-search-item');
+    if (!el) return;
+    e.preventDefault();
+    input.value = el.dataset.symbol;
+    if (typeSelect && el.dataset.type) typeSelect.value = el.dataset.type;
+    results.classList.remove('open');
+    input.focus();
+  });
+}
+
 let lastChartGeometry = null; // von renderChart(big:true) gesetzt, für den Interaktions-Handler (Fadenkreuz/Zoom)
 
 function renderChart(data, opts={}){
-  const { big = false, instanceId = 'scan' } = opts;
+  const { big = false, instanceId = 'scan', heightPx = null } = opts;
   const candles = data.candles;
   if (!candles || candles.length < 5) return '';
   const width = 600;
@@ -1580,6 +1728,9 @@ function renderChart(data, opts={}){
   }
   if (data.backgroundCandles && data.backgroundCandles.length){
     data.backgroundCandles.forEach(bc => { yMin = Math.min(yMin, bc.l); yMax = Math.max(yMax, bc.h); });
+  }
+  if (data.directionEmaPoints && data.directionEmaPoints.length){
+    data.directionEmaPoints.forEach(p => { yMin = Math.min(yMin, p.value); yMax = Math.max(yMax, p.value); });
   }
   const pad = (yMax - yMin) * 0.08 || Math.abs(yMax) * 0.01 || 1;
   yMin -= pad; yMax += pad;
@@ -1628,20 +1779,20 @@ function renderChart(data, opts={}){
 
   axisLabels.forEach(l => {
     const yy = y(l.value);
-    bgParts.push(`<line x1="${padLeft}" x2="${width-padRight}" y1="${yy.toFixed(1)}" y2="${yy.toFixed(1)}" stroke="var(--border)" stroke-width="1" opacity="0.4"/>`);
+    bgParts.push(`<line x1="${padLeft}" x2="${width-padRight}" y1="${yy.toFixed(1)}" y2="${yy.toFixed(1)}" stroke="var(--border)" stroke-width="1" opacity="0.4" pointer-events="none"/>`);
     queueLabel(yy, l.text, l.color);
   });
   if (big && data.entryZone){
     const y1 = y(data.entryZone[1]), y2 = y(data.entryZone[0]);
-    bgParts.push(`<rect x="${padLeft}" y="${y1.toFixed(1)}" width="${plotW}" height="${(y2-y1).toFixed(1)}" fill="var(--buy)" opacity="0.08"/>`);
+    bgParts.push(`<rect x="${padLeft}" y="${y1.toFixed(1)}" width="${plotW}" height="${(y2-y1).toFixed(1)}" fill="var(--buy)" opacity="0.08" pointer-events="none"/>`);
   }
   if (data.corridorHigh != null && data.corridorLow != null){
     const y1 = y(data.corridorHigh), y2 = y(data.corridorLow);
-    bgParts.push(`<rect x="${padLeft}" y="${y1.toFixed(1)}" width="${plotW}" height="${(y2-y1).toFixed(1)}" fill="var(--accent)" opacity="0.06"/>`);
+    bgParts.push(`<rect x="${padLeft}" y="${y1.toFixed(1)}" width="${plotW}" height="${(y2-y1).toFixed(1)}" fill="var(--accent)" opacity="0.06" pointer-events="none"/>`);
   }
   levelLabels.forEach(l => {
     const yy = y(l.value);
-    bgParts.push(`<line x1="${padLeft}" x2="${width-padRight}" y1="${yy.toFixed(1)}" y2="${yy.toFixed(1)}" stroke="${l.color}" stroke-width="1" stroke-dasharray="3,3" opacity="0.75"/>`);
+    bgParts.push(`<line x1="${padLeft}" x2="${width-padRight}" y1="${yy.toFixed(1)}" y2="${yy.toFixed(1)}" stroke="${l.color}" stroke-width="1" stroke-dasharray="3,3" opacity="0.75" pointer-events="none"/>`);
     queueLabel(yy, l.text, l.color);
   });
 
@@ -1649,10 +1800,36 @@ function renderChart(data, opts={}){
   function emaLine(period, colorVar){
     const series = emaSeries(closes, period);
     const pts = series.map((v,i) => v !== null ? `${x(i).toFixed(1)},${y(v).toFixed(1)}` : null).filter(Boolean);
-    if (pts.length > 1) bgParts.push(`<polyline points="${pts.join(' ')}" fill="none" stroke="${colorVar}" stroke-width="1.3" opacity="0.9"/>`);
+    if (pts.length > 1) bgParts.push(`<polyline points="${pts.join(' ')}" fill="none" stroke="${colorVar}" stroke-width="1.3" opacity="0.9" pointer-events="none"/>`);
   }
   emaLine(20, 'var(--accent)');
   emaLine(50, '#e0b256');
+
+  // EMA20 des Richtungs-Zeitrahmens (z.B. 15 Min.), auf den Einstiegs-Zeitrahmen abgebildet --
+  // eigene Farbe + gestrichelt, damit klar unterscheidbar von der EMA20/50 des Charts selbst.
+  if (data.directionEmaPoints && data.directionEmaPoints.length > 1){
+    const pts = data.directionEmaPoints.map(p => `${x(p.index).toFixed(1)},${y(p.value).toFixed(1)}`).join(' ');
+    bgParts.push(`<polyline points="${pts}" fill="none" stroke="#c77dff" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.85" pointer-events="none"/>`);
+  }
+
+  // Tagesbox: transparente Box um alle Kerzen eines Kalendertags, Ober-/Unterkante bei
+  // Tageshoch/-tief, grün bei bullischem, rot bei bärischem Tagesschluss. Für Tage mit echten
+  // Tageskerzen (aus der 1-Tag-Referenzkachel) sind Hoch/Tief verlässlich; ohne die (z.B. weil
+  // die Referenzkachel fehlgeschlagen ist) nur aus den sichtbaren Stundenkerzen geschätzt --
+  // solche Tage bekommen eine deutlich blassere, gestrichelte Umrandung als Hinweis.
+  // pointer-events:none, damit diese Flächen nie Maus-Hover für das Fadenkreuz blockieren.
+  (data.dailyBoxes || []).forEach(box => {
+    const xStart = x(box.startIdx) - bodyW / 2;
+    const xEnd = x(box.endIdx) + bodyW / 2;
+    const bw = Math.max(1, xEnd - xStart);
+    const color = box.bullish ? 'var(--buy)' : 'var(--sell)';
+    const yHigh = y(box.high), yLow = y(box.low);
+    const lineOpacity = box.approximate ? 0.35 : 0.7;
+    const lineDash = box.approximate ? ' stroke-dasharray="1,3"' : '';
+    bgParts.push(`<rect x="${xStart.toFixed(1)}" y="${yHigh.toFixed(1)}" width="${bw.toFixed(1)}" height="${(yLow-yHigh).toFixed(1)}" fill="${color}" opacity="${box.approximate?0.06:0.10}" stroke="${color}" stroke-width="1" stroke-opacity="${box.approximate?0.3:0.5}" stroke-dasharray="2,2" pointer-events="none"/>`);
+    bgParts.push(`<line x1="${xStart.toFixed(1)}" x2="${xEnd.toFixed(1)}" y1="${yHigh.toFixed(1)}" y2="${yHigh.toFixed(1)}" stroke="${color}" stroke-width="1.3" opacity="${lineOpacity}"${lineDash} pointer-events="none"/>`);
+    bgParts.push(`<line x1="${xStart.toFixed(1)}" x2="${xEnd.toFixed(1)}" y1="${yLow.toFixed(1)}" y2="${yLow.toFixed(1)}" stroke="${color}" stroke-width="1.3" opacity="${lineOpacity}"${lineDash} pointer-events="none"/>`);
+  });
 
   // Blass im Hintergrund: gröberer Zeitrahmen (z.B. 15-Min-Kerzen hinter 5-Min-Kerzen),
   // als breite Kerzen über den jeweils zugehörigen Indexbereich gezeichnet -- läuft VOR den
@@ -1666,8 +1843,8 @@ function renderChart(data, opts={}){
     const yTop = Math.min(y(bc.o), y(bc.c));
     const bodyH = Math.max(1, Math.abs(y(bc.c) - y(bc.o)));
     const xMid = (xStart + xEnd) / 2;
-    bgParts.push(`<line x1="${xMid.toFixed(1)}" x2="${xMid.toFixed(1)}" y1="${y(bc.h).toFixed(1)}" y2="${y(bc.l).toFixed(1)}" stroke="${color}" stroke-width="1" opacity="0.18"/>`);
-    bgParts.push(`<rect x="${xStart.toFixed(1)}" y="${yTop.toFixed(1)}" width="${bw.toFixed(1)}" height="${bodyH.toFixed(1)}" fill="${color}" opacity="0.14"/>`);
+    bgParts.push(`<line x1="${xMid.toFixed(1)}" x2="${xMid.toFixed(1)}" y1="${y(bc.h).toFixed(1)}" y2="${y(bc.l).toFixed(1)}" stroke="${color}" stroke-width="1" opacity="0.18" pointer-events="none"/>`);
+    bgParts.push(`<rect x="${xStart.toFixed(1)}" y="${yTop.toFixed(1)}" width="${bw.toFixed(1)}" height="${bodyH.toFixed(1)}" fill="${color}" opacity="0.14" pointer-events="none"/>`);
   });
 
   candles.forEach((c,i) => {
@@ -1676,8 +1853,8 @@ function renderChart(data, opts={}){
     const color = up ? 'var(--buy)' : 'var(--sell)';
     const yTop = Math.min(y(c.o), y(c.c));
     const bodyH = Math.max(1, Math.abs(y(c.c) - y(c.o)));
-    bgParts.push(`<line x1="${xi.toFixed(1)}" x2="${xi.toFixed(1)}" y1="${y(c.h).toFixed(1)}" y2="${y(c.l).toFixed(1)}" stroke="${color}" stroke-width="1"/>`);
-    bgParts.push(`<rect x="${(xi-bodyW/2).toFixed(1)}" y="${yTop.toFixed(1)}" width="${bodyW.toFixed(1)}" height="${bodyH.toFixed(1)}" fill="${color}"/>`);
+    bgParts.push(`<line x1="${xi.toFixed(1)}" x2="${xi.toFixed(1)}" y1="${y(c.h).toFixed(1)}" y2="${y(c.l).toFixed(1)}" stroke="${color}" stroke-width="1" pointer-events="none"/>`);
+    bgParts.push(`<rect x="${(xi-bodyW/2).toFixed(1)}" y="${yTop.toFixed(1)}" width="${bodyW.toFixed(1)}" height="${bodyH.toFixed(1)}" fill="${color}" pointer-events="none"/>`);
   });
 
   const SIGNAL_LETTER = { '3candles': '3', momentum: 'M', engulfing: 'E' };
@@ -1690,26 +1867,26 @@ function renderChart(data, opts={}){
     const op = sig.aligned === false ? 0.35 : 1; // gegen die Richtung laufende Signale gedämpft darstellen
     if (sig.direction === 'bullish'){
       const yy = y(c.l) + 9;
-      bgParts.push(`<polygon points="${xi.toFixed(1)},${(yy-3.5).toFixed(1)} ${(xi-3).toFixed(1)},${(yy+2.5).toFixed(1)} ${(xi+3).toFixed(1)},${(yy+2.5).toFixed(1)}" fill="${color}" opacity="${op}"/>`);
-      bgParts.push(`<text x="${xi.toFixed(1)}" y="${(yy+11).toFixed(1)}" text-anchor="middle" font-size="7" font-weight="700" fill="${color}" opacity="${op}" font-family="'IBM Plex Mono',monospace">${letter}</text>`);
+      bgParts.push(`<polygon points="${xi.toFixed(1)},${(yy-3.5).toFixed(1)} ${(xi-3).toFixed(1)},${(yy+2.5).toFixed(1)} ${(xi+3).toFixed(1)},${(yy+2.5).toFixed(1)}" fill="${color}" opacity="${op}" pointer-events="none"/>`);
+      bgParts.push(`<text x="${xi.toFixed(1)}" y="${(yy+11).toFixed(1)}" text-anchor="middle" font-size="7" font-weight="700" fill="${color}" opacity="${op}" font-family="'IBM Plex Mono',monospace" pointer-events="none">${letter}</text>`);
     } else {
       const yy = y(c.h) - 9;
-      bgParts.push(`<polygon points="${xi.toFixed(1)},${(yy+3.5).toFixed(1)} ${(xi-3).toFixed(1)},${(yy-2.5).toFixed(1)} ${(xi+3).toFixed(1)},${(yy-2.5).toFixed(1)}" fill="${color}" opacity="${op}"/>`);
-      bgParts.push(`<text x="${xi.toFixed(1)}" y="${(yy-6).toFixed(1)}" text-anchor="middle" font-size="7" font-weight="700" fill="${color}" opacity="${op}" font-family="'IBM Plex Mono',monospace">${letter}</text>`);
+      bgParts.push(`<polygon points="${xi.toFixed(1)},${(yy+3.5).toFixed(1)} ${(xi-3).toFixed(1)},${(yy-2.5).toFixed(1)} ${(xi+3).toFixed(1)},${(yy-2.5).toFixed(1)}" fill="${color}" opacity="${op}" pointer-events="none"/>`);
+      bgParts.push(`<text x="${xi.toFixed(1)}" y="${(yy-6).toFixed(1)}" text-anchor="middle" font-size="7" font-weight="700" fill="${color}" opacity="${op}" font-family="'IBM Plex Mono',monospace" pointer-events="none">${letter}</text>`);
     }
   });
 
   if (big && volH > 0){
     const volTop = height - volH - 4;
     const maxVol = Math.max(...candles.map(c => c.v || 0)) || 1;
-    bgParts.push(`<line x1="${padLeft}" x2="${width-2}" y1="${volTop.toFixed(1)}" y2="${volTop.toFixed(1)}" stroke="var(--border)" stroke-width="1"/>`);
-    bgParts.push(`<text x="${padLeft}" y="${(volTop-3).toFixed(1)}" font-size="9" fill="var(--text-muted)" font-family="'IBM Plex Mono',monospace">Volumen</text>`);
+    bgParts.push(`<line x1="${padLeft}" x2="${width-2}" y1="${volTop.toFixed(1)}" y2="${volTop.toFixed(1)}" stroke="var(--border)" stroke-width="1" pointer-events="none"/>`);
+    bgParts.push(`<text x="${padLeft}" y="${(volTop-3).toFixed(1)}" font-size="9" fill="var(--text-muted)" font-family="'IBM Plex Mono',monospace" pointer-events="none">Volumen</text>`);
     candles.forEach((c,i) => {
       const xi = x(i);
       const up = c.c >= c.o;
       const color = up ? 'var(--buy)' : 'var(--sell)';
       const h = ((c.v || 0) / maxVol) * (volH - 6);
-      bgParts.push(`<rect x="${(xi-bodyW/2).toFixed(1)}" y="${(height-4-h).toFixed(1)}" width="${bodyW.toFixed(1)}" height="${h.toFixed(1)}" fill="${color}" opacity="0.55"/>`);
+      bgParts.push(`<rect x="${(xi-bodyW/2).toFixed(1)}" y="${(height-4-h).toFixed(1)}" width="${bodyW.toFixed(1)}" height="${h.toFixed(1)}" fill="${color}" opacity="0.55" pointer-events="none"/>`);
     });
   }
 
@@ -1730,13 +1907,13 @@ function renderChart(data, opts={}){
   return `<div class="chart-wrap">
     ${instanceId === 'ca' ? hoverInfoHtml : ''}
     <div class="chart-plot-area">
-      <svg viewBox="0 0 ${width} ${height}" class="chart-svg${big?' big':''}" preserveAspectRatio="none" data-n="${n}">${bgParts.join('')}${big ? `
+      <svg viewBox="0 0 ${width} ${height}" class="chart-svg${big?' big':''}" preserveAspectRatio="none" data-n="${n}"${heightPx ? ` style="height:${heightPx}px;"` : ''}>${bgParts.join('')}${big ? `
         <line id="crosshairV" x1="0" y1="${padTop}" x2="0" y2="${padTop+plotH}" stroke="var(--text-muted)" stroke-width="1" stroke-dasharray="2,2" opacity="0" pointer-events="none"/>
         <line id="crosshairH" x1="${padLeft}" y1="0" x2="${width-padRight}" y2="0" stroke="var(--text-muted)" stroke-width="1" stroke-dasharray="2,2" opacity="0" pointer-events="none"/>
       ` : ''}</svg>
       ${big ? `<div class="chart-label-overlay">${overlayHtml}<div class="chart-label-badge crosshair-price" id="${priceLabelId}"></div></div>` : ''}
     </div>
-    <div class="chart-legend"><span class="lg ema20">EMA20</span><span class="lg ema50">EMA50</span>${data.nearestSupport!=null?'<span class="lg sup">S = Support</span>':''}${data.nearestResistance!=null?'<span class="lg res">W = Widerstand</span>':''}${data.corridorHigh!=null?'<span style="color:var(--accent);">Schattierte Fläche = Korridor</span>':''}${(data.backgroundCandles&&data.backgroundCandles.length)?'<span style="color:var(--text-muted);">Blasse breite Kerzen = mittlerer Zeitrahmen</span>':''}${big?'<span style="color:var(--text-muted);">Scrollen = Zoom, Ziehen = Verschieben</span>':''}</div>
+    <div class="chart-legend"><span class="lg ema20">EMA20</span><span class="lg ema50">EMA50</span>${data.nearestSupport!=null?'<span class="lg sup">S = Support</span>':''}${data.nearestResistance!=null?'<span class="lg res">W = Widerstand</span>':''}${data.corridorHigh!=null?'<span style="color:var(--accent);">Schattierte Fläche = Korridor</span>':''}${(data.backgroundCandles&&data.backgroundCandles.length)?'<span style="color:var(--text-muted);">Blasse breite Kerzen = mittlerer Zeitrahmen</span>':''}${(data.directionEmaPoints&&data.directionEmaPoints.length)?'<span style="color:#c77dff;">Gestrichelt lila = EMA20 mittlerer Zeitrahmen</span>':''}${big?'<span style="color:var(--text-muted);">Scrollen = Zoom, Ziehen = Verschieben</span>':''}</div>
     ${instanceId !== 'ca' ? hoverInfoHtml : ''}
   </div>`;
 }
@@ -1849,6 +2026,11 @@ async function getAnalysisFor(item, opts={}){
         if (settings.fmpKey && item.interval === '1d'){
           candles = await fetchFmpCandles(item.symbol, '1d', fetchLimit, settings.fmpKey);
           source = 'FMP (Fallback nach Stooq-Fehler)';
+        } else if (note){
+          // Alpaca wurde tatsächlich versucht und ist fehlgeschlagen -- DAS ist der eigentlich
+          // relevante Grund, nicht die generische "braucht Alpaca"-Meldung von Stooq/Yahoo
+          // (die bei Intraday-Zeitrahmen immer kommt, egal ob Alpaca konfiguriert ist oder nicht).
+          throw new Error(note);
         } else {
           throw stooqErr;
         }
@@ -2326,6 +2508,21 @@ function sliceBackgroundCandles(backgroundCandles, start, end){
   return result;
 }
 
+// Verschiebt die Kerzen-Indizes der Einstiegssignale auf den aktuell sichtbaren Zoom-
+// Ausschnitt -- ohne das würden die Marker beim Zoomen/Verschieben an der falschen
+// (weil auf die volle Historie bezogenen) Kerze hängen bleiben.
+function sliceEntrySignals(signals, start, end){
+  if (!signals) return [];
+  return signals
+    .filter(s => s.index >= start && s.index < end)
+    .map(s => ({ ...s, index: s.index - start }));
+}
+
+let caDailyBoxEnabled = false;
+
+const CA_BASE_HEIGHT_PX = 350; // muss zur CSS-Höhe .chart-svg.big passen
+const CA_MAX_HEIGHT_SCALE = 3; // beim Reinzoomen max. 3x so hoch wie die Grundansicht
+
 function renderCaBigChart(){
   if (!caCurrentChartData || !caCurrentChartData.candles) return;
   const all = caCurrentChartData.candles;
@@ -2335,9 +2532,19 @@ function renderCaBigChart(){
     ...caCurrentChartData,
     candles: visible,
     backgroundCandles: sliceBackgroundCandles(caCurrentChartData.backgroundCandles, start, end),
+    dailyBoxes: caDailyBoxEnabled ? computeDailyBoxes(visible, caCurrentChartData.realDailyBars) : [],
+    entrySignals: sliceEntrySignals(caCurrentChartData.entrySignals, start, end),
+    directionEmaPoints: sliceDirectionEmaPoints(caCurrentChartData.directionEmaPoints, start, end),
   };
+  // Zoom soll nicht nur die Kerzen verbreitern, sondern den Chart insgesamt größer machen --
+  // Höhe wächst mit dem Zoomgrad mit (Quadratwurzel, damit's bei starkem Reinzoomen nicht
+  // absurd hoch wird), gedeckelt bei CA_MAX_HEIGHT_SCALE.
+  const zoomRatio = all.length / Math.max(1, visible.length);
+  const heightScale = Math.min(CA_MAX_HEIGHT_SCALE, Math.sqrt(zoomRatio));
+  const heightPx = Math.round(CA_BASE_HEIGHT_PX * heightScale);
+
   document.getElementById('caChartBody').innerHTML =
-    (renderChart(sliceData, { big: true, instanceId: 'ca' }) || '<div class="hint">Zu wenig Kerzendaten für einen Chart.</div>') +
+    (renderChart(sliceData, { big: true, instanceId: 'ca', heightPx }) || '<div class="hint">Zu wenig Kerzendaten für einen Chart.</div>') +
     `<div class="chart-zoom-controls"><span class="hint" style="margin:0;">${visible.length} von ${all.length} Kerzen sichtbar</span></div>`;
   attachCaChartInteraction(visible);
 }
@@ -2378,6 +2585,11 @@ document.getElementById('caZoomOut').addEventListener('click', () => zoomCaChart
 document.getElementById('caZoomReset').addEventListener('click', () => {
   if (!caCurrentChartData || !caCurrentChartData.candles) return;
   caChartVisibleRange = { start: 0, end: caCurrentChartData.candles.length };
+  renderCaBigChart();
+});
+document.getElementById('caDailyBoxToggle').addEventListener('click', () => {
+  caDailyBoxEnabled = !caDailyBoxEnabled;
+  document.getElementById('caDailyBoxToggle').textContent = `Tagesbox: ${caDailyBoxEnabled ? 'an' : 'aus'}`;
   renderCaBigChart();
 });
 
@@ -2627,6 +2839,94 @@ function alignDirectionCandles(directionCandles, entryCandles){
   return results;
 }
 
+// Bildet den EMA20 des Richtungs-Zeitrahmens (z.B. 15 Min.) auf die Kerzen-Indizes des
+// Einstiegs-Zeitrahmens (z.B. 5 Min.) ab -- ein Punkt pro Richtungs-Kerze, jeweils in der
+// Mitte ihres zugehörigen Einstiegs-Kerzen-Bereichs, damit sich daraus eine Linie zeichnen lässt.
+function computeAlignedDirectionEma(directionCandles, entryCandles, period = 20){
+  if (!directionCandles.length || !entryCandles.length) return [];
+  const closes = directionCandles.map(c => c.c);
+  const emaVals = emaSeries(closes, period);
+  const entryTimes = entryCandles.map(c => toEpochMs(c.t));
+  const dirTimes = directionCandles.map(c => toEpochMs(c.t));
+  const points = [];
+  for (let i = 0; i < directionCandles.length; i++){
+    if (emaVals[i] === null) continue;
+    const startT = dirTimes[i];
+    const endT = i < directionCandles.length - 1 ? dirTimes[i + 1] : Infinity;
+    let startIdx = -1, endIdx = -1;
+    for (let j = 0; j < entryTimes.length; j++){
+      if (entryTimes[j] >= startT && entryTimes[j] < endT){
+        if (startIdx === -1) startIdx = j;
+        endIdx = j;
+      }
+    }
+    if (startIdx === -1) continue;
+    points.push({ index: Math.round((startIdx + endIdx) / 2), value: emaVals[i] });
+  }
+  return points;
+}
+
+// Verschiebt die Indizes dieser Punkte auf den aktuell sichtbaren Zoom-Ausschnitt (analog
+// zu sliceEntrySignals) -- sonst würde die Linie beim Zoomen/Verschieben an der falschen
+// Stelle landen.
+function sliceDirectionEmaPoints(points, start, end){
+  if (!points) return [];
+  return points
+    .filter(p => p.index >= start && p.index < end)
+    .map(p => ({ ...p, index: p.index - start }));
+}
+
+// Gruppiert die übergebenen Kerzen nach Kalendertag (lokale Zeitzone) und liefert je
+// Tag eine Box mit Tageshoch/-tief und ob der Tag bullisch oder bärisch geschlossen hat.
+function computeDailyBoxes(candles, realDailyBars){
+  if (!candles.length) return [];
+
+  // Falls echte, direkt abgefragte Tageskerzen vorliegen (z.B. aus der "1 Tag · 6 Monate"-
+  // Kachel), diese für Hoch/Tief/Richtung bevorzugen -- die sind NICHT von IEX-Einzelbörsen-
+  // Lücken in den Stundenkerzen betroffen, weil sie eine eigene, direkte Tagesabfrage sind.
+  const realByDate = {};
+  if (realDailyBars && realDailyBars.length){
+    realDailyBars.forEach(c => {
+      const d = new Date(toEpochMs(c.t));
+      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      realByDate[key] = c;
+    });
+  }
+
+  const boxes = [];
+  let dayKey = null, startIdx = 0;
+  let dayHigh = -Infinity, dayLow = Infinity, dayOpen = null, dayClose = null;
+
+  function pushBox(endIdx){
+    if (dayOpen === null) return;
+    const real = realByDate[dayKey];
+    boxes.push({
+      startIdx, endIdx,
+      high: real ? real.h : dayHigh,
+      low: real ? real.l : dayLow,
+      bullish: real ? (real.c >= real.o) : (dayClose >= dayOpen),
+      approximate: !real, // true = aus lückenhaften Stundenkerzen geschätzt, keine echte Tageskerze verfügbar
+    });
+  }
+
+  candles.forEach((c, i) => {
+    const d = new Date(toEpochMs(c.t));
+    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    if (key !== dayKey){
+      if (dayKey !== null) pushBox(i - 1);
+      dayKey = key;
+      startIdx = i;
+      dayHigh = c.h; dayLow = c.l; dayOpen = c.o; dayClose = c.c;
+    } else {
+      dayHigh = Math.max(dayHigh, c.h);
+      dayLow = Math.min(dayLow, c.l);
+      dayClose = c.c;
+    }
+  });
+  pushBox(candles.length - 1);
+  return boxes;
+}
+
 function computeCorridor(candles, lookback = 24){
   const slice = candles.slice(-lookback);
   if (!slice.length) return null;
@@ -2781,6 +3081,7 @@ async function runChartAnalysisOnce(isAutoRefresh){
     document.getElementById('caLastSignal').textContent = lastSignalText;
 
     const backgroundCandles = alignDirectionCandles(directionData.candles, entryData.candles);
+    const directionEmaPoints = computeAlignedDirectionEma(directionData.candles, entryData.candles, 20);
 
     // Zoomstufe merken: bei Auto-Refresh die BREITE des bisherigen Ausschnitts beibehalten
     // (rechtsverankert auf die neue aktuellste Kerze), bei einem frischen manuellen Klick
@@ -2796,6 +3097,8 @@ async function runChartAnalysisOnce(isAutoRefresh){
       corridorLow: corridor ? corridor.low : null,
       entrySignals: signals,
       backgroundCandles,
+      directionEmaPoints,
+      realDailyBars: (dailyRefData && !dailyRefData.error) ? dailyRefData.candles : null,
       nearestSupport: null, nearestResistance: null, stopLoss: null, target: null, entryZone: null,
     };
     const total = entryData.candles.length;
@@ -2840,6 +3143,10 @@ document.getElementById('caRunBtn').addEventListener('click', () => {
   runChartAnalysisOnce(false);
   caAutoRefreshTimer = setInterval(() => runChartAnalysisOnce(true), 30000);
 });
+
+attachSymbolSearch('addSymbol', 'addType', 'addSymbolResults');
+attachSymbolSearch('scanAddSymbol', 'scanAddType', 'scanAddSymbolResults');
+attachSymbolSearch('caSymbol', 'caType', 'caSymbolResults');
 
 </script>
 </body>
