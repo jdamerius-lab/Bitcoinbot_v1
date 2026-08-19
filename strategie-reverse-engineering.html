@@ -1888,12 +1888,17 @@ function computeHalfTrendMultiAssetScan(interval){
 //    immer nur mit dem Trend gehandelt, nie dagegen (auf Nutzerwunsch). 2 Stufen kleiner liefert präzisere/
 //    frühere Einstiege, aber auch mehr Rauschen/False Signals -- über die Reliability-Tabelle vergleichbar,
 //    welche Einstellung für einen Zeitrahmen tatsächlich besser abschneidet (auf Nutzerwunsch als Option ergänzt).
-// Exit: TP = das ferne Korridor-Ende in Trade-Richtung, SL = das gegenüberliegende Korridor-Ende (symmetrisch).
+// Exit: TP = das ferne Korridor-Ende in Trade-Richtung (bleibt fix). SL ist ein ATR-Trailing-Stop auf dem
+// AKTIVEN Zeitrahmen (Chandelier-Exit-Prinzip, wie beim ML-Adaptive-Supertrend-/HalfTrend-Overlay) -- reagiert
+// jede Kerze auf den aktuellen Kurs, statt (wie ursprünglich) nur träge dem alle paar Stunden aktualisierten
+// Parent-Korridor zu folgen (auf Nutzerwunsch, nachdem die erste Trailing-Version noch zu weit vom Kurs entfernt
+// blieb).
 const MTF_CORRIDOR_DAY_LOOKBACK = 24;
 const MTF_CORRIDOR_SWING_POINTS = 4;
 const MTF_CORRIDOR_SWING_PIVOT_BARS = 5; // Bestätigungsfenster je Seite für die Swing-Punkte (wie findSwingPoints() sonst auch)
 const MTF_MOMENTUM_CANDLE_MULT = 1.8;    // Körper >= 1.8x Durchschnittskörper der letzten MTF_MOMENTUM_LOOKBACK Kerzen
 const MTF_MOMENTUM_LOOKBACK = 10;
+const MTF_TRAILING_ATR_PERIOD = 14, MTF_TRAILING_ATR_MULT = 2.5; // Chandelier-Exit-Parameter für den SL-Trail
 // Per Basis-Intervall wählbarer Parent-Zeitrahmen für den Korridor (eigene, von NEXT_HIGHER_TF UNABHÄNGIGE
 // Override-Map, gleiche Struktur/Defaults -- steuert sowohl die Chart-Overlay-Zeichnung als auch die
 // Strategie-Signale mtfday/mtfswing, analog dazu, wie NEXT_HIGHER_TF bereits den MTF-Filter beeinflusst).
@@ -1952,25 +1957,43 @@ function computeMtfEntryTriggers(opens, highs, lows, closes){
   return triggers;
 }
 const MTF_TRIGGER_LABELS = { engulfing:'Engulfing-Kerze', momentum:'Momentum-Kerze', '3candles':'3 Kerzen gleiche Richtung' };
-// Self-contained TP/SL-Simulation für die Chart-Overlay-Anzeige (Performance-Dashboard) -- TP/SL sind die
-// Korridor-Enden zum Einstiegszeitpunkt (bleiben für die Trade-Dauer fix, wie beim HalfTrend-Overlay). Ein neuer
-// Trigger in Gegenrichtung überschreibt eine offene Position sofort (frisches Signal); bei einem Trigger in
-// dieselbe Richtung während bereits eine Position offen ist, passiert nichts (kein Nachlegen/Pyramidisieren).
+// Self-contained TP/SL-Simulation für die Chart-Overlay-Anzeige (Performance-Dashboard) -- TP bleibt das
+// Korridor-Ende zum Einstiegszeitpunkt fix (Kursziel). SL ist ein ATR-Trailing-Stop nach Chandelier-Exit-Prinzip
+// auf dem AKTIVEN Zeitrahmen (auf Nutzerwunsch, nachdem eine erste Version -- die dem trägen, nur alle paar
+// Parent-Kerzen aktualisierten Korridorrand folgte -- optisch noch zu weit vom Kurs entfernt blieb): höchstes
+// High seit Einstieg minus ATR×Multiplikator bei Long (bzw. tiefstes Low seit Einstieg plus ATR×Multiplikator
+// bei Short), NUR in die für die Position günstige Richtung nachgezogen (nie gelockert) -- exakt dasselbe
+// Grundprinzip wie die Trailing-Linien von ML-Adaptive-Supertrend/HalfTrend, reagiert dadurch JEDE Kerze auf den
+// aktuellen Kurs statt nur alle paar Stunden. Ein neuer Trigger in Gegenrichtung überschreibt eine offene
+// Position sofort (frisches Signal, SL startet neu); bei einem Trigger in dieselbe Richtung während bereits
+// eine Position offen ist, passiert nichts (kein Nachlegen/Pyramidisieren).
 function computeMtfCorridorTrades(closes, highs, lows, corridorUpperAt, corridorLowerAt, triggersAt){
   const n = highs.length;
+  const atrArr = atr(highs, lows, closes, MTF_TRAILING_ATR_PERIOD);
   const tradeState = new Array(n).fill(0);
   const activeSL = new Array(n).fill(null);
   const activeTP = new Array(n).fill(null);
   const entryPxAt = new Array(n).fill(null);
   const entryIdxAt = new Array(n).fill(null);
-  let state = 0, sl = null, tp = null, entryPx = null, entryIdx = null;
+  let state = 0, sl = null, tp = null, entryPx = null, entryIdx = null, extremeSinceEntry = null;
   let wins = 0, losses = 0;
   for(let i=0;i<n;i++){
     const trig = triggersAt[i];
     if(trig && trig.dir !== 0 && corridorUpperAt[i] != null && corridorLowerAt[i] != null && trig.dir !== state){
       state = trig.dir; entryIdx = i; entryPx = closes[i];
       tp = state===1 ? corridorUpperAt[i] : corridorLowerAt[i];
-      sl = state===1 ? corridorLowerAt[i] : corridorUpperAt[i];
+      extremeSinceEntry = state===1 ? highs[i] : lows[i];
+      const a = atrArr[i];
+      // Solange die ATR noch nicht warmgelaufen ist (a==null), auf den Korridorrand ausweichen statt mit einem
+      // undefinierten SL zu starten -- sobald ATR verfügbar ist, übernimmt ab der nächsten Kerze der echte Trail.
+      sl = a==null ? (state===1 ? corridorLowerAt[i] : corridorUpperAt[i]) : (state===1 ? extremeSinceEntry - MTF_TRAILING_ATR_MULT*a : extremeSinceEntry + MTF_TRAILING_ATR_MULT*a);
+    } else if(state !== 0){
+      extremeSinceEntry = state===1 ? Math.max(extremeSinceEntry, highs[i]) : Math.min(extremeSinceEntry, lows[i]);
+      const a = atrArr[i];
+      if(a!=null){
+        const candidate = state===1 ? extremeSinceEntry - MTF_TRAILING_ATR_MULT*a : extremeSinceEntry + MTF_TRAILING_ATR_MULT*a;
+        sl = state===1 ? Math.max(sl, candidate) : Math.min(sl, candidate); // nur verschärfen, nie lockern
+      }
     }
     if(state===1 && tp!=null){
       if(highs[i] >= tp){ wins++; state=0; }
@@ -3799,12 +3822,24 @@ function drawHalfTrendOverlay(ctx, ht, d, iFrom, iTo, scaleX, scaleY, xStep){
 
   ctx.restore();
 }
-// "Star Trek"-Laserstrahl-Optik: obere Korridorgrenze in Cyan, untere in Magenta, jeweils mit weichem Glow
-// (mehrere Stroke-Durchgänge, außen breiter/transparenter, innen schmaler/heller) statt einer harten Linie.
-const MTF_CORRIDOR_COLORS = { upper: '#00e5ff', lower: '#ff2df0' };
+// "Star Trek"-Laserstrahl-Optik: obere Korridorgrenze in Orange, untere in Grün (auf Nutzerwunsch, vorher Cyan/
+// Magenta), jeweils mit weichem Glow (mehrere Stroke-Durchgänge, außen breiter/transparenter, innen schmaler/
+// heller) statt einer harten Linie.
+const MTF_CORRIDOR_COLORS = { upper: '#ffa726', lower: '#3fb950' };
+// Punkte (Offsets relativ zum Anker x/y) für ein NACH OBEN zeigendes Pfeilsymbol -- Spitze oben, darunter
+// schmaler werdende Schultern, dann ein schmaler rechteckiger Schaft nach unten (klassische ↑-Form statt
+// Dreieck/Raute, auf Nutzerwunsch). Reihenfolge ergibt ein geschlossenes 7-Punkte-Polygon.
+const MTF_ARROW_MARKER_POINTS = [ [0,-9], [4,-3], [1.6,-3], [1.6,7], [-1.6,7], [-1.6,-3], [-4,-3] ];
+// Fläche/Linie je gehaltener Position (analog zum ML-Adaptive-Supertrend-Overlay, auf Nutzerwunsch): dieselben
+// Grundfarben wie MTF_CORRIDOR_COLORS, nur zusätzlich mit einer transparenten Fill-Variante (gleiche Alpha wie
+// ML_SUPERTREND_COLORS, für einheitliche Optik über die Overlays hinweg).
+const MTF_TRADE_COLORS = { long: { line: MTF_CORRIDOR_COLORS.lower, fill: 'rgba(63,185,80,0.18)' }, short: { line: MTF_CORRIDOR_COLORS.upper, fill: 'rgba(255,167,38,0.18)' } };
 // Zeichnet EIN MTF-Overlay (Day ODER Swing, je nach mode) -- Korridor-Laserlinien + transparente Füllfläche,
-// Positions-Label ("X% im Korridor"), Einstiegstrigger-Marker (grün=long/rot=short, E/M/3 = Engulfing/Momentum/
-// 3-Kerzen) und die TP/SL-Zone des aktuell offenen Trades (grün Richtung TP, rot Richtung SL -- Korridor-Enden).
+// Positions-Label ("X% im Korridor"), sowie je gehaltener Position (Einstieg bis zum jeweils nächsten
+// Gegensignal) EINEN Pfeil-Marker an der Einstiegskerze + eine durchsichtige Fläche/Linie bis zum Positionsende
+// (grün=long/orange=short) -- auf Nutzerwunsch analog zur Optik des ML-Adaptive-Supertrend-Overlays, statt bei
+// JEDEM einzelnen Trigger erneut einen Marker zu zeichnen. Zusätzlich die TP/SL-Zone des aktuell offenen Trades
+// (grün Richtung TP, rot Richtung SL -- Korridor-Enden).
 function drawMtfCorridorOverlay(ctx, mtf, d, iFrom, iTo, scaleX, scaleY, xStep, mode){
   if(!mtf) return;
   ctx.save();
@@ -3825,7 +3860,7 @@ function drawMtfCorridorOverlay(ctx, mtf, d, iFrom, iTo, scaleX, scaleY, xStep, 
   if(upperNow != null && lowerNow != null){
     const yUpper = scaleY(upperNow), yLower = scaleY(lowerNow);
     const grad = ctx.createLinearGradient(0, yUpper, 0, yLower);
-    grad.addColorStop(0, 'rgba(0,229,255,0.10)'); grad.addColorStop(1, 'rgba(255,45,240,0.10)');
+    grad.addColorStop(0, 'rgba(255,167,38,0.10)'); grad.addColorStop(1, 'rgba(63,185,80,0.10)');
     ctx.fillStyle = grad;
     ctx.fillRect(x1All, yUpper, x2All-x1All, yLower-yUpper);
     glowLine(x1All, x2All, yUpper, yUpper, MTF_CORRIDOR_COLORS.upper);
@@ -3841,22 +3876,77 @@ function drawMtfCorridorOverlay(ctx, mtf, d, iFrom, iTo, scaleX, scaleY, xStep, 
     ctx.fillText(`${modeLabel}: ${posPct.toFixed(0)}% im Korridor`, x2All-4, scaleY(lastClose)-4);
   }
 
-  // Einstiegstrigger-Marker (kleine Raute, grün=long/rot=short) + Kürzel für die Trigger-Art.
-  ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  // Je gehaltener Position (mtf.tradeState, siehe computeMtfCorridorTrades()) EINE zusammenhängende Fläche
+  // zwischen Schlusskurs und dem (jetzt echten Trailing-)SL-Niveau dieses Trades + eine Konturlinie entlang
+  // dieses SL-Niveaus -- exakt das Segment-Zeichenmuster von drawMlSupertrendOverlay(), nur mit dem MTF-eigenen
+  // nachgezogenen SL statt der ML-Adaptive-Supertrend-Linie selbst. Läuft komplett unabhängig vom Marker-Loop
+  // weiter unten.
+  ctx.lineWidth = 1.2;
+  let mtfSegStart = null, mtfSegState = null;
+  function flushMtfSegment(segEndExclusive){
+    if(mtfSegStart==null || segEndExclusive<=mtfSegStart || mtfSegState===0) return;
+    const colors = mtfSegState===1 ? MTF_TRADE_COLORS.long : MTF_TRADE_COLORS.short;
+    ctx.fillStyle = colors.fill;
+    ctx.beginPath();
+    let started = false;
+    for(let j=mtfSegStart;j<segEndExclusive;j++){
+      if(mtf.activeSL[j]==null) continue;
+      const x = scaleX(j), y = scaleY(d.closes[j]);
+      if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y);
+    }
+    for(let j=segEndExclusive-1;j>=mtfSegStart;j--){
+      if(mtf.activeSL[j]==null) continue;
+      ctx.lineTo(scaleX(j), scaleY(mtf.activeSL[j]));
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = colors.line;
+    ctx.beginPath();
+    started = false;
+    for(let j=mtfSegStart;j<segEndExclusive;j++){
+      if(mtf.activeSL[j]==null) continue;
+      const x = scaleX(j), y = scaleY(mtf.activeSL[j]);
+      if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+  }
   for(let i=iFrom;i<=iTo;i++){
+    const state = mtf.tradeState[i];
+    if(state===0){ flushMtfSegment(i); mtfSegStart=null; mtfSegState=null; continue; }
+    if(mtfSegState==null){ mtfSegStart=i; mtfSegState=state; }
+    else if(state!==mtfSegState){ flushMtfSegment(i); mtfSegStart=i; mtfSegState=state; }
+  }
+  flushMtfSegment(iTo+1);
+
+  // Einstiegs-Pfeil (echtes Pfeil-Symbol, Spitze + schmaler Schaft wie ↑/↓ statt Raute/Dreieck) NUR EINMAL an
+  // der jeweiligen Einstiegskerze -- also genau dort, wo mtf.tradeState in eine neue (von 0 verschiedene)
+  // Richtung kippt, NICHT mehr bei jedem einzelnen Trigger im Verlauf (auf Nutzerwunsch, analog zu den
+  // Trendwechsel-Markern von drawMlSupertrendOverlay()/drawHalfTrendOverlay()). Für Segmente, die schon VOR
+  // iFrom begonnen haben, wird bewusst kein Marker gezeichnet (der echte Einstieg liegt dann außerhalb des
+  // sichtbaren Bereichs) -- exakt dasselbe Verhalten wie bei den anderen beiden Overlays.
+  ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for(let i=Math.max(iFrom,1); i<=iTo; i++){
+    const state = mtf.tradeState[i], prevState = mtf.tradeState[i-1];
+    if(state===0 || state===prevState) continue;
     const trig = mtf.triggersAt[i];
-    if(!trig) continue;
-    const x = scaleX(i), y = scaleY(trig.dir===1 ? d.lows[i] : d.highs[i]) + (trig.dir===1 ? 14 : -14);
-    const color = trig.dir===1 ? '#3fb950' : '#f85149';
+    const x = scaleX(i), y = scaleY(state===1 ? d.lows[i] : d.highs[i]) + (state===1 ? 14 : -14);
+    const color = state===1 ? MTF_CORRIDOR_COLORS.lower : MTF_CORRIDOR_COLORS.upper;
     ctx.fillStyle = color;
-    ctx.beginPath(); ctx.moveTo(x,y-6); ctx.lineTo(x+6,y); ctx.lineTo(x,y+6); ctx.lineTo(x-6,y); ctx.closePath(); ctx.fill();
-    if(xStep >= 16){
+    ctx.beginPath();
+    MTF_ARROW_MARKER_POINTS.forEach(([dx,dy], idx)=>{
+      const px = x+dx, py = y + (state===1 ? dy : -dy);
+      if(idx===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+    });
+    ctx.closePath(); ctx.fill();
+    if(xStep >= 16 && trig){
       ctx.fillStyle = '#0b0e14';
       ctx.fillText(trig.kind==='engulfing'?'E':trig.kind==='momentum'?'M':'3', x, y);
     }
   }
 
-  // TP/SL-Zone des aktuell offenen Trades (Korridor-Enden zum Einstiegszeitpunkt, bleiben fürs Trade-Dauer fix).
+  // TP/SL-Zone des aktuell offenen Trades (TP = Korridor-Ende zum Einstiegszeitpunkt, bleibt fix; SL ist der
+  // aktuelle, mitgezogene Trailing-Stop -- activeSL[lastIdx] ist bereits der neueste Stand).
   if(mtf.tradeState[lastIdx] !== 0 && mtf.entryIdxAt[lastIdx] != null){
     const entryIdx = Math.max(iFrom, mtf.entryIdxAt[lastIdx]);
     const x1 = scaleX(entryIdx), x2 = scaleX(iTo);
