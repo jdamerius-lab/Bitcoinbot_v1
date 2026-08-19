@@ -314,6 +314,13 @@
             <label id="mtfCorridorTfLabel" style="margin:0;font-size:11px">Korridor-Zeitrahmen</label>
             <select id="mtfCorridorTfSelect" style="width:auto"></select>
           </span>
+          <span id="mtfEntryTfStepsWrap" style="display:inline-flex;align-items:center;gap:4px" title="Wie viele Stufen unter dem Bezugszeitrahmen der Einstiegstrigger gesucht wird -- 2 Stufen kleiner sind präziser/früher, aber auch rauschanfälliger">
+            <label style="margin:0;font-size:11px">Einstieg-Stufen</label>
+            <select id="mtfEntryTfStepsSelect" style="width:auto">
+              <option value="1">1 Stufe kleiner</option>
+              <option value="2">2 Stufen kleiner</option>
+            </select>
+          </span>
           <button class="secondary" id="toggleDailyBoxBtn" title="Transparente grüne/rote Box um die Kerzen je Kalendertag -- Grenzen oben/unten = Tageshoch/Tagestief, Farbe nach Tagesschluss (bullisch/bärisch)">DailyBox</button>
           <button class="secondary" id="toggleFvgBtn">FVG</button>
           <button class="secondary" id="toggleFibBtn">Fibonacci</button>
@@ -613,13 +620,20 @@
   </div>
   <div class="row" style="margin:14px 0 8px;padding-top:10px;border-top:1px solid var(--border)">
     <div><button id="reliabilityBestComboBtn">Beste Entry+Exit-Kombination je Zeitrahmen (Reliability)</button></div>
+    <label style="font-size:11px;display:flex;align-items:center;gap:4px">
+      <input type="checkbox" id="reliabilityBestComboFiltersToggle">
+      Filter mit einbeziehen (zusätzlich alle 4 Entry-Filter für den Gewinner durchsuchen, deutlich langsamer)
+    </label>
     <div id="reliabilityBestComboStatus" class="status"></div>
   </div>
   <div id="reliabilityBestComboWrap"></div>
   <div class="footnote">
-    Testet zusätzlich alle 7 Exit-Modi (nicht nur den oben aktuell eingestellten) je Strategie und Zeitrahmen und
-    zeigt pro Zeitrahmen, welche Entry+Exit-Kombination den höchsten Reliability-Score erreicht. Verändert dabei
-    NICHT die aktuell aktiven Einstellungen (Exit-Modus/Chart-Overlay bleiben unangetastet) — reine Übersicht.
+    Testet zusätzlich alle 8 Exit-Modi (nicht nur den oben aktuell eingestellten) je Strategie und Zeitrahmen und
+    zeigt pro Zeitrahmen, welche Entry+Exit-Kombination den höchsten Reliability-Score erreicht. Ist "Filter mit
+    einbeziehen" aktiv, wird zusätzlich für genau diese Gewinner-Kombination je Zeitrahmen die beste Einstellung
+    der vier Entry-Filter gesucht (dieselbe zweistufige Idee wie beim Kombinationsoptimierer oben, hier aber
+    anhand des Reliability-/Capture-Scores statt der Rendite bewertet). Verändert dabei NICHT die aktuell aktiven
+    Einstellungen (Exit-Modus/Filter/Chart-Overlay bleiben unangetastet) — reine Übersicht.
   </div>
 </div>
 
@@ -1867,11 +1881,13 @@ function computeHalfTrendMultiAssetScan(interval){
 //    fixer Kerzenzahl -- auf Nutzerwunsch).
 // 2) AKTIVER Zeitrahmen (der gerade im Chart gewählte, "Bezugszeitrahmen"): zeigt, wo der Kurs gerade im Korridor
 //    steht, UND liefert per SMA(20)-Trend (bullisch/bärisch) den Trend-Filter für die Einstiegstrigger.
-// 3) ENTRY-Zeitrahmen (eine Stufe UNTER dem aktiven, automatisch ermittelt): liefert den Einstiegstrigger --
-//    3 Kerzen in dieselbe Richtung, eine Momentum-Kerze (Körper deutlich über Durchschnitt) oder eine
-//    Engulfing-Kerze (nutzt dieselbe Erkennung wie die "Muster"-Strategie). Ein Trigger zählt NUR, wenn seine
-//    Richtung mit dem SMA(20)-Trend des Bezugszeitrahmens übereinstimmt -- so wird immer nur mit dem Trend
-//    gehandelt, nie dagegen (auf Nutzerwunsch).
+// 3) ENTRY-Zeitrahmen (1 oder 2 Stufen UNTER dem aktiven, per mtfEntryTfSteps/Dropdown wählbar, Standard 1
+//    Stufe): liefert den Einstiegstrigger -- 3 Kerzen in dieselbe Richtung, eine Momentum-Kerze (Körper deutlich
+//    über Durchschnitt) oder eine Engulfing-Kerze (nutzt dieselbe Erkennung wie die "Muster"-Strategie). Ein
+//    Trigger zählt NUR, wenn seine Richtung mit dem SMA(20)-Trend des Bezugszeitrahmens übereinstimmt -- so wird
+//    immer nur mit dem Trend gehandelt, nie dagegen (auf Nutzerwunsch). 2 Stufen kleiner liefert präzisere/
+//    frühere Einstiege, aber auch mehr Rauschen/False Signals -- über die Reliability-Tabelle vergleichbar,
+//    welche Einstellung für einen Zeitrahmen tatsächlich besser abschneidet (auf Nutzerwunsch als Option ergänzt).
 // Exit: TP = das ferne Korridor-Ende in Trade-Richtung, SL = das gegenüberliegende Korridor-Ende (symmetrisch).
 const MTF_CORRIDOR_DAY_LOOKBACK = 24;
 const MTF_CORRIDOR_SWING_POINTS = 4;
@@ -1890,12 +1906,20 @@ function setMtfCorridorTfOverride(interval, value){
     MTF_CORRIDOR_TF[interval] = value;
   }
 }
-// Eine Stufe kleiner als das übergebene Intervall (gemäß Reihenfolge in INTERVALS), null falls es das kleinste ist.
-function nextLowerTF(interval){
+// `steps` Stufen kleiner als das übergebene Intervall (gemäß Reihenfolge in INTERVALS, Standard 1 Stufe), null
+// falls dabei unter das kleinste verfügbare Intervall gerutscht würde (z.B. 2 Stufen kleiner als "5m" -> "1m"
+// existiert noch, aber 2 Stufen kleiner als "1m" gibt es nicht).
+function nextLowerTF(interval, steps){
+  steps = steps || 1;
   const idx = INTERVALS.findIndex(i=>i.value===interval);
-  if(idx <= 0) return null;
-  return INTERVALS[idx-1].value;
+  if(idx - steps < 0) return null;
+  return INTERVALS[idx-steps].value;
 }
+// Wählbare Anzahl Stufen für den Entry-Zeitrahmen des MTF-Overlays (auf Nutzerwunsch, nachdem die Frage aufkam,
+// ob 2 Stufen kleiner statt 1 präzisere Einstiege liefern -- mit dem eigenen Reliability-Tooling direkt
+// vergleichbar, indem man hier umschaltet). Global statt pro-Intervall (wie MTF_CORRIDOR_TF), da es sich um eine
+// einfache Genauigkeits-/Rauschen-Abwägung handelt, keinen zeitrahmen-spezifischen Korridor-Bezug.
+let mtfEntryTfSteps = 1;
 // Einstiegstrigger je Kerze auf dem Entry-Zeitrahmen: null oder {dir:1|-1, kind:'engulfing'|'momentum'|'3candles'}.
 // Prüfreihenfolge (erste passende gewinnt): Engulfing vor Momentum vor 3-Kerzen -- eine Engulfing-Kerze ist per
 // Definition auch eine "große" Kerze, soll aber als eigenständiger, spezifischerer Trigger gemeldet werden statt
@@ -1977,7 +2001,7 @@ function computeMtfCorridorSeries(coin, interval, mode){
   const n = times.length;
 
   const parentInterval = MTF_CORRIDOR_TF[interval] || DEFAULT_NEXT_HIGHER_TF[interval];
-  const entryInterval = nextLowerTF(interval);
+  const entryInterval = nextLowerTF(interval, mtfEntryTfSteps);
   const parentData = parentInterval ? ohlcCache[coin+'::'+parentInterval] : null;
   const entryData = entryInterval ? ohlcCache[coin+'::'+entryInterval] : null;
   if(!parentData || !entryData) return null;
@@ -2279,7 +2303,7 @@ function computeHigherTFTrend(coin, interval){
 let pendingMtfCorridorFetch = {};
 function ensureMtfCorridorData(coin, interval){
   const parentInterval = MTF_CORRIDOR_TF[interval] || DEFAULT_NEXT_HIGHER_TF[interval];
-  const entryInterval = nextLowerTF(interval);
+  const entryInterval = nextLowerTF(interval, mtfEntryTfSteps);
   [parentInterval, entryInterval].forEach(iv=>{
     if(!iv) return;
     const key = coin+'::'+iv;
@@ -4620,16 +4644,22 @@ async function runReliabilityMatrix(){
   if(btn) btn.disabled = false;
 }
 
-// Wie runReliabilityMatrix(), testet aber zusätzlich alle 7 EXIT_MODES statt nur den gerade aktiven -- pro
+// Wie runReliabilityMatrix(), testet aber zusätzlich alle 8 EXIT_MODES statt nur den gerade aktiven -- pro
 // Zeitrahmen wird über stratKeys × EXIT_MODES gesucht, welche Entry+Exit-Kombination den höchsten
-// Reliability-Score erreicht (Tie-Break: mehr ausgewertete Signale n gewinnt). Mutiert exitMode/exitParam/
-// strategyCache waehrend der Suche wie computeComboSearchResults(), stellt am Ende aber den Ausgangszustand
-// wieder her -- reine Übersicht, NICHTS wird in die aktiven Einstellungen übernommen.
+// Reliability-Score erreicht (Tie-Break: mehr ausgewertete Signale n gewinnt). Optional (Checkbox): statt der
+// schnellen Näherung eine vollständige, garantiert global optimale Suche über Strategie × Exit × alle 4
+// Entry-Filter GEMEINSAM je Zeitrahmen (siehe runExhaustiveSearchForTimeframe()) -- auf Nutzerwunsch, nachdem
+// klar wurde, dass die zweistufige Variante (erst Strategie+Exit fixieren, dann nur dafür Filter verfeinern)
+// eine andere Strategie verpassen könnte, die NUR mit der richtigen Filter-Kombination die beste gewesen wäre.
+// Mutiert exitMode/exitParam/die vier Filter-Variablen/strategyCache waehrend der Suche, stellt am Ende aber den
+// Ausgangszustand wieder her -- reine Übersicht, NICHTS wird in die aktiven Einstellungen übernommen.
 async function runReliabilityBestComboPerTimeframe(){
   const coin = activeCoin;
   const btn = document.getElementById('reliabilityBestComboBtn');
   const statusEl = document.getElementById('reliabilityBestComboStatus');
   const wrapEl = document.getElementById('reliabilityBestComboWrap');
+  const filtersToggle = document.getElementById('reliabilityBestComboFiltersToggle');
+  const includeFilters = !!(filtersToggle && filtersToggle.checked);
   if(btn) btn.disabled = true;
   if(statusEl) statusEl.textContent = 'Lade Kerzendaten für alle Timeframes…';
   for(const iv of RELIABILITY_TIMEFRAMES){
@@ -4639,29 +4669,37 @@ async function runReliabilityBestComboPerTimeframe(){
   if(statusEl) statusEl.textContent = 'Teste alle Entry×Exit-Kombinationen je Zeitrahmen (kann kurz dauern)…';
   await new Promise(r=>setTimeout(r, 20));
   const savedExitMode = exitMode, savedExitParam = exitParam;
+  const savedFilters = { entryConfirmBars, volumeFilterMult, swingBreakoutBars, mtfFilterOn };
   const stratKeys = [...Object.keys(STRAT_LABELS), 'trendscore'];
   const rows = [];
   try{
     for(const iv of RELIABILITY_TIMEFRAMES){
-      let best = null;
-      Object.entries(EXIT_MODES).forEach(([modeKey, cfg])=>{
-        exitMode = modeKey;
-        exitParam = cfg.paramDefault;
-        strategyCache = {}; // exit-abhängig -> muss pro Exit-Modus neu berechnet werden
-        stratKeys.forEach(stratKey=>{
-          // computeSignalQualityScore() statt computeSignalReliability() allein -- sonst gewinnt hier strukturell
-          // fast immer "Signalumkehr", unabhängig davon, wie viel Gewinn der jeweilige Exit tatsächlich einfängt
-          // (siehe Kommentar bei computeExitCaptureScore()).
-          const r = computeSignalQualityScore(coin, iv, stratKey);
-          if(!r || r.score==null) return;
-          if(!best || r.score > best.score || (r.score === best.score && r.total > best.total)){
-            best = { stratKey, exitModeKey: modeKey, score: r.score, total: r.total, hitRate: r.hitRate, avgMagnitude: r.avgMagnitude };
-          }
-        });
-      });
       const ivLabel = INTERVALS.find(t=>t.value===iv).label;
+      let best;
+      if(includeFilters){
+        best = await runExhaustiveSearchForTimeframe(coin, iv, stratKeys, (done, total)=>{
+          if(statusEl) statusEl.textContent = `Vollständige Suche für ${ivLabel}: ${done}/${total} Kombinationen…`;
+        });
+      } else {
+        best = null;
+        Object.entries(EXIT_MODES).forEach(([modeKey, cfg])=>{
+          exitMode = modeKey;
+          exitParam = cfg.paramDefault;
+          strategyCache = {}; // exit-abhängig -> muss pro Exit-Modus neu berechnet werden
+          stratKeys.forEach(stratKey=>{
+            // computeSignalQualityScore() statt computeSignalReliability() allein -- sonst gewinnt hier strukturell
+            // fast immer "Signalumkehr", unabhängig davon, wie viel Gewinn der jeweilige Exit tatsächlich einfängt
+            // (siehe Kommentar bei computeExitCaptureScore()).
+            const r = computeSignalQualityScore(coin, iv, stratKey);
+            if(!r || r.score==null) return;
+            if(!best || r.score > best.score || (r.score === best.score && r.total > best.total)){
+              best = { stratKey, exitModeKey: modeKey, score: r.score, total: r.total, hitRate: r.hitRate, avgMagnitude: r.avgMagnitude };
+            }
+          });
+        });
+      }
       if(!best){
-        rows.push(`<tr><td>${ivLabel}</td><td colspan="4" class="reliability-na">keine auswertbaren Signale</td></tr>`);
+        rows.push(`<tr><td>${ivLabel}</td><td colspan="${includeFilters?5:4}" class="reliability-na">keine auswertbaren Signale</td></tr>`);
       } else {
         const label = best.stratKey==='trendscore' ? 'Trendscore-Konsens' : STRAT_LABELS_FULL[best.stratKey];
         rows.push(`<tr>
@@ -4670,18 +4708,69 @@ async function runReliabilityBestComboPerTimeframe(){
           <td>${EXIT_MODES[best.exitModeKey].label}</td>
           <td>${best.score}</td>
           <td>n=${best.total}</td>
+          ${includeFilters ? `<td>${describeFilterCombo(best)}</td>` : ''}
         </tr>`);
       }
     }
   } finally {
     exitMode = savedExitMode; exitParam = savedExitParam;
+    entryConfirmBars = savedFilters.entryConfirmBars; volumeFilterMult = savedFilters.volumeFilterMult;
+    swingBreakoutBars = savedFilters.swingBreakoutBars; mtfFilterOn = savedFilters.mtfFilterOn;
     strategyCache = {}; // durch die Suchschleife verunreinigt -- auf den Ausgangszustand zurücksetzen
     if(btn) btn.disabled = false;
   }
   if(wrapEl){
-    wrapEl.innerHTML = `<table><thead><tr><th>Zeitrahmen</th><th>Beste Strategie</th><th>Bester Exit</th><th>Score</th><th>Signale</th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
+    const filterHeader = includeFilters ? '<th>Beste Filter</th>' : '';
+    wrapEl.innerHTML = `<table><thead><tr><th>Zeitrahmen</th><th>Beste Strategie</th><th>Bester Exit</th><th>Score</th><th>Signale</th>${filterHeader}</tr></thead><tbody>${rows.join('')}</tbody></table>`;
   }
-  if(statusEl) statusEl.textContent = `${COINS[coin].label} — beste Entry+Exit-Kombination je Zeitrahmen nach Reliability-Score. Aktuelle Einstellungen unverändert.`;
+  if(statusEl) statusEl.textContent = `${COINS[coin].label} — beste Entry+Exit-Kombination je Zeitrahmen nach Reliability-Score${includeFilters?' (vollständige Suche inkl. Filter)':''}. Aktuelle Einstellungen unverändert.`;
+}
+// Vollständige, garantiert global optimale Suche für EINEN Zeitrahmen: alle 8 Exit-Modi × alle 288 Entry-Filter-
+// Kombinationen (9 Signalfilter × 4 Volumen × 4 Swing-Breakout × 2 MTF) × ALLE Strategien (inkl. Trendscore-
+// Konsens) gemeinsam durchsucht -- im Gegensatz zur zweistufigen Näherung (erst Strategie+Exit fixieren, dann
+// nur dafür Filter verfeinern) kann hier keine Strategie verpasst werden, die nur mit einer bestimmten
+// Filter-Kombination die beste gewesen wäre. 2304 Durchläufe (8×288) reichen aus, um dabei ALLE Strategien
+// abzudecken: buildStrategies() cached das komplette {stratKey:result}-Objekt pro coin::interval (strategyCache),
+// daher ist die Auswertung der übrigen 14 stratKeys pro Kombination praktisch kostenlos, sobald der EINE
+// buildStrategies()-Aufruf für diese eine Kombination einmal gelaufen ist -- NICHT 2304×15 Aufrufe. onProgress
+// (optional) wird alle 8 Kombinationen aufgerufen (UI-Fortschritt + kurze Thread-Atempausen, damit der Browser-
+// Tab währenddessen nicht einfriert). Mutiert exitMode/exitParam/die vier Filter-Variablen/strategyCache -- der
+// Aufrufer ist dafuer verantwortlich, den Ausgangszustand danach wiederherzustellen.
+async function runExhaustiveSearchForTimeframe(coin, interval, stratKeys, onProgress){
+  // Höherer Zeitrahmen (für MTF-Filter=an) vorab laden -- sonst bliebe dieser Filter für alle mtf=true-Kombinationen
+  // dieses Zeitrahmens wirkungslos (applyMTFFilter() no-opt still ohne Daten, statt zu crashen).
+  const higherInterval = NEXT_HIGHER_TF[interval];
+  if(higherInterval){ try{ await ensureData(coin, higherInterval); }catch(e){ /* MTF bleibt dann bei diesem Durchlauf wirkungslos */ } }
+  const totalIter = Object.keys(EXIT_MODES).length * ENTRY_FILTER_OPTIONS.length * VOLUME_FILTER_OPTIONS.length * SWING_BREAKOUT_OPTIONS.length * 2;
+  let best = null;
+  let iter = 0;
+  for(const [modeKey, cfg] of Object.entries(EXIT_MODES)){
+    exitMode = modeKey; exitParam = cfg.paramDefault;
+    for(const ecb of ENTRY_FILTER_OPTIONS){
+      for(const vf of VOLUME_FILTER_OPTIONS){
+        for(const sb of SWING_BREAKOUT_OPTIONS){
+          for(const mtf of [false, true]){
+            entryConfirmBars = ecb; volumeFilterMult = vf; swingBreakoutBars = sb; mtfFilterOn = mtf;
+            strategyCache = {}; // neue Kombination -> buildStrategies() muss neu rechnen (einmal, dann für alle stratKeys gecacht)
+            stratKeys.forEach(stratKey=>{
+              const r = computeSignalQualityScore(coin, interval, stratKey);
+              if(!r || r.score==null) return;
+              if(!best || r.score > best.score || (r.score === best.score && r.total > best.total)){
+                best = { stratKey, exitModeKey: modeKey, entryConfirmBars:ecb, volumeFilterMult:vf, swingBreakoutBars:sb, mtfFilterOn:mtf,
+                  score: r.score, total: r.total, hitRate: r.hitRate, avgMagnitude: r.avgMagnitude };
+              }
+            });
+            iter++;
+            if(iter % 8 === 0){
+              if(onProgress) onProgress(iter, totalIter);
+              await new Promise(res=>setTimeout(res,0));
+            }
+          }
+        }
+      }
+    }
+  }
+  return best;
 }
 
 // Backtest-Reliability-Kachel im Indikator-Panel: liefert für GENAU den aktuell angezeigten Coin+Zeitrahmen
@@ -6260,6 +6349,15 @@ async function refineFiltersForBest(stratKey, data, windowSize, scoreBounds){
   return bestFilter;
 }
 
+// Kurzbeschreibung "Signalfilter 2 Kerzen · Volumen ≥1.5× Ø · Swing-Breakout aus · MTF an" für die Tabellenzelle.
+function describeFilterCombo(f){
+  if(!f) return '—';
+  return `Signalfilter ${f.entryConfirmBars===0?'aus':f.entryConfirmBars+' Kerzen'} · ` +
+    `Volumen ${f.volumeFilterMult===0?'aus':'≥'+String(f.volumeFilterMult).replace('.',',')+'× Ø'} · ` +
+    `Swing-Breakout ${f.swingBreakoutBars===0?'aus':f.swingBreakoutBars+' Kerzen'} · ` +
+    `MTF ${f.mtfFilterOn?'an':'aus'}`;
+}
+
 // Kern der Entry×Exit-Suche, ausgelagert für Wiederverwendbarkeit. Mutiert bewusst
 // exitMode/exitParam/strategyCache waehrend der Suche (wie bisher) -- Aufrufer ist dafuer verantwortlich, den
 // Ausgangszustand danach wiederherzustellen, falls gewuenscht.
@@ -6578,6 +6676,21 @@ function populateMtfCorridorTfUI(){
   sel.value = MTF_CORRIDOR_TF[activeInterval] || DEFAULT_NEXT_HIGHER_TF[activeInterval] || '';
   sel.addEventListener('change', ()=>{
     setMtfCorridorTfOverride(activeInterval, sel.value);
+    if(showMtfDay || showMtfSwing){
+      ensureMtfCorridorData(activeCoin, activeInterval);
+      updateChartInPlace();
+    }
+  });
+}
+// Dropdown für die Anzahl Stufen (1 oder 2), um die der Entry-Zeitrahmen unter dem aktiven liegt (siehe
+// mtfEntryTfSteps/nextLowerTF() weiter oben) -- auf Nutzerwunsch, um 1-Stufe- vs. 2-Stufen-Einstiege direkt über
+// die Reliability-Tabelle vergleichen zu können, statt es zu erraten. Global, nicht pro Zeitrahmen.
+function populateMtfEntryTfStepsUI(){
+  const sel = document.getElementById('mtfEntryTfStepsSelect');
+  if(!sel) return;
+  sel.value = String(mtfEntryTfSteps);
+  sel.addEventListener('change', ()=>{
+    mtfEntryTfSteps = parseInt(sel.value, 10) || 1;
     if(showMtfDay || showMtfSwing){
       ensureMtfCorridorData(activeCoin, activeInterval);
       updateChartInPlace();
@@ -7959,6 +8072,7 @@ document.addEventListener('DOMContentLoaded', () => {
   populateMtfFilterUI();
   populateMtfHigherTfUI();
   populateMtfCorridorTfUI();
+  populateMtfEntryTfStepsUI();
   populateSwingBreakoutUI();
   populateOptimizerWalkForwardUI();
   document.getElementById('optimizerBtn').addEventListener('click', runComboOptimizer);
