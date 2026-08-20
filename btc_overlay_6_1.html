@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bitcoin · Drei Zyklen übereinandergelegt</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+:root {
+  --bg:#070a10; --panel:#101520; --edge:#1c2535;
+  --muted:#5a6a82; --dim:#8898aa; --text:#dce6f0; --bright:#f0f6ff;
+  --c:#e05c97; --cf:rgba(224,92,151,0.11);   /* Zyklus C · Pink */
+  --a:#f7931a; --af:rgba(247,147,26,0.11);   /* Zyklus A · Orange */
+  --b:#3ecfcf; --bf:rgba(62,207,207,0.11);   /* Zyklus B · Türkis */
+  --f:#b06cff; --ff:rgba(176,108,255,0.09);  /* Prognose · Lila */
+  --fz:rgba(255,255,255,0.55); /* eingefrorene Prognose · Weiß */
+  --mono:'JetBrains Mono',monospace; --sans:'Inter',system-ui,sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;}
+.wrap{max-width:1100px;margin:0 auto;padding:38px 20px 60px;}
+.ey{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-bottom:11px;}
+h1{font-size:clamp(21px,3.3vw,32px);font-weight:600;letter-spacing:-.02em;color:var(--bright);margin-bottom:7px;}
+p.sub{font-size:14px;color:var(--dim);max-width:66ch;line-height:1.6;margin-bottom:20px;}
+.topbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:8px;}
+.leg{display:flex;flex-wrap:wrap;gap:8px;}
+.pill{display:flex;align-items:center;gap:7px;background:var(--panel);border:1px solid var(--edge);
+  border-radius:100px;padding:5px 13px 5px 9px;font-size:12.5px;font-weight:500;
+  cursor:pointer;user-select:none;transition:.15s;}
+.pill:hover{border-color:#2a3a52;} .pill.off{opacity:.22;}
+.pill-c{color:var(--c);} .pill-c .d{background:var(--c);}
+.pill-a{color:var(--a);} .pill-a .d{background:var(--a);}
+.pill-b{color:var(--b);} .pill-b .d{background:var(--b);}
+.pill-f{color:var(--f);} .pill-f .d{background:var(--f);}
+.d{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.ctrls{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+.vt{display:flex;gap:2px;background:var(--bg);border:1px solid var(--edge);border-radius:7px;padding:3px;}
+.vt button{font-family:var(--sans);font-size:12px;padding:4px 10px;border:none;border-radius:4px;
+  background:transparent;color:var(--muted);cursor:pointer;transition:.12s;}
+.vt button.on{background:var(--edge);color:var(--text);}
+.zbtn{display:flex;gap:3px;}
+.zbtn button{font-family:var(--mono);font-size:13px;padding:4px 10px;border:1px solid var(--edge);
+  border-radius:6px;background:var(--panel);color:var(--dim);cursor:pointer;transition:.12s;}
+.zbtn button:hover{color:var(--text);border-color:#2a3a52;}
+.st{font-family:var(--mono);font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;}
+.sp{width:9px;height:9px;border:1.5px solid var(--edge);border-top-color:var(--b);border-radius:50%;animation:sp .6s linear infinite;}
+@keyframes sp{to{transform:rotate(360deg)}}
+.lv{width:6px;height:6px;border-radius:50%;background:var(--b);animation:pul 2s ease-in-out infinite;}
+@keyframes pul{0%,100%{opacity:1}50%{opacity:.25}}
+.disc{margin:0 0 14px;padding:9px 13px;border-left:2px solid var(--f);background:rgba(176,108,255,.07);
+  border-radius:0 8px 8px 0;font-size:12px;color:#c4a8ff;line-height:1.6;}
+.mets{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--edge);
+  border:1px solid var(--edge);border-radius:12px;overflow:hidden;margin-bottom:18px;}
+.met{background:var(--panel);padding:11px 14px;}
+.met .k{font-size:11px;color:var(--muted);margin-bottom:3px;}
+.met .v{font-family:var(--mono);font-size:13px;font-weight:500;}
+.cw{position:relative;background:var(--panel);border:1px solid var(--edge);border-radius:14px;padding:16px 16px 10px;margin-bottom:12px;}
+#tip{position:absolute;pointer-events:none;background:#0d1117;border:1px solid var(--edge);
+  border-radius:9px;padding:10px 13px;font-size:12px;line-height:1.8;opacity:0;transition:opacity .1s;white-space:nowrap;z-index:10;}
+#zh{text-align:center;font-size:11px;color:var(--muted);margin-bottom:5px;min-height:14px;}
+canvas{display:block;width:100%;cursor:crosshair;}
+canvas.pan{cursor:grabbing;}
+.hint{font-size:11px;color:var(--muted);text-align:center;margin-top:4px;}
+.annos{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:12px;}
+.an{background:var(--panel);border:1px solid var(--edge);border-radius:11px;padding:11px 13px;}
+.an .h{font-size:11px;font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:5px;}
+.an .h b{border-radius:3px;padding:1px 6px;margin-right:4px;}
+.an ul{padding-left:13px;font-size:11.5px;color:var(--dim);line-height:1.65;}
+@media(max-width:700px){.mets{grid-template-columns:repeat(2,1fr);}.annos{grid-template-columns:repeat(2,1fr);}}
+@media(max-width:480px){.annos{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="ey">Bitcoin · EUR/USD · Drei Zyklen · übereinandergelegt</p>
+  <h1>Jan 2016 = Jan 2020 = Jan 2024</h1>
+  <p class="sub">Drei Bitcoin-Zyklen, je 4 Jahre auseinander, deckungsgleich übereinandergelegt — Tag&nbsp;0 = 1. Januar (2016 / 2020 / 2024). Prognose als Mittelwert der Restwege von A und C bis zum jeweiligen Zyklusende.</p>
+
+  <div class="topbar">
+    <div class="leg">
+      <div class="pill pill-c" id="pc" onclick="tog('c')"><span class="d"></span>C · Jan 2016–Dez 2019</div>
+      <div class="pill pill-a" id="pa" onclick="tog('a')"><span class="d"></span>A · Jan 2020–Dez 2023</div>
+      <div class="pill pill-b" id="pb" onclick="tog('b')"><span class="d"></span>B · Jan 2024–heute</div>
+      <div class="pill pill-f" id="pf" onclick="tog('f')"><span class="d"></span>Prognose (Ø A+C)</div>
+      <div class="pill" id="pfz" onclick="tog('fz')" style="color:#e0e0e0"><span class="d" style="background:#fff"></span>Eingefroren (Vergleich)</div>
+      <button onclick="resetFrozen()" style="font-family:var(--sans);font-size:12px;padding:5px 12px;border:1px solid var(--edge);border-radius:100px;background:var(--panel);color:var(--muted);cursor:pointer" title="Eingefrorene Prognose löschen und neu einfrieren">⟳ neu einfrieren</button>
+    </div>
+    <div class="ctrls">
+      <div class="vt">
+        <button class="on" id="v-eur" onclick="setV('eur')">EUR/USD</button>
+        <button id="v-idx" onclick="setV('idx')">Index (Start=100)</button>
+        <button id="v-pct" onclick="setV('pct')">% seit Start</button>
+      </div>
+      <div class="vt">
+        <button class="on" id="ct-line"   onclick="setCT('line')">Linien</button>
+        <button           id="ct-candle" onclick="setCT('candle')">Kerzen</button>
+      </div>
+      <div class="zbtn">
+        <button onclick="doZoom(0.65)">＋</button>
+        <button onclick="doZoom(1.55)">－</button>
+        <button onclick="resetZ()">⟲</button>
+      </div>
+      <div class="st" id="st"><span class="sp"></span>lade…</div>
+    </div>
+  </div>
+
+  <div class="disc"><b>Kein Handelssignal.</b> Zyklus C: Jan 2016–Aug 2017 von <b>CoinGecko</b> (USD, nur Tagesschluss), ab Aug 2017 von <b>Binance BTCUSDT</b>. A und B von Binance BTCEUR. ATH-Marker zeigen die Hochpunkte. Prognose = Mittelwert der Restwege von A und C.</div>
+
+  <div class="mets">
+    <div class="met"><div class="k">ATH C / A / B</div>
+      <div class="v"><span style="color:var(--c)" id="m-ca">—</span> <span style="color:var(--muted)">/</span> <span style="color:var(--a)" id="m-aa">—</span> <span style="color:var(--muted)">/</span> <span style="color:var(--b)" id="m-ba">—</span></div></div>
+    <div class="met"><div class="k">Max. Drawdown C / A / B</div>
+      <div class="v"><span style="color:var(--c)" id="m-cd">—</span> <span style="color:var(--muted)">/</span> <span style="color:var(--a)" id="m-ad">—</span> <span style="color:var(--muted)">/</span> <span style="color:var(--b)" id="m-bd">—</span></div></div>
+    <div class="met"><div class="k">Prognose-Ziel (Ende Zyklen)</div>
+      <div class="v" style="color:var(--f)" id="m-ft">—</div></div>
+    <div class="met"><div class="k">Heute · B-Tag</div>
+      <div class="v" style="color:var(--b)" id="m-bt">—</div></div>
+  </div>
+
+  <div class="cw">
+    <div id="tip"></div>
+    <div id="zh"></div>
+    <div style="position:relative;width:100%;height:440px;"><canvas id="cv"></canvas></div>
+    <div class="hint">🖱 Scrollen = Zoom · Ziehen = Pan · ⟲ = Reset</div>
+  </div>
+
+  <div class="annos">
+    <div class="an"><div class="h"><b style="background:rgba(224,92,151,.18);color:var(--c)">C</b>2016–2019</div><ul>
+      <li>Tag 0: ~$430 (Jan 2016)</li>
+      <li>CoinGecko bis Aug 2017</li>
+      <li>Tag 726: ATH ~$19k (Dez 2017)</li>
+      <li>Tag 760: −70% Crash</li>
+      <li>Tag 1090: Boden ~$3.200</li>
+      <li>Tag 1459: Ende Dez 2019</li>
+    </ul></div>
+    <div class="an"><div class="h"><b style="background:rgba(247,147,26,.18);color:var(--a)">A</b>2020–2023</div><ul>
+      <li>Tag 0: ~€7k (Jan 2020)</li>
+      <li>Tag 70: COVID-Crash</li>
+      <li>Tag 679: ATH ~€52k</li>
+      <li>Tag 863: LUNA-Kollaps</li>
+      <li>Tag 1046: FTX-Crash</li>
+    </ul></div>
+    <div class="an"><div class="h"><b style="background:rgba(62,207,207,.18);color:var(--b)">B</b>2024–heute</div><ul>
+      <li>Tag 0: ~€40k (Jan 2024)</li>
+      <li>Tag 10: ETF-Zulassung</li>
+      <li>Tag 108: 4. Halving</li>
+      <li>Tag 326: ATH >€90k</li>
+      <li>Heute: Tag <span id="b-today">?</span></li>
+    </ul></div>
+    <div class="an"><div class="h"><b style="background:rgba(176,108,255,.18);color:var(--f)">⟳</b>Prognose</div><ul>
+      <li>Mittelwert Restweg A + C</li>
+      <li>Beide auf B-Kurs skaliert</li>
+      <li>Nahtloser Übergang heute</li>
+      <li>Täglich fortgeschrieben</li>
+    </ul></div>
+  </div>
+</div>
+
+<script>
+// ── Konstanten ────────────────────────────────────────────────────────
+const API  = 'https://api.binance.com/api/v3/klines';
+const EUR  = 'BTCEUR', USD = 'BTCUSDT';
+const DAY  = 86400000;
+const JAN16 = Date.UTC(2016,0,1), DEC19 = Date.UTC(2019,11,31,23,59,59);
+const JAN20 = Date.UTC(2020,0,1), DEC23 = Date.UTC(2023,11,31,23,59,59);
+const JAN24 = Date.UTC(2024,0,1);
+const fE = v => '€'+Math.round(v).toLocaleString('de-DE');
+const f$ = v => '$'+Math.round(v).toLocaleString('de-DE');
+const fP = v => (v>=0?'+':'')+(v*100).toFixed(1)+'%';
+
+// ── State ─────────────────────────────────────────────────────────────
+let rawC=[], rawA=[], rawB=[];
+let sC=[], sA=[], sB=[], sF=[];
+let frozenFc = null;   // {anchorDay, anchorEur, path:[{day,eur}]} — dauerhaft im localStorage
+const FC_KEY = 'btc_frozen_fc_v1';
+let athC_day=0, athA_day=0, athB_day=0;
+let athC_price=0, athA_price=0, athB_price=0;
+let baseC=1, baseA=1, baseB=1;
+let show={c:true,a:true,b:true,f:true,fz:true}, vm='eur', chartType='line';
+let xMin=0, xMax=1500, xMin0=0, xMax0=1500;
+let isPan=false, panX0=0, panXMin0=0, panXMax0=0, hovDay=null;
+
+// ── Fetch: Binance OHLC ───────────────────────────────────────────────
+async function fetchD(sym, startMs, endMs){
+  const out=[]; let end=endMs;
+  while(true){
+    const r=await fetch(`${API}?symbol=${sym}&interval=1d&limit=1000&endTime=${end}`);
+    if(!r.ok) throw new Error('Binance HTTP '+r.status);
+    const data=await r.json(); if(!data.length) break;
+    for(const d of data){
+      const t=+d[0];
+      if(t>=startMs&&t<=endMs) out.push({t,o:+d[1],h:+d[2],l:+d[3],c:+d[4]});
+    }
+    if(data[0][0]<=startMs) break;
+    end=data[0][0]-1;
+  }
+  out.sort((a,b)=>a.t-b.t);
+  return out.filter((d,i)=>i===0||d.t!==out[i-1].t);
+}
+
+// ── Fetch: CoinGecko daily close (USD) ───────────────────────────────
+async function fetchCoinGecko(startMs, endMs){
+  const out=[];
+  // CoinGecko returns daily data for ranges > 90 days automatically.
+  // We fetch in one go since our range is ~594 days (Jan2016–Aug2017).
+  const from=Math.floor(startMs/1000);
+  const to=Math.floor(endMs/1000);
+  const url=`https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range?vs_currency=usd&from=${from}&to=${to}`;
+  const r=await fetch(url);
+  if(!r.ok) throw new Error('CoinGecko HTTP '+r.status);
+  const data=await r.json();
+  if(!data.prices||!data.prices.length) throw new Error('CoinGecko: keine Daten');
+  for(const [t,p] of data.prices){
+    const day=Math.floor(t/86400000)*86400000;
+    if(day>=startMs&&day<=endMs)
+      out.push({t:day, o:p, h:p, l:p, c:p});
+  }
+  out.sort((a,b)=>a.t-b.t);
+  return out.filter((d,i)=>i===0||d.t!==out[i-1].t);
+}
+
+// ── Fetch Cycle C: CoinGecko Jan2016–Aug2017 + Binance Aug2017–Dec2019 ──
+const BINANCE_START=Date.UTC(2017,7,17);
+async function fetchCycleC(startMs, endMs, onProgress){
+  // Try CoinGecko for pre-Binance period
+  let cgData=[];
+  if(startMs<BINANCE_START){
+    try{
+      onProgress('CoinGecko Jan 2016–Aug 2017 (kann etwas dauern)…');
+      cgData=await fetchCoinGecko(startMs, Math.min(BINANCE_START-1,endMs));
+      onProgress(`CoinGecko OK (${cgData.length} Tage) · lade Binance Aug 2017–Dez 2019…`);
+    }catch(e){
+      onProgress(`CoinGecko nicht verfügbar (${e.message}) → nur Binance ab Aug 2017…`);
+      cgData=[];
+    }
+  }
+  // Binance for Aug2017–Dec2019
+  const binStart=Math.max(BINANCE_START,startMs);
+  let binData=[];
+  if(binStart<=endMs){
+    binData=await fetchD(USD,binStart,endMs);
+  }
+  const binDays=new Set(binData.map(d=>d.t));
+  const merged=[...cgData.filter(d=>!binDays.has(d.t)),...binData];
+  merged.sort((a,b)=>a.t-b.t);
+  return merged.filter((d,i)=>i===0||d.t!==merged[i-1].t);
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────
+function findATH(raw){ return raw.reduce((b,d)=>d.h>b.h?d:b, raw[0]); }
+function toDays(raw, originMs){
+  return raw.map(d=>({day:(d.t-originMs)/DAY, eur:d.c, o:d.o, h:d.h, l:d.l, c:d.c, t:d.t}));
+}
+
+// Build forecast path for ONE donor cycle:
+// scale its remaining candles (from bNowDay onward) onto lastBeur.
+function fcPath(rawDonor, originDonor, lastBeur, bNowDay){
+  let idx=0;
+  for(let i=0;i<rawDonor.length;i++){
+    if((rawDonor[i].t-originDonor)/DAY <= bNowDay) idx=i;
+  }
+  const anchor=rawDonor[idx].c;
+  return rawDonor.slice(idx).map(d=>({
+    day: (d.t-originDonor)/DAY,
+    eur: lastBeur*(d.c/anchor)
+  }));
+}
+
+// Average two paths (interpolate to common day grid).
+function avgPaths(p1, p2){
+  const days=new Set([...p1.map(d=>Math.round(d.day)),...p2.map(d=>Math.round(d.day))]);
+  const sorted=[...days].sort((a,b)=>a-b);
+  const interp=(path,day)=>{
+    const before=path.filter(d=>d.day<=day);
+    const after =path.filter(d=>d.day>=day);
+    if(!before.length||!after.length) return null;
+    const b=before[before.length-1], a=after[0];
+    if(b.day===a.day) return b.eur;
+    const t=(day-b.day)/(a.day-b.day);
+    return b.eur+(a.eur-b.eur)*t;
+  };
+  return sorted.map(day=>{
+    const v1=interp(p1,day), v2=interp(p2,day);
+    if(v1===null||v2===null) return null;
+    return {day, eur:(v1+v2)/2};
+  }).filter(Boolean);
+}
+
+// ── Y value ───────────────────────────────────────────────────────────
+function yv(eur, series){
+  if(vm==='eur') return eur;
+  const base = series==='c'?baseC : series==='a'?baseA : baseB;
+  if(vm==='idx') return eur/base*100;
+  return (eur/base-1)*100;
+}
+function yFmt(v){
+  if(vm==='eur') return v>=1000?'€'+Math.round(v/1000)+'k':fE(v);
+  if(vm==='idx') return v.toFixed(0);
+  return (v>=0?'+':'')+v.toFixed(0)+'%';
+}
+
+// ── Draw ──────────────────────────────────────────────────────────────
+const P={l:8,r:62,t:14,b:38};
+function draw(){
+  const cv=document.getElementById('cv');
+  const wp=cv.parentElement;
+  const cw=wp.clientWidth, ch=wp.clientHeight;
+  const dpr=window.devicePixelRatio||1;
+  cv.width=cw*dpr; cv.height=ch*dpr;
+  cv.style.width=cw+'px'; cv.style.height=ch+'px';
+  const ctx=cv.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,cw,ch);
+  if(!sA.length||!sB.length) return;
+
+  const pw=cw-P.l-P.r, ph=ch-P.t-P.b;
+  const xOf=d=>P.l+((d-xMin)/(xMax-xMin))*pw;
+  const cs=getComputedStyle(document.documentElement);
+  const visD=xMax-xMin;
+  const candleMode=chartType==='candle';
+  document.getElementById('zh').textContent=candleMode?'🕯 Kerzenmodus':'';
+
+  const vis=s=>s.filter(d=>d.day>=xMin-1&&d.day<=xMax+1);
+  const vC=vis(sC), vA=vis(sA), vB=vis(sB), vF=vis(sF);
+
+  // Y range
+  let vals=[];
+  const addV=(arr,s)=>arr.forEach(d=>{
+    vals.push(yv(d.eur,s));
+    if(candleMode&&d.h) vals.push(yv(d.h,s),yv(d.l,s));
+  });
+  if(show.c) addV(vC,'c');
+  if(show.a) addV(vA,'a');
+  if(show.b) addV(vB,'b');
+  if(show.f) vF.forEach(d=>vals.push(yv(d.eur,'b')));
+  if(show.fz&&frozenFc) frozenFc.path.forEach(d=>vals.push(yv(d.eur,'b')));
+  if(!vals.length) return;
+  let yMin=Math.min(...vals), yMax=Math.max(...vals);
+  const py=(yMax-yMin)*0.08||100; yMin-=py; yMax+=py;
+  const yOf=v=>P.t+(1-(v-yMin)/(yMax-yMin))*ph;
+
+  // Grid + y-labels
+  ctx.font='11px JetBrains Mono,monospace';
+  for(let g=0;g<=5;g++){
+    const v=yMin+(yMax-yMin)*g/5, y=yOf(v);
+    ctx.strokeStyle='rgba(255,255,255,0.04)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(P.l,y); ctx.lineTo(P.l+pw,y); ctx.stroke();
+    ctx.fillStyle=cs.getPropertyValue('--muted').trim();
+    ctx.textAlign='left'; ctx.fillText(yFmt(v),P.l+pw+5,y+3.5);
+  }
+
+  // Baseline
+  const b0=vm==='pct'?0:vm==='idx'?100:null;
+  if(b0!==null&&b0>=yMin&&b0<=yMax){
+    ctx.strokeStyle='rgba(255,255,255,0.12)'; ctx.lineWidth=1; ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.moveTo(P.l,yOf(b0)); ctx.lineTo(P.l+pw,yOf(b0)); ctx.stroke(); ctx.setLineDash([]);
+  }
+
+  // X-axis ticks with dual calendar dates
+  const origins={c:JAN16,a:JAN20,b:JAN24};
+  const tickStep=visD>900?180:visD>400?90:visD>200?30:visD>80?14:7;
+  ctx.font='10px JetBrains Mono,monospace';
+  for(let d=0;d<=xMax0;d+=tickStep){
+    if(d<xMin-0.5||d>xMax+0.5) continue;
+    const x=xOf(d);
+    ctx.strokeStyle=d%180===0?'rgba(255,255,255,0.08)':'rgba(255,255,255,0.03)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(x,P.t); ctx.lineTo(x,P.t+ph); ctx.stroke();
+    ctx.fillStyle=cs.getPropertyValue('--muted').trim(); ctx.textAlign='center';
+    ctx.fillText(d+'d', x, P.t+ph+14);
+    if(tickStep<=90){
+      const fmt=t=>new Date(t).toLocaleDateString('de-DE',{month:'short',year:'2-digit'});
+      const line2=[
+        show.c?fmt(JAN16+d*DAY):'',
+        show.a?fmt(JAN20+d*DAY):'',
+        show.b?fmt(JAN24+d*DAY):''
+      ].filter(Boolean).join('/');
+      ctx.fillStyle='rgba(255,255,255,0.18)'; ctx.font='9px JetBrains Mono,monospace';
+      ctx.fillText(line2, x, P.t+ph+26);
+      ctx.font='10px JetBrains Mono,monospace';
+    }
+  }
+
+  // Start marker (day 0)
+  if(0>=xMin&&0<=xMax){
+    const x=xOf(0);
+    ctx.strokeStyle='rgba(255,255,255,0.22)'; ctx.lineWidth=1.5; ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.moveTo(x,P.t); ctx.lineTo(x,P.t+ph); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle=cs.getPropertyValue('--bright').trim(); ctx.font='bold 10px JetBrains Mono,monospace';
+    ctx.textAlign='center'; ctx.fillText('Start',x,P.t+ph+14);
+  }
+
+  // ATH markers for each visible cycle
+  const athMarker=(day,col)=>{
+    if(day<xMin||day>xMax) return;
+    const x=xOf(day);
+    ctx.strokeStyle=col+'99'; ctx.lineWidth=1; ctx.setLineDash([3,5]);
+    ctx.beginPath(); ctx.moveTo(x,P.t); ctx.lineTo(x,P.t+ph); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle=col; ctx.font='10px JetBrains Mono,monospace'; ctx.textAlign='center';
+    ctx.fillText('ATH',x,P.t+ph+14);
+  };
+  if(show.c) athMarker(athC_day, cs.getPropertyValue('--c').trim());
+  if(show.a) athMarker(athA_day, cs.getPropertyValue('--a').trim());
+  if(show.b) athMarker(athB_day, cs.getPropertyValue('--b').trim());
+
+  // "Heute" marker
+  if(sB.length){
+    const nd=sB[sB.length-1].day;
+    if(nd>0&&nd>=xMin&&nd<=xMax){
+      const x=xOf(nd);
+      ctx.strokeStyle='rgba(255,255,255,0.20)'; ctx.lineWidth=1; ctx.setLineDash([3,4]);
+      ctx.beginPath(); ctx.moveTo(x,P.t); ctx.lineTo(x,P.t+ph); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle=cs.getPropertyValue('--dim').trim(); ctx.font='10px JetBrains Mono,monospace';
+      ctx.textAlign='center'; ctx.fillText('heute',x,P.t+ph+14);
+    }
+  }
+
+  // Draw helpers
+  const drawLine=(pts,col,fillCol,series,dashed,lw)=>{
+    if(!pts||!pts.length) return;
+    const base=b0!==null?b0:yMin;
+    ctx.beginPath();
+    ctx.moveTo(xOf(pts[0].day),yOf(base));
+    pts.forEach(d=>ctx.lineTo(xOf(d.day),yOf(yv(d.eur,series))));
+    ctx.lineTo(xOf(pts[pts.length-1].day),yOf(base));
+    ctx.closePath(); ctx.fillStyle=fillCol; ctx.fill();
+    ctx.beginPath();
+    pts.forEach((d,i)=>{const x=xOf(d.day),y=yOf(yv(d.eur,series));i?ctx.lineTo(x,y):ctx.moveTo(x,y);});
+    if(dashed) ctx.setLineDash([6,5]);
+    ctx.strokeStyle=col; ctx.lineWidth=lw; ctx.stroke(); ctx.setLineDash([]);
+  };
+
+  const drawCandles=(pts,series,col,alpha)=>{
+    if(!pts.length) return;
+    const ppd=pw/visD, cw2=Math.max(2,ppd*0.72);
+    pts.forEach(d=>{
+      if(!d.h||d.h===d.l) return;
+      const x=xOf(d.day);
+      const yO=yOf(yv(d.o,series)), yC=yOf(yv(d.c,series));
+      const yH=yOf(yv(d.h,series)), yL=yOf(yv(d.l,series));
+      const bull=d.c>=d.o;
+      ctx.globalAlpha=alpha;
+      ctx.strokeStyle=col; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(x,yH); ctx.lineTo(x,yL); ctx.stroke();
+      ctx.fillStyle=bull?col:'transparent';
+      const top=Math.min(yO,yC), h2=Math.max(1,Math.abs(yO-yC));
+      ctx.fillRect(x-cw2/2,top,cw2,h2);
+      if(!bull) ctx.strokeRect(x-cw2/2,top,cw2,h2);
+      ctx.globalAlpha=1;
+    });
+  };
+
+  if(candleMode){
+    if(show.c) drawCandles(vC,'c',cs.getPropertyValue('--c').trim(),0.70);
+    if(show.a) drawCandles(vA,'a',cs.getPropertyValue('--a').trim(),0.75);
+    if(show.b) drawCandles(vB,'b',cs.getPropertyValue('--b').trim(),0.90);
+  } else {
+    if(show.c) drawLine(vC,cs.getPropertyValue('--c').trim(),cs.getPropertyValue('--cf').trim(),'c',false,1.8);
+    if(show.a) drawLine(vA,cs.getPropertyValue('--a').trim(),cs.getPropertyValue('--af').trim(),'a',false,2);
+    if(show.b) drawLine(vB,cs.getPropertyValue('--b').trim(),cs.getPropertyValue('--bf').trim(),'b',false,2.2);
+    if(show.f) drawLine(vF,cs.getPropertyValue('--f').trim(),cs.getPropertyValue('--ff').trim(),'b',true,2);
+    // Eingefrorene Prognose — weiße gestrichelte Linie zum Vergleich
+    if(show.fz&&frozenFc){
+      const visFz=frozenFc.path.filter(d=>d.day>=xMin-1&&d.day<=xMax+1);
+      if(visFz.length){
+        ctx.beginPath();
+        visFz.forEach((d,i)=>{const x=xOf(d.day),y=yOf(yv(d.eur,'b'));i?ctx.lineTo(x,y):ctx.moveTo(x,y);});
+        ctx.strokeStyle='rgba(255,255,255,0.60)'; ctx.lineWidth=1.8; ctx.setLineDash([4,6]); ctx.stroke(); ctx.setLineDash([]);
+        // Ankerpunkt-Marker
+        const anchor=frozenFc.path[0];
+        if(anchor.day>=xMin&&anchor.day<=xMax){
+          ctx.fillStyle='rgba(255,255,255,0.70)';
+          ctx.beginPath(); ctx.arc(xOf(anchor.day),yOf(yv(anchor.eur,'b')),3.5,0,Math.PI*2); ctx.fill();
+        }
+      }
+    }
+    // Junction dot B→Forecast
+    if(show.b&&show.f&&sB.length&&sF.length){
+      const lb=sB[sB.length-1];
+      ctx.fillStyle=cs.getPropertyValue('--b').trim();
+      ctx.beginPath(); ctx.arc(xOf(lb.day),yOf(yv(lb.eur,'b')),4,0,Math.PI*2); ctx.fill();
+    }
+  }
+
+  // Crosshair
+  if(hovDay!==null&&hovDay>=xMin&&hovDay<=xMax){
+    const x=xOf(hovDay);
+    ctx.strokeStyle='rgba(255,255,255,0.12)'; ctx.lineWidth=1; ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(x,P.t); ctx.lineTo(x,P.t+ph); ctx.stroke(); ctx.setLineDash([]);
+    const dot=(arr,series,col)=>{
+      const d=nearD(arr,hovDay); if(!d) return;
+      const y=yOf(yv(d.c||d.eur,series));
+      ctx.fillStyle=col; ctx.beginPath(); ctx.arc(xOf(d.day),y,4,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#0d1117'; ctx.beginPath(); ctx.arc(xOf(d.day),y,2.5,0,Math.PI*2); ctx.fill();
+    };
+    if(show.c) dot(sC,'c',cs.getPropertyValue('--c').trim());
+    if(show.a) dot(sA,'a',cs.getPropertyValue('--a').trim());
+    if(show.b) dot(sB,'b',cs.getPropertyValue('--b').trim());
+    if(show.f) dot(sF,'b',cs.getPropertyValue('--f').trim());
+  }
+}
+
+function nearD(arr,d){
+  if(!arr.length) return null;
+  const r=arr.reduce((b,x)=>Math.abs(x.day-d)<Math.abs(b.day-d)?x:b);
+  return Math.abs(r.day-d)<10?r:null;
+}
+
+// ── Tooltip ───────────────────────────────────────────────────────────
+function showTip(mx,my){
+  if(hovDay===null) return;
+  const cs=getComputedStyle(document.documentElement);
+  const fmt=(origin,day)=>new Date(origin+day*DAY).toLocaleDateString('de-DE',{day:'numeric',month:'short',year:'numeric'});
+  const dC=nearD(sC,hovDay), dA=nearD(sA,hovDay), dB=nearD(sB,hovDay), dF=nearD(sF,hovDay);
+  let html=`<div style="color:var(--muted);font-size:11px;margin-bottom:3px">Tag ${Math.round(hovDay)}</div>`;
+  if(show.c&&dC) html+=`<div style="color:${cs.getPropertyValue('--c').trim()}">C · ${fmt(JAN16,dC.day)} &nbsp;<b>${f$(dC.c||dC.eur)}</b></div>`;
+  if(show.a&&dA) html+=`<div style="color:${cs.getPropertyValue('--a').trim()};margin-top:2px">A · ${fmt(JAN20,dA.day)} &nbsp;<b>${fE(dA.c||dA.eur)}</b></div>`;
+  if(show.b&&dB) html+=`<div style="color:${cs.getPropertyValue('--b').trim()};margin-top:2px">B · ${fmt(JAN24,dB.day)} &nbsp;<b>${fE(dB.c||dB.eur)}</b></div>`;
+  if(show.f&&dF&&dF.day>=(sB.length?sB[sB.length-1].day-0.5:0))
+    html+=`<div style="color:${cs.getPropertyValue('--f').trim()};margin-top:2px">⟳ · ${fmt(JAN24,dF.day)} &nbsp;<b>${fE(dF.eur)}</b></div>`;
+  if(show.fz&&frozenFc){
+    const dFz=nearD(frozenFc.path,hovDay,'day');
+    if(dFz) html+=`<div style="color:rgba(255,255,255,0.65);margin-top:2px">❄ Eingefroren · ${fmt(JAN24,dFz.day)} &nbsp;<b>${fE(dFz.eur)}</b></div>`;
+  }
+  const tip=document.getElementById('tip'); tip.innerHTML=html;
+  const cw=document.querySelector('.cw'), cr=document.getElementById('cv').getBoundingClientRect(), wr=cw.getBoundingClientRect();
+  let tx=(cr.left-wr.left)+mx+16, ty=(cr.top-wr.top)+my-14;
+  if(tx+260>cw.clientWidth-6) tx-=278; if(ty+150>cw.clientHeight-6) ty-=150;
+  tip.style.left=tx+'px'; tip.style.top=ty+'px'; tip.style.opacity='1';
+}
+function hideTip(){document.getElementById('tip').style.opacity='0';}
+
+// ── Events ────────────────────────────────────────────────────────────
+function setupEv(){
+  const cv=document.getElementById('cv');
+  cv.addEventListener('mousemove',e=>{
+    const r=cv.getBoundingClientRect(), cssW=parseFloat(cv.style.width)||r.width;
+    const rx=e.clientX-r.left, pw=cssW-P.l-P.r;
+    if(rx<P.l||rx>P.l+pw){hovDay=null;if(!isPan){draw();hideTip();}return;}
+    hovDay=xMin+((rx-P.l)/pw)*(xMax-xMin);
+    if(isPan){
+      const dx=e.clientX-panX0, dD=-(dx/pw)*(panXMax0-panXMin0), rng=panXMax0-panXMin0;
+      let n0=panXMin0+dD, n1=panXMax0+dD;
+      if(n0<xMin0){n0=xMin0;n1=xMin0+rng;} if(n1>xMax0){n1=xMax0;n0=xMax0-rng;}
+      xMin=n0; xMax=n1;
+    }
+    draw(); showTip(rx,e.clientY-r.top);
+  });
+  cv.addEventListener('mouseleave',()=>{hovDay=null;isPan=false;cv.classList.remove('pan');draw();hideTip();});
+  cv.addEventListener('mousedown',e=>{isPan=true;panX0=e.clientX;panXMin0=xMin;panXMax0=xMax;cv.classList.add('pan');});
+  cv.addEventListener('mouseup',()=>{isPan=false;cv.classList.remove('pan');});
+  cv.addEventListener('wheel',e=>{
+    e.preventDefault();
+    const r=cv.getBoundingClientRect(), cssW=parseFloat(cv.style.width)||r.width;
+    const rx=e.clientX-r.left, pw=cssW-P.l-P.r;
+    const frac=Math.max(0,Math.min(1,(rx-P.l)/pw));
+    const f=e.deltaY>0?1.28:0.78;
+    const pivot=xMin+frac*(xMax-xMin);
+    let n0=pivot-(pivot-xMin)*f, n1=pivot+(xMax-pivot)*f;
+    const minR=3, maxR=xMax0-xMin0;
+    if(n1-n0<minR){const c=(n0+n1)/2;n0=c-minR/2;n1=c+minR/2;}
+    if(n1-n0>maxR){n0=xMin0;n1=xMax0;}
+    if(n0<xMin0)n0=xMin0; if(n1>xMax0)n1=xMax0;
+    xMin=n0;xMax=n1;draw();
+  },{passive:false});
+  let td=null,tp=null;
+  cv.addEventListener('touchstart',e=>{
+    if(e.touches.length===1)tp={x:e.touches[0].clientX,xMin,xMax};
+    if(e.touches.length===2)td=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+    e.preventDefault();
+  },{passive:false});
+  cv.addEventListener('touchmove',e=>{
+    const r=cv.getBoundingClientRect(),cssW=parseFloat(cv.style.width)||r.width,pw=cssW-P.l-P.r;
+    if(e.touches.length===1&&tp){
+      const dx=e.touches[0].clientX-tp.x,dD=-(dx/pw)*(tp.xMax-tp.xMin),rng=tp.xMax-tp.xMin;
+      let n0=tp.xMin+dD,n1=tp.xMax+dD;
+      if(n0<xMin0){n0=xMin0;n1=xMin0+rng;}if(n1>xMax0){n1=xMax0;n0=xMax0-rng;}
+      xMin=n0;xMax=n1;draw();
+    }
+    if(e.touches.length===2&&td){
+      const nd=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+      doZoom(td/nd);td=nd;
+    }
+    e.preventDefault();
+  },{passive:false});
+  cv.addEventListener('touchend',()=>{td=null;tp=null;});
+}
+function doZoom(f){
+  const mid=(xMin+xMax)/2,rng=(xMax-xMin)*f;
+  let n0=mid-rng/2,n1=mid+rng/2;
+  if(n1-n0<3){n0=mid-1.5;n1=mid+1.5;}
+  if(n1-n0>xMax0-xMin0){n0=xMin0;n1=xMax0;}
+  if(n0<xMin0)n0=xMin0; if(n1>xMax0)n1=xMax0;
+  xMin=n0;xMax=n1;draw();
+}
+function resetZ(){xMin=xMin0;xMax=xMax0;draw();}
+
+// ── UI ────────────────────────────────────────────────────────────────
+function tog(s){
+  show[s]=!show[s];
+  const el=document.getElementById('p'+s);
+  if(el) el.classList.toggle('off',!show[s]);
+  draw();
+}
+
+// ── Eingefrorene Prognose: localStorage ─────────────────────────────
+function saveFrozen(anchorDay, anchorEur, path){
+  try{
+    localStorage.setItem(FC_KEY, JSON.stringify({anchorDay, anchorEur, path}));
+  }catch(e){}
+}
+function loadFrozen(){
+  try{
+    const s=localStorage.getItem(FC_KEY);
+    if(s){ frozenFc=JSON.parse(s); }
+  }catch(e){ frozenFc=null; }
+}
+function resetFrozen(){
+  if(!sF.length||!sB.length) return;
+  frozenFc={
+    anchorDay: sB[sB.length-1].day,
+    anchorEur: sB[sB.length-1].eur,
+    path: sF.map(d=>({day:d.day, eur:d.eur}))
+  };
+  saveFrozen(frozenFc.anchorDay, frozenFc.anchorEur, frozenFc.path);
+  show.fz=true;
+  const el=document.getElementById('pfz'); if(el) el.classList.remove('off');
+  draw();
+}
+function setV(v){vm=v;['eur','idx','pct'].forEach(k=>document.getElementById('v-'+k).classList.toggle('on',k===v));draw();}
+function setCT(t){chartType=t;document.getElementById('ct-line').classList.toggle('on',t==='line');document.getElementById('ct-candle').classList.toggle('on',t==='candle');draw();}
+
+// ── Metrics ───────────────────────────────────────────────────────────
+function fillMets(){
+  const mdd=s=>{let pk=s[0].eur,md=0;for(const d of s){if(d.eur>pk)pk=d.eur;const dd=(pk-d.eur)/pk;if(dd>md)md=dd;}return md;};
+  document.getElementById('m-ca').textContent=f$(athC_price);
+  document.getElementById('m-aa').textContent=fE(athA_price);
+  document.getElementById('m-ba').textContent=fE(athB_price);
+  document.getElementById('m-cd').textContent='−'+(mdd(sC)*100).toFixed(0)+'%';
+  document.getElementById('m-ad').textContent='−'+(mdd(sA)*100).toFixed(0)+'%';
+  document.getElementById('m-bd').textContent='−'+(mdd(sB)*100).toFixed(0)+'%';
+  if(sF.length) document.getElementById('m-ft').textContent=fE(sF[sF.length-1].eur)+' · '+fP(sF[sF.length-1].eur/baseB-1);
+  if(sB.length){ const d=Math.round(sB[sB.length-1].day); document.getElementById('m-bt').textContent='Tag '+d; document.getElementById('b-today').textContent=d; }
+}
+
+// ── Main ─────────────────────────────────────────────────────────────
+async function main(){
+  const st=document.getElementById('st');
+  try{
+    rawC=await fetchCycleC(JAN16, DEC19, msg=>{ st.innerHTML=`<span class="sp"></span>${msg}`; });
+    st.innerHTML='<span class="sp"></span>lade A (BTCEUR 2020–2023)…';
+    rawA=await fetchD(EUR,JAN20,DEC23);
+    st.innerHTML='<span class="sp"></span>lade B (BTCEUR 2024–heute)…';
+    rawB=await fetchD(EUR,JAN24,Date.now());
+    if(!rawA.length||!rawB.length) throw new Error('Keine Daten für A oder B');
+
+    sC=rawC.length ? toDays(rawC,JAN16) : [];
+    sA=toDays(rawA,JAN20);
+    sB=toDays(rawB,JAN24);
+    baseC=rawC.length?rawC[0].c:1;
+    baseA=rawA[0].c; baseB=rawB[0].c;
+
+    const athRA=findATH(rawA), athRB=findATH(rawB);
+    athA_day=(athRA.t-JAN20)/DAY; athA_price=athRA.h;
+    athB_day=(athRB.t-JAN24)/DAY; athB_price=athRB.h;
+    if(rawC.length){
+      const athRC=findATH(rawC);
+      athC_day=(athRC.t-JAN16)/DAY; athC_price=athRC.h;
+    }
+
+    const bNowDay=sB[sB.length-1].day;
+    const lastBeur=rawB[rawB.length-1].c;
+    const pfA=fcPath(rawA,JAN20,lastBeur,bNowDay);
+    const pfC=rawC.length ? fcPath(rawC,JAN16,lastBeur,bNowDay) : [];
+    sF=pfC.length ? avgPaths(pfA,pfC) : pfA;
+
+    const dMax=Math.max(
+      sC.length?sC[sC.length-1].day:0,
+      sA[sA.length-1].day,
+      sF.length?sF[sF.length-1].day:0
+    )+10;
+    xMin0=0; xMax0=Math.ceil(dMax);
+    xMin=xMin0; xMax=xMax0;
+
+    fillMets();
+    // Eingefrorene Prognose laden (oder erstmalig speichern)
+    loadFrozen();
+    if(!frozenFc && sF.length && sB.length){
+      // Erste Nutzung: aktuelle Prognose automatisch einfrieren
+      frozenFc={
+        anchorDay: sB[sB.length-1].day,
+        anchorEur: sB[sB.length-1].eur,
+        path: sF.map(d=>({day:d.day, eur:d.eur}))
+      };
+      saveFrozen(frozenFc.anchorDay, frozenFc.anchorEur, frozenFc.path);
+    }
+    draw();
+    const cgNote=rawC.length<800?' (teilweise CG)':'';
+    st.innerHTML=`<span class="lv"></span>Live · C:${sC.length}${cgNote} · A:${sA.length} · B:${sB.length} · Fc:${sF.length}`;
+  }catch(e){
+    st.innerHTML=`<span style="color:#f06363;font-size:11px">Fehler: ${e.message}</span>`;
+    // Draw error text directly on canvas so something is visible
+    const cv=document.getElementById('cv');
+    const ctx=cv.getContext('2d');
+    const dpr=window.devicePixelRatio||1;
+    const cw=cv.parentElement.clientWidth, ch=cv.parentElement.clientHeight;
+    cv.width=cw*dpr; cv.height=ch*dpr; cv.style.width=cw+'px'; cv.style.height=ch+'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.fillStyle='#f06363'; ctx.font='14px Inter,sans-serif'; ctx.textAlign='center';
+    ctx.fillText('Fehler: '+e.message, cw/2, ch/2);
+    ctx.fillStyle='#5a6a82'; ctx.font='12px Inter,sans-serif';
+    ctx.fillText('Bitte Seite neu laden · Details in der Browser-Konsole', cw/2, ch/2+24);
+    console.error(e);
+  }
+}
+
+setupEv();
+window.addEventListener('resize',draw);
+main();
+</script>
+</body>
+</html>
