@@ -160,6 +160,12 @@
   .symbol-search-item .ssi-sym{font-family:'IBM Plex Mono',monospace;color:var(--text);white-space:nowrap;}
   .symbol-search-item .ssi-name{color:var(--text-muted);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .symbol-search-empty{padding:8px 10px;font-size:11.5px;color:var(--text-muted);}
+
+  /* Analyse-Tool: eigenes, schwarzes Chart-Theme mit dünnen weißen Linien */
+  .at-toggle-btn[data-active="1"]{background:var(--accent);border-color:var(--accent);color:#06251c;font-weight:600;}
+  .at-chart-body{background:#000;border-radius:10px;padding:6px;}
+  .at-chart-body .chart-svg{cursor:grab;height:480px;}
+  .at-chart-body .chart-svg:active{cursor:grabbing;}
   .key-len{display:block;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text-muted);margin-top:2px;}
   .key-input-row{display:flex;gap:6px;align-items:stretch;}
   .key-input-row input{flex:1;min-width:0;}
@@ -186,6 +192,7 @@
     <button class="tab-btn active" data-tab="watchlist">Watchlist</button>
     <button class="tab-btn" data-tab="screening">Marktscreening</button>
     <button class="tab-btn" data-tab="chartanalyse">Chart-Analyse</button>
+    <button class="tab-btn" data-tab="analysetool">Analyse-Tool</button>
   </div>
 
   <div class="panel settings-panel" id="settingsPanel">
@@ -581,6 +588,72 @@
         <h2 class="section" style="margin-bottom:6px;">1 Woche · 1 Jahr</h2>
         <div id="caRefWeekly"></div>
       </div>
+    </div>
+  </div>
+
+  <div id="analyseToolView" style="display:none">
+    <div class="panel">
+      <div class="hint" style="margin-bottom:12px;">
+        Nachbau von drei quelloffenen TradingView-Strategien: <b style="color:var(--text);">HalfTrend</b>
+        (Alex Orekhov "everget"), <b style="color:var(--text);">SuperTrend HA</b> (klassischer SuperTrend,
+        aber auf Heikin-Ashi-Kerzen berechnet) und <b style="color:var(--text);">ML Adaptive SuperTrend</b>
+        (K-Means-Clustering der ATR-Werte in 3 Volatilitätsregime, Ansatz von AlgoAlpha) -- plus die
+        Tagesbox aus dem Chart-Analyse-Tab. Alle vier einzeln zu- und abschaltbar.
+      </div>
+      <div class="addrow">
+        <div class="field">
+          <label>Typ</label>
+          <select id="atType">
+            <option value="crypto">Krypto</option>
+            <option value="stock">Aktie</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Symbol -- Name oder Ticker</label>
+          <div class="symbol-search-wrap">
+            <input type="text" id="atSymbol" placeholder="z. B. BTC-EUR oder NVDA" autocomplete="off">
+            <div class="symbol-search-results" id="atSymbolResults"></div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Zeitrahmen</label>
+          <select id="atInterval">
+            <option value="1m">1 Minute</option>
+            <option value="5m">5 Minuten</option>
+            <option value="15m">15 Minuten</option>
+            <option value="30m">30 Minuten</option>
+            <option value="1h">1 Stunde</option>
+            <option value="4h">4 Stunden</option>
+            <option value="1d" selected>1 Tag</option>
+            <option value="1w">1 Woche</option>
+          </select>
+        </div>
+        <div class="field" style="justify-content:flex-end;"><button id="atRunBtn">Laden</button></div>
+      </div>
+      <div class="addrow" style="margin-top:2px;">
+        <button class="ghost small at-toggle-btn" id="atToggleHalfTrend" data-active="0">HalfTrend: aus</button>
+        <button class="ghost small at-toggle-btn" id="atToggleSuperTrendHA" data-active="0">SuperTrend HA: aus</button>
+        <button class="ghost small at-toggle-btn" id="atToggleMLSuperTrend" data-active="0">ML Adaptive SuperTrend: aus</button>
+        <button class="ghost small at-toggle-btn" id="atToggleDailyBox" data-active="0">Tagesbox: aus</button>
+      </div>
+      <div class="hint" id="atStatus"></div>
+    </div>
+
+    <div class="panel" id="atResultPanel" style="display:none;">
+      <div class="card-head" style="margin-bottom:10px;">
+        <div><div class="asset-tag" id="atTag"></div><div class="sym" id="atSym"></div></div>
+      </div>
+      <div class="addrow" style="justify-content:flex-end;margin-bottom:6px;">
+        <span class="hint" style="margin:0 10px 0 0;">Horizontal</span>
+        <button class="ghost small" id="atHZoomOut" title="Horizontal rauszoomen">−</button>
+        <button class="ghost small" id="atHZoomIn" title="Horizontal reinzoomen" style="margin-left:4px;">+</button>
+        <span class="hint" style="margin:0 10px 0 16px;">Vertikal</span>
+        <button class="ghost small" id="atVZoomOut" title="Vertikal rauszoomen">−</button>
+        <button class="ghost small" id="atVZoomIn" title="Vertikal reinzoomen" style="margin-left:4px;">+</button>
+        <button class="ghost small" id="atZoomReset" style="margin-left:16px;">Zoom zurücksetzen</button>
+      </div>
+      <div id="atChartBody" class="at-chart-body"></div>
+      <div class="hint" style="margin-top:8px;">Scrollen = horizontal zoomen, Ziehen = verschieben. Vertikal nur über die Buttons (kein Mausrad-Konflikt mit horizontal).</div>
     </div>
   </div>
 
@@ -2127,6 +2200,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.getElementById('watchlistView').style.display = tab === 'watchlist' ? '' : 'none';
     document.getElementById('screeningView').style.display = tab === 'screening' ? '' : 'none';
     document.getElementById('chartAnalyseView').style.display = tab === 'chartanalyse' ? '' : 'none';
+    document.getElementById('analyseToolView').style.display = tab === 'analysetool' ? '' : 'none';
   });
 });
 
@@ -2927,6 +3001,253 @@ function computeDailyBoxes(candles, realDailyBars){
   return boxes;
 }
 
+// ============================================================================
+// ANALYSE-TOOL: HalfTrend, SuperTrend (auf Heikin-Ashi), ML Adaptive SuperTrend
+// Alle drei nach öffentlich dokumentierten, quelloffenen TradingView-Skripten
+// nachgebaut (HalfTrend von Alex Orekhov "everget"; SuperTrend nach der
+// klassischen Formel von Olivier Seban; ML Adaptive SuperTrend nach dem
+// K-Means-Clustering-Ansatz von AlgoAlpha).
+// ============================================================================
+
+// Wilder-geglättetes ATR (True Range über RMA/Wilder-Glättung) -- Standard-ATR,
+// wie er von praktisch allen TradingView-Indikatoren verwendet wird.
+function computeATR(candles, period){
+  const n = candles.length;
+  const tr = new Array(n).fill(null);
+  for (let i = 0; i < n; i++){
+    const c = candles[i];
+    if (i === 0){ tr[i] = c.h - c.l; continue; }
+    const prevClose = candles[i-1].c;
+    tr[i] = Math.max(c.h - c.l, Math.abs(c.h - prevClose), Math.abs(c.l - prevClose));
+  }
+  const atr = new Array(n).fill(null);
+  let sum = 0;
+  for (let i = 0; i < n; i++){
+    if (i < period - 1){ continue; }
+    if (i === period - 1){
+      for (let k = 0; k <= i; k++) sum += tr[k];
+      atr[i] = sum / period;
+      continue;
+    }
+    atr[i] = (atr[i-1] * (period - 1) + tr[i]) / period; // Wilder-Glättung (RMA)
+  }
+  return atr;
+}
+
+function simpleMA(values, period){
+  const n = values.length;
+  const out = new Array(n).fill(null);
+  let sum = 0;
+  for (let i = 0; i < n; i++){
+    sum += values[i];
+    if (i >= period) sum -= values[i-period];
+    if (i >= period - 1) out[i] = sum / period;
+  }
+  return out;
+}
+
+function rollingMax(values, period){
+  const n = values.length;
+  const out = new Array(n).fill(null);
+  for (let i = 0; i < n; i++){
+    const start = Math.max(0, i - period + 1);
+    out[i] = Math.max(...values.slice(start, i + 1));
+  }
+  return out;
+}
+function rollingMin(values, period){
+  const n = values.length;
+  const out = new Array(n).fill(null);
+  for (let i = 0; i < n; i++){
+    const start = Math.max(0, i - period + 1);
+    out[i] = Math.min(...values.slice(start, i + 1));
+  }
+  return out;
+}
+
+// HalfTrend nach Alex Orekhov ("everget") -- fest ATR(100)/2, Amplitude und
+// Kanalabweichung einstellbar. Gibt pro Kerze { ht, atrHigh, atrLow, trend,
+// buySignal, sellSignal } zurück (trend: 0 = Aufwärts, 1 = Abwärts).
+function computeHalfTrend(candles, amplitude = 2, channelDeviation = 2){
+  const n = candles.length;
+  const highs = candles.map(c => c.h);
+  const lows = candles.map(c => c.l);
+  const closes = candles.map(c => c.c);
+  const atr = computeATR(candles, 100);
+  const highMa = simpleMA(highs, amplitude);
+  const lowMa = simpleMA(lows, amplitude);
+  const highestAmp = rollingMax(highs, amplitude);
+  const lowestAmp = rollingMin(lows, amplitude);
+
+  const result = new Array(n);
+  let trend = 0, nextTrend = 0;
+  let maxLowPrice = n ? lows[0] : 0, minHighPrice = n ? highs[0] : 0;
+  let up = 0, down = 0;
+  let prevUp = null, prevDown = null, prevTrend = null;
+
+  for (let i = 0; i < n; i++){
+    if (i > 0){ maxLowPrice = lows[i-1]; minHighPrice = highs[i-1]; } // Startwert wie im Original (nz(low[1],low))
+    const atr2 = (atr[i] != null ? atr[i] : 0) / 2;
+    const dev = channelDeviation * atr2;
+    const highPrice = highestAmp[i], lowPrice = lowestAmp[i];
+    const hma = highMa[i], lma = lowMa[i];
+    let arrowUp = null, arrowDown = null;
+
+    if (nextTrend === 1){
+      maxLowPrice = Math.max(lowPrice, maxLowPrice);
+      if (hma != null && hma < maxLowPrice && closes[i] < (i>0?lows[i-1]:lows[i])){
+        trend = 1; nextTrend = 0; minHighPrice = highPrice;
+      }
+    } else {
+      minHighPrice = Math.min(highPrice, minHighPrice);
+      if (lma != null && lma > minHighPrice && closes[i] > (i>0?highs[i-1]:highs[i])){
+        trend = 0; nextTrend = 1; maxLowPrice = lowPrice;
+      }
+    }
+
+    let atrHigh = null, atrLow = null;
+    if (trend === 0){
+      if (prevTrend !== null && prevTrend !== 0){
+        up = prevDown != null ? prevDown : down;
+        arrowUp = up - atr2;
+      } else {
+        up = prevUp != null ? Math.max(maxLowPrice, prevUp) : maxLowPrice;
+      }
+      atrHigh = up + dev; atrLow = up - dev;
+    } else {
+      if (prevTrend !== null && prevTrend !== 1){
+        down = prevUp != null ? prevUp : up;
+        arrowDown = down + atr2;
+      } else {
+        down = prevDown != null ? Math.min(minHighPrice, prevDown) : minHighPrice;
+      }
+      atrHigh = down + dev; atrLow = down - dev;
+    }
+
+    const ht = trend === 0 ? up : down;
+    const buySignal = arrowUp !== null && trend === 0 && prevTrend === 1;
+    const sellSignal = arrowDown !== null && trend === 1 && prevTrend === 0;
+    result[i] = { ht, atrHigh, atrLow, trend, buySignal, sellSignal };
+
+    prevUp = up; prevDown = down; prevTrend = trend;
+  }
+  return result;
+}
+
+// Heikin-Ashi-Transformation -- Standardformel.
+function computeHeikinAshi(candles){
+  const n = candles.length;
+  const ha = new Array(n);
+  for (let i = 0; i < n; i++){
+    const c = candles[i];
+    const haClose = (c.o + c.h + c.l + c.c) / 4;
+    const haOpen = i === 0 ? (c.o + c.c) / 2 : (ha[i-1].o + ha[i-1].c) / 2;
+    const haHigh = Math.max(c.h, haOpen, haClose);
+    const haLow = Math.min(c.l, haOpen, haClose);
+    ha[i] = { o: haOpen, h: haHigh, l: haLow, c: haClose, t: c.t };
+  }
+  return ha;
+}
+
+// Klassische SuperTrend-Formel (Olivier Seban), auf beliebige OHLC-Serie anwendbar
+// (normale Kerzen ODER Heikin-Ashi-Kerzen). Gibt pro Kerze { value, trend } zurück
+// (trend: 1 = Aufwärts/grün, -1 = Abwärts/rot).
+function computeSuperTrendGeneric(ohlcSeries, atrSeries, multiplier){
+  const n = ohlcSeries.length;
+  const result = new Array(n);
+  let finalUpper = null, finalLower = null, trend = 1;
+  for (let i = 0; i < n; i++){
+    const c = ohlcSeries[i];
+    const atrVal = atrSeries[i];
+    if (atrVal == null){ result[i] = { value: null, trend: 1 }; continue; }
+    const hl2 = (c.h + c.l) / 2;
+    const basicUpper = hl2 + multiplier * atrVal;
+    const basicLower = hl2 - multiplier * atrVal;
+    const prevClose = i > 0 ? ohlcSeries[i-1].c : c.c;
+
+    const upper = (finalUpper === null || basicUpper < finalUpper || prevClose > finalUpper) ? basicUpper : finalUpper;
+    const lower = (finalLower === null || basicLower > finalLower || prevClose < finalLower) ? basicLower : finalLower;
+
+    if (finalUpper === null){
+      trend = c.c >= lower ? 1 : -1;
+    } else if (trend === 1 && c.c < lower){
+      trend = -1;
+    } else if (trend === -1 && c.c > upper){
+      trend = 1;
+    }
+    finalUpper = upper; finalLower = lower;
+    result[i] = { value: trend === 1 ? lower : upper, trend };
+  }
+  return result;
+}
+
+function computeSuperTrendHA(candles, atrPeriod = 10, multiplier = 3){
+  const ha = computeHeikinAshi(candles);
+  const atr = computeATR(ha, atrPeriod);
+  return computeSuperTrendGeneric(ha, atr, multiplier);
+}
+
+// 1D-K-Means (einfach, iterativ) -- Standardverfahren für die ML-Adaptive-Variante.
+function kmeans1d(data, k = 3, maxIter = 15){
+  const valid = data.filter(v => v != null);
+  if (!valid.length) return { centroids: new Array(k).fill(0) };
+  const sorted = [...valid].sort((a,b) => a-b);
+  let centroids = [
+    sorted[Math.max(0, Math.floor(sorted.length*0.25))],
+    sorted[Math.max(0, Math.floor(sorted.length*0.5))],
+    sorted[Math.max(0, Math.floor(sorted.length*0.75))],
+  ].slice(0, k);
+  while (centroids.length < k) centroids.push(sorted[sorted.length-1]);
+
+  for (let iter = 0; iter < maxIter; iter++){
+    const sums = new Array(k).fill(0), counts = new Array(k).fill(0);
+    let changed = false;
+    for (const v of valid){
+      let best = 0, bestDist = Infinity;
+      for (let c = 0; c < k; c++){
+        const d = Math.abs(v - centroids[c]);
+        if (d < bestDist){ bestDist = d; best = c; }
+      }
+      sums[best] += v; counts[best]++;
+    }
+    const newCentroids = centroids.map((c,i) => counts[i] > 0 ? sums[i]/counts[i] : c);
+    if (newCentroids.some((c,i) => Math.abs(c - centroids[i]) > 1e-9)) changed = true;
+    centroids = newCentroids;
+    if (!changed) break;
+  }
+  centroids.sort((a,b) => a-b);
+  return { centroids };
+}
+
+// ML Adaptive SuperTrend nach dem K-Means-Ansatz von AlgoAlpha: für jede Kerze werden
+// die ATR-Werte der letzten `trainingPeriod` Kerzen per K-Means in 3 Cluster (niedrige/
+// mittlere/hohe Volatilität) eingeteilt, und die aktuelle ATR wird durch den Wert des
+// nächstgelegenen Clusters ersetzt ("geglättete", regime-adaptive Volatilität) -- diese
+// fließt dann in dieselbe klassische SuperTrend-Formel wie oben ein.
+function computeMLAdaptiveSuperTrend(candles, atrPeriod = 10, trainingPeriod = 100, multiplier = 3){
+  const n = candles.length;
+  const rawAtr = computeATR(candles, atrPeriod);
+  const adaptiveAtr = new Array(n).fill(null);
+  const clusterIdx = new Array(n).fill(null); // 1 = niedrige, 2 = mittlere, 3 = hohe Volatilität
+
+  for (let i = 0; i < n; i++){
+    if (rawAtr[i] == null) continue;
+    const windowStart = Math.max(0, i - trainingPeriod + 1);
+    const window = rawAtr.slice(windowStart, i + 1).filter(v => v != null);
+    if (window.length < 3){ adaptiveAtr[i] = rawAtr[i]; continue; }
+    const { centroids } = kmeans1d(window, 3);
+    let nearest = centroids[0], bestDist = Infinity, nearestIdx = 0;
+    centroids.forEach((c, ci) => {
+      const d = Math.abs(rawAtr[i] - c);
+      if (d < bestDist){ bestDist = d; nearest = c; nearestIdx = ci; }
+    });
+    adaptiveAtr[i] = nearest;
+    clusterIdx[i] = nearestIdx + 1; // centroids sind aufsteigend sortiert -> 1=niedrig...3=hoch
+  }
+  const st = computeSuperTrendGeneric(candles, adaptiveAtr, multiplier);
+  return st.map((r, i) => ({ ...r, cluster: clusterIdx[i] }));
+}
+
 function computeCorridor(candles, lookback = 24){
   const slice = candles.slice(-lookback);
   if (!slice.length) return null;
@@ -3147,6 +3468,442 @@ document.getElementById('caRunBtn').addEventListener('click', () => {
 attachSymbolSearch('addSymbol', 'addType', 'addSymbolResults');
 attachSymbolSearch('scanAddSymbol', 'scanAddType', 'scanAddSymbolResults');
 attachSymbolSearch('caSymbol', 'caType', 'caSymbolResults');
+attachSymbolSearch('atSymbol', 'atType', 'atSymbolResults');
+
+// ============================================================================
+// ANALYSE-TOOL: eigenständiger Tab, eigenes schwarzes Chart-Theme, komplett
+// getrennt vom Rest der Darstellungslogik (renderChart) -- bewusst so, damit
+// das andere Theme keine der bestehenden Charts beeinflusst.
+// ============================================================================
+
+let atCurrentChartData = null;   // { candles, halfTrend, superTrendHA, mlSuperTrend }
+let atChartVisibleRange = null;  // { start, end } -- horizontaler Zoom
+let atVerticalZoomFactor = 1;    // >1 = vertikal reingezoomt, <1 = rausgezoomt
+let atVerticalPanOffset = 0;     // Preis-Verschiebung (in Kurseinheiten) durch vertikales Ziehen
+let atOverlays = { halfTrend: false, superTrendHA: false, mlSuperTrend: false, dailyBox: false };
+let atChartDragState = { dragging: false, startX: 0, startY: 0, startRange: null, startVOffset: 0, lastYRange: null };
+let atLastGeometry = null;
+
+function atDrawTrendLine(parts, points, xFn, yFn, colorUp, colorDown, dashPattern){
+  let segment = [];
+  let currentTrend = null;
+  const dash = dashPattern ? ` stroke-dasharray="${dashPattern}"` : '';
+  const flush = () => {
+    if (segment.length > 1){
+      const color = currentTrend === 1 ? colorUp : colorDown;
+      const pts = segment.map(s => `${xFn(s.index).toFixed(1)},${yFn(s.value).toFixed(1)}`).join(' ');
+      parts.push(`<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" opacity="0.95"${dash} pointer-events="none"/>`);
+    }
+  };
+  points.forEach((p) => {
+    if (p.value == null){ flush(); segment = []; currentTrend = null; return; }
+    if (currentTrend !== null && p.trend !== currentTrend){
+      segment.push(p); // Übergangspunkt mit altem Trend noch anhängen, für nahtlosen Übergang
+      flush();
+      segment = [p];
+    } else {
+      segment.push(p);
+    }
+    currentTrend = p.trend;
+  });
+  flush();
+}
+
+// Gefüllte Fläche zwischen Trendlinie und Kerzen-Schlusskurs, als echter Farbverlauf
+// (kräftiger nahe der Linie, ausblassend zu den Kerzen hin) -- pro Segment (gleicher
+// Trend) ein eigenes Polygon mit passendem Grün-/Rot-Verlauf.
+function atDrawFillBetween(parts, points, candles, start, xFn, yFn){
+  let segment = [];
+  let currentTrend = null;
+  const flush = () => {
+    if (segment.length > 1){
+      const gradId = currentTrend === 1 ? 'atGradGreen' : 'atGradRed';
+      const top = segment.map(s => `${xFn(s.index).toFixed(1)},${yFn(s.value).toFixed(1)}`);
+      const bottom = segment.slice().reverse().map(s => {
+        const c = candles[s.index - start];
+        const priceY = c ? yFn(c.c) : yFn(s.value);
+        return `${xFn(s.index).toFixed(1)},${priceY.toFixed(1)}`;
+      });
+      parts.push(`<polygon points="${[...top, ...bottom].join(' ')}" fill="url(#${gradId})" pointer-events="none"/>`);
+    }
+  };
+  points.forEach((p) => {
+    if (p.value == null){ flush(); segment = []; currentTrend = null; return; }
+    if (currentTrend !== null && p.trend !== currentTrend){
+      segment.push(p);
+      flush();
+      segment = [p];
+    } else {
+      segment.push(p);
+    }
+    currentTrend = p.trend;
+  });
+  flush();
+}
+
+// Fähnchen/Sprechblasen (statt Dreiecke) an Trendwechsel-Punkten -- grün mit "L" für
+// Long-Einstiege, rot mit "S" für Short-Einstiege, mit kleinem Zeiger zur Kerze hin.
+function atDrawSignalMarkers(parts, points, candles, start, xFn, yFn, colorUp, colorDown, stackOffset){
+  const extraGap = stackOffset || 0;
+  let prevTrend = null;
+  points.forEach((p) => {
+    if (p.value == null){ prevTrend = null; return; }
+    if (prevTrend !== null && p.trend !== prevTrend){
+      const c = candles[p.index - start];
+      if (!c){ prevTrend = p.trend; return; }
+      const xi = xFn(p.index);
+      const boxW = 15, boxH = 12, gap = 10 + extraGap;
+      if (p.trend === 1){
+        const anchor = yFn(c.l);
+        const boxY = anchor + gap;
+        parts.push(`<polygon points="${(xi-3).toFixed(1)},${boxY.toFixed(1)} ${(xi+3).toFixed(1)},${boxY.toFixed(1)} ${xi.toFixed(1)},${(boxY-4).toFixed(1)}" fill="${colorUp}" pointer-events="none"/>`);
+        parts.push(`<rect x="${(xi-boxW/2).toFixed(1)}" y="${boxY.toFixed(1)}" width="${boxW}" height="${boxH}" rx="3" fill="${colorUp}" pointer-events="none"/>`);
+        parts.push(`<text x="${xi.toFixed(1)}" y="${(boxY+boxH/2+3).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="#04140c" font-family="'Inter',sans-serif" pointer-events="none">L</text>`);
+      } else {
+        const anchor = yFn(c.h);
+        const boxY = anchor - gap - boxH;
+        parts.push(`<polygon points="${(xi-3).toFixed(1)},${(boxY+boxH).toFixed(1)} ${(xi+3).toFixed(1)},${(boxY+boxH).toFixed(1)} ${xi.toFixed(1)},${(boxY+boxH+4).toFixed(1)}" fill="${colorDown}" pointer-events="none"/>`);
+        parts.push(`<rect x="${(xi-boxW/2).toFixed(1)}" y="${boxY.toFixed(1)}" width="${boxW}" height="${boxH}" rx="3" fill="${colorDown}" pointer-events="none"/>`);
+        parts.push(`<text x="${xi.toFixed(1)}" y="${(boxY+boxH/2+3).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="#210505" font-family="'Inter',sans-serif" pointer-events="none">S</text>`);
+      }
+    }
+    prevTrend = p.trend;
+  });
+}
+
+// Kleine Cluster-Nummer (1=niedrige, 2=mittlere, 3=hohe Volatilität) entlang der
+// ML-Adaptive-SuperTrend-Linie -- wie im Referenzbild ("2222", "3333" etc.).
+function atDrawClusterLabels(parts, points, xFn, yFn, colorUp, colorDown){
+  points.forEach(p => {
+    if (p.value == null || p.cluster == null) return;
+    const color = p.trend === 1 ? colorUp : colorDown;
+    parts.push(`<text x="${xFn(p.index).toFixed(1)}" y="${(yFn(p.value)-5).toFixed(1)}" font-size="7" fill="${color}" opacity="0.75" font-family="'IBM Plex Mono',monospace" text-anchor="middle" pointer-events="none">${p.cluster}</text>`);
+  });
+}
+
+function renderAtChart(){
+  if (!atCurrentChartData || !atCurrentChartData.candles) return;
+  const all = atCurrentChartData.candles;
+  const { start, end } = atChartVisibleRange;
+  const visible = all.slice(start, end);
+  const n = visible.length;
+  if (n < 2){
+    document.getElementById('atChartBody').innerHTML = '<div class="hint" style="color:#fff;padding:20px;">Zu wenig Kerzendaten.</div>';
+    return;
+  }
+
+  const width = 900, height = 460, volH = 60;
+  const padLeft = 4, padRight = 56, padTop = 10, padBottom = volH + 20;
+  const plotW = width - padLeft - padRight;
+  const plotH = height - padTop - padBottom;
+
+  const sliceIdx = (i) => i - start; // globaler Index -> lokaler (sichtbarer) Index
+  const inWindow = (i) => i >= start && i < end;
+
+  let yMin = Math.min(...visible.map(c => c.l));
+  let yMax = Math.max(...visible.map(c => c.h));
+
+  const htPoints = atOverlays.halfTrend && atCurrentChartData.halfTrend
+    ? atCurrentChartData.halfTrend.map((r,i) => ({ index: i, value: r.ht, trend: r.trend === 0 ? 1 : -1 })).filter(p => inWindow(p.index))
+    : [];
+  const sthaPoints = atOverlays.superTrendHA && atCurrentChartData.superTrendHA
+    ? atCurrentChartData.superTrendHA.map((r,i) => ({ index: i, value: r.value, trend: r.trend })).filter(p => inWindow(p.index) && p.value != null)
+    : [];
+  const mlstPoints = atOverlays.mlSuperTrend && atCurrentChartData.mlSuperTrend
+    ? atCurrentChartData.mlSuperTrend.map((r,i) => ({ index: i, value: r.value, trend: r.trend, cluster: r.cluster })).filter(p => inWindow(p.index) && p.value != null)
+    : [];
+  [htPoints, sthaPoints, mlstPoints].forEach(pts => pts.forEach(p => {
+    if (p.value == null) return;
+    yMin = Math.min(yMin, p.value); yMax = Math.max(yMax, p.value);
+  }));
+
+  const dailyBoxes = atOverlays.dailyBox ? computeDailyBoxes(visible) : [];
+  dailyBoxes.forEach(b => { yMin = Math.min(yMin, b.low); yMax = Math.max(yMax, b.high); });
+
+  const pad = (yMax - yMin) * 0.08 || 1;
+  yMin -= pad; yMax += pad;
+  // Vertikaler Zoom: Bereich um die Mitte herum stauchen/strecken, plus manueller
+  // Verschiebe-Offset durchs Ziehen mit der Maus (nach oben/unten).
+  const centerY = (yMin + yMax) / 2 + atVerticalPanOffset;
+  const halfRange = (yMax - yMin) / 2 / atVerticalZoomFactor;
+  yMin = centerY - halfRange; yMax = centerY + halfRange;
+
+  const xStep = plotW / n;
+  const x = (i) => padLeft + sliceIdx(i) * xStep + xStep / 2;
+  const y = (v) => padTop + plotH - ((v - yMin) / (yMax - yMin)) * plotH;
+  const bodyW = Math.max(1, xStep * (n > 120 ? 0.5 : 0.62));
+
+  atLastGeometry = { width, height, padLeft, padRight, padTop, plotH, plotW, xStep, n, yMin, yMax, start, end };
+
+  const parts = [];
+  parts.push(`<defs>
+    <linearGradient id="atGradGreen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3ddc84" stop-opacity="0.32"/>
+      <stop offset="100%" stop-color="#3ddc84" stop-opacity="0.02"/>
+    </linearGradient>
+    <linearGradient id="atGradRed" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff5c5c" stop-opacity="0.32"/>
+      <stop offset="100%" stop-color="#ff5c5c" stop-opacity="0.02"/>
+    </linearGradient>
+  </defs>`);
+  parts.push(`<rect x="0" y="0" width="${width}" height="${height}" fill="#000"/>`);
+  parts.push(`<clipPath id="atClip"><rect x="${padLeft}" y="${padTop}" width="${plotW}" height="${plotH}"/></clipPath>`);
+
+  // Preisachse: dünne weiße Hilfslinien + Beschriftung
+  const steps = 5;
+  for (let s = 0; s <= steps; s++){
+    const val = yMin + (yMax - yMin) * (s / steps);
+    const yy = y(val);
+    parts.push(`<line x1="${padLeft}" x2="${width-padRight}" y1="${yy.toFixed(1)}" y2="${yy.toFixed(1)}" stroke="#ffffff" stroke-width="0.5" opacity="0.12" pointer-events="none"/>`);
+    parts.push(`<text x="${width-padRight+6}" y="${(yy+3).toFixed(1)}" font-size="9" fill="#ffffff" opacity="0.7" font-family="'IBM Plex Mono',monospace" pointer-events="none">${fmtNum(val)}</text>`);
+  }
+  // ein paar vertikale Hilfslinien, rein optisch (Kalenderraster)
+  for (let s = 1; s < 6; s++){
+    const xx = padLeft + plotW * (s/6);
+    parts.push(`<line x1="${xx.toFixed(1)}" x2="${xx.toFixed(1)}" y1="${padTop}" y2="${padTop+plotH}" stroke="#ffffff" stroke-width="0.5" opacity="0.06" pointer-events="none"/>`);
+  }
+
+  const bodyGroup = [];
+
+  // Füllflächen (Farbverlauf) zwischen Trendlinien und Kerzen-Schlusskurs -- VOR den
+  // Kerzen gezeichnet, damit sie optisch dahinter liegen (wie im Referenzbild).
+  if (atOverlays.halfTrend) atDrawFillBetween(bodyGroup, htPoints, visible, start, x, y);
+  if (atOverlays.superTrendHA) atDrawFillBetween(bodyGroup, sthaPoints, visible, start, x, y);
+  if (atOverlays.mlSuperTrend) atDrawFillBetween(bodyGroup, mlstPoints, visible, start, x, y);
+
+  if (atOverlays.dailyBox){
+    dailyBoxes.forEach(box => {
+      const xStart = x(box.startIdx + start) - bodyW/2;
+      const xEnd = x(box.endIdx + start) + bodyW/2;
+      const bw = Math.max(1, xEnd - xStart);
+      const color = box.bullish ? '#3ddc84' : '#ff5c5c';
+      const yHigh = y(box.high), yLow = y(box.low);
+      // Echte Box: durchgezogener, dünner Rahmen an allen vier Seiten (kein Dashed-Muster,
+      // keine separaten Extra-Linien -- ein sauberes Rechteck reicht, SVG-Stroke deckt
+      // automatisch alle Seiten ab).
+      bodyGroup.push(`<rect x="${xStart.toFixed(1)}" y="${yHigh.toFixed(1)}" width="${bw.toFixed(1)}" height="${(yLow-yHigh).toFixed(1)}" fill="${color}" fill-opacity="0.06" stroke="${color}" stroke-width="1" stroke-opacity="0.8" pointer-events="none"/>`);
+    });
+  }
+
+  visible.forEach((c, li) => {
+    const gi = li + start;
+    const xi = x(gi);
+    const up = c.c >= c.o;
+    const color = up ? '#3ddc84' : '#ff5c5c';
+    const yTop = Math.min(y(c.o), y(c.c));
+    const bodyH = Math.max(1, Math.abs(y(c.c) - y(c.o)));
+    bodyGroup.push(`<line x1="${xi.toFixed(1)}" x2="${xi.toFixed(1)}" y1="${y(c.h).toFixed(1)}" y2="${y(c.l).toFixed(1)}" stroke="${color}" stroke-width="1" pointer-events="none"/>`);
+    bodyGroup.push(`<rect x="${(xi-bodyW/2).toFixed(1)}" y="${yTop.toFixed(1)}" width="${bodyW.toFixed(1)}" height="${bodyH.toFixed(1)}" fill="${color}" pointer-events="none"/>`);
+  });
+
+  // Einheitlich grün = long/bullisch, rot = short/bärisch bei allen drei Strategien --
+  // unterschieden werden sie über das Strichmuster (durchgezogen/gestrichelt/gepunktet),
+  // damit man bei mehreren aktiven Overlays trotzdem sieht, welche Linie zu welcher
+  // Strategie gehört.
+  if (atOverlays.halfTrend) atDrawTrendLine(bodyGroup, htPoints, x, y, '#3ddc84', '#ff5c5c', null);
+  if (atOverlays.superTrendHA) atDrawTrendLine(bodyGroup, sthaPoints, x, y, '#3ddc84', '#ff5c5c', '6,3');
+  if (atOverlays.mlSuperTrend) atDrawTrendLine(bodyGroup, mlstPoints, x, y, '#3ddc84', '#ff5c5c', '1,3');
+
+  // Einstiegs-/Ausstiegs-Fähnchen an Trendwechsel-Punkten -- L = Long, S = Short
+  if (atOverlays.halfTrend) atDrawSignalMarkers(bodyGroup, htPoints, visible, start, x, y, '#3ddc84', '#ff5c5c', 0);
+  if (atOverlays.superTrendHA) atDrawSignalMarkers(bodyGroup, sthaPoints, visible, start, x, y, '#3ddc84', '#ff5c5c', 5);
+  if (atOverlays.mlSuperTrend) atDrawSignalMarkers(bodyGroup, mlstPoints, visible, start, x, y, '#3ddc84', '#ff5c5c', 10);
+  if (atOverlays.mlSuperTrend) atDrawClusterLabels(bodyGroup, mlstPoints, x, y, '#3ddc84', '#ff5c5c');
+
+  // Volumen
+  const volTop = height - volH - 4;
+  const maxVol = Math.max(...visible.map(c => c.v || 0)) || 1;
+  parts.push(`<line x1="${padLeft}" x2="${width-2}" y1="${volTop.toFixed(1)}" y2="${volTop.toFixed(1)}" stroke="#ffffff" stroke-width="0.5" opacity="0.15" pointer-events="none"/>`);
+  visible.forEach((c, li) => {
+    const gi = li + start;
+    const xi = x(gi);
+    const up = c.c >= c.o;
+    const color = up ? '#3ddc84' : '#ff5c5c';
+    const h = ((c.v || 0) / maxVol) * (volH - 6);
+    parts.push(`<rect x="${(xi-bodyW/2).toFixed(1)}" y="${(height-4-h).toFixed(1)}" width="${bodyW.toFixed(1)}" height="${h.toFixed(1)}" fill="${color}" opacity="0.5" pointer-events="none"/>`);
+  });
+
+  parts.push(`<g clip-path="url(#atClip)">${bodyGroup.join('')}</g>`);
+
+  parts.push(`<line id="atCrosshairV" x1="0" y1="${padTop}" x2="0" y2="${padTop+plotH}" stroke="#ffffff" stroke-width="1" stroke-dasharray="2,2" opacity="0" pointer-events="none"/>`);
+  parts.push(`<line id="atCrosshairH" x1="${padLeft}" y1="0" x2="${width-padRight}" y2="0" stroke="#ffffff" stroke-width="1" stroke-dasharray="2,2" opacity="0" pointer-events="none"/>`);
+
+  const legendItems = [
+    atOverlays.halfTrend ? '<span style="color:#aaa;">— HalfTrend (durchgezogen)</span>' : '',
+    atOverlays.superTrendHA ? '<span style="color:#aaa;">╌ SuperTrend HA (gestrichelt)</span>' : '',
+    atOverlays.mlSuperTrend ? '<span style="color:#aaa;">⋯ ML Adaptive SuperTrend (gepunktet)</span>' : '',
+    atOverlays.dailyBox ? '<span style="color:#8a8a8a;">▭ Tagesbox</span>' : '',
+    (atOverlays.halfTrend || atOverlays.superTrendHA || atOverlays.mlSuperTrend) ? '<span style="color:#3ddc84;">grün = Long</span> <span style="color:#ff5c5c;">rot = Short</span>' : '',
+  ].filter(Boolean).join(' &nbsp; ');
+
+  document.getElementById('atChartBody').innerHTML = `
+    <svg viewBox="0 0 ${width} ${height}" class="chart-svg" preserveAspectRatio="none">${parts.join('')}</svg>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-family:'Inter',sans-serif;font-size:10.5px;color:#aaa;">
+      <div>${legendItems || '<span style="color:#666;">Kein Overlay aktiv</span>'}</div>
+      <div>${n} von ${all.length} Kerzen sichtbar</div>
+    </div>
+    <div id="atHoverInfo" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#ccc;min-height:16px;margin-top:4px;"></div>
+  `;
+  atAttachInteraction();
+}
+
+function atAttachInteraction(){
+  const svg = document.querySelector('#atChartBody .chart-svg');
+  if (!svg) return;
+  const hoverInfo = document.getElementById('atHoverInfo');
+
+  svg.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    atZoomHorizontal(e.deltaY < 0 ? 0.955 : 1/0.955);
+  }, { passive: false });
+
+  svg.addEventListener('mousedown', (e) => {
+    atChartDragState.dragging = true;
+    atChartDragState.startX = e.clientX;
+    atChartDragState.startY = e.clientY;
+    atChartDragState.startRange = { ...atChartVisibleRange };
+    atChartDragState.startVOffset = atVerticalPanOffset;
+    atChartDragState.lastYRange = atLastGeometry ? { yMin: atLastGeometry.yMin, yMax: atLastGeometry.yMax } : null;
+  });
+
+  svg.addEventListener('mousemove', (e) => {
+    if (atChartDragState.dragging || !atLastGeometry) return;
+    const g = atLastGeometry;
+    const rect = svg.getBoundingClientRect();
+    const relX = (e.clientX - rect.left) / rect.width;
+    const relY = (e.clientY - rect.top) / rect.height;
+    const viewBoxX = relX * g.width;
+    const idxFloat = (viewBoxX - g.padLeft) / g.plotW * g.n;
+    const localIdx = Math.max(0, Math.min(g.n - 1, Math.floor(idxFloat)));
+    const globalIdx = g.start + localIdx;
+    const c = atCurrentChartData.candles[globalIdx];
+    if (!c) return;
+    const dateStr = fmtCandleTime(c.t, document.getElementById('atInterval').value);
+    if (hoverInfo) hoverInfo.innerHTML = `${dateStr} &nbsp; O <b>${fmtNum(c.o)}</b> &nbsp; H <b>${fmtNum(c.h)}</b> &nbsp; L <b>${fmtNum(c.l)}</b> &nbsp; C <b>${fmtNum(c.c)}</b>`;
+
+    const xStepVisible = g.plotW / g.n;
+    const xPos = g.padLeft + localIdx * xStepVisible + xStepVisible / 2;
+    const yPos = relY * g.height;
+    const vLine = svg.querySelector('#atCrosshairV');
+    const hLine = svg.querySelector('#atCrosshairH');
+    if (vLine){ vLine.setAttribute('x1', xPos.toFixed(1)); vLine.setAttribute('x2', xPos.toFixed(1)); vLine.setAttribute('opacity', '0.6'); }
+    if (yPos >= g.padTop && yPos <= g.padTop + g.plotH && hLine){
+      hLine.setAttribute('y1', yPos.toFixed(1)); hLine.setAttribute('y2', yPos.toFixed(1)); hLine.setAttribute('opacity', '0.6');
+    } else if (hLine){ hLine.setAttribute('opacity', '0'); }
+  });
+
+  svg.addEventListener('mouseleave', () => {
+    if (hoverInfo) hoverInfo.innerHTML = '';
+    ['atCrosshairV','atCrosshairH'].forEach(id => {
+      const el = svg.querySelector('#'+id);
+      if (el) el.setAttribute('opacity', '0');
+    });
+  });
+}
+
+window.addEventListener('mousemove', (e) => {
+  if (!atChartDragState.dragging || !atCurrentChartData) return;
+  const svg = document.querySelector('#atChartBody .chart-svg');
+  if (!svg) return;
+  const total = atCurrentChartData.candles.length;
+  const rangeSize = atChartDragState.startRange.end - atChartDragState.startRange.start;
+  const rect = svg.getBoundingClientRect();
+  const dxPixels = e.clientX - atChartDragState.startX;
+  const candlesPerPixel = rangeSize / rect.width;
+  const shift = Math.round(-dxPixels * candlesPerPixel);
+  let newStart = atChartDragState.startRange.start + shift;
+  let newEnd = atChartDragState.startRange.end + shift;
+  if (newStart < 0){ newStart = 0; newEnd = rangeSize; }
+  if (newEnd > total){ newEnd = total; newStart = total - rangeSize; }
+  atChartVisibleRange = { start: newStart, end: newEnd };
+
+  // Vertikales Verschieben: Preis-pro-Pixel aus dem Bereich bei Drag-Start ableiten
+  if (atChartDragState.lastYRange){
+    const dyPixels = e.clientY - atChartDragState.startY;
+    const priceRange = atChartDragState.lastYRange.yMax - atChartDragState.lastYRange.yMin;
+    const pricePerPixel = priceRange / rect.height;
+    atVerticalPanOffset = atChartDragState.startVOffset + dyPixels * pricePerPixel;
+  }
+
+  renderAtChart();
+});
+window.addEventListener('mouseup', () => { atChartDragState.dragging = false; });
+
+function atZoomHorizontal(factor){
+  if (!atCurrentChartData) return;
+  const total = atCurrentChartData.candles.length;
+  const rangeSize = atChartVisibleRange.end - atChartVisibleRange.start;
+  let newSize = Math.round(rangeSize * factor);
+  newSize = Math.max(12, Math.min(total, newSize));
+  const newEnd = total; // aktuellste Kerze bleibt beim Zoomen immer ganz rechts
+  const newStart = Math.max(0, newEnd - newSize);
+  atChartVisibleRange = { start: newStart, end: newEnd };
+  renderAtChart();
+}
+function atZoomVertical(factor){
+  atVerticalZoomFactor = Math.max(0.3, Math.min(6, atVerticalZoomFactor * factor));
+  renderAtChart();
+}
+
+document.getElementById('atHZoomIn').addEventListener('click', () => atZoomHorizontal(0.8));
+document.getElementById('atHZoomOut').addEventListener('click', () => atZoomHorizontal(1.25));
+document.getElementById('atVZoomIn').addEventListener('click', () => atZoomVertical(1.25));
+document.getElementById('atVZoomOut').addEventListener('click', () => atZoomVertical(0.8));
+document.getElementById('atZoomReset').addEventListener('click', () => {
+  if (!atCurrentChartData) return;
+  atChartVisibleRange = { start: 0, end: atCurrentChartData.candles.length };
+  atVerticalZoomFactor = 1;
+  atVerticalPanOffset = 0;
+  renderAtChart();
+});
+
+function atToggle(key, btnId, label){
+  document.getElementById(btnId).addEventListener('click', () => {
+    atOverlays[key] = !atOverlays[key];
+    const btn = document.getElementById(btnId);
+    btn.dataset.active = atOverlays[key] ? '1' : '0';
+    btn.textContent = `${label}: ${atOverlays[key] ? 'an' : 'aus'}`;
+    if (atCurrentChartData) renderAtChart();
+  });
+}
+atToggle('halfTrend', 'atToggleHalfTrend', 'HalfTrend');
+atToggle('superTrendHA', 'atToggleSuperTrendHA', 'SuperTrend HA');
+atToggle('mlSuperTrend', 'atToggleMLSuperTrend', 'ML Adaptive SuperTrend');
+atToggle('dailyBox', 'atToggleDailyBox', 'Tagesbox');
+
+document.getElementById('atRunBtn').addEventListener('click', async () => {
+  const status = document.getElementById('atStatus');
+  const type = document.getElementById('atType').value;
+  const symbol = document.getElementById('atSymbol').value.trim().toUpperCase();
+  const interval = document.getElementById('atInterval').value;
+  if (!symbol){ status.textContent = 'Bitte ein Symbol eingeben.'; return; }
+
+  status.textContent = 'Lädt …';
+  document.getElementById('atResultPanel').style.display = 'none';
+
+  try{
+    const data = await getAnalysisFor({ type, symbol, interval }, { includeCandles: true, includeBitpanda: false, candleLimit: 500 });
+    if (data.error) throw new Error(data.error);
+    if (!data.candles || data.candles.length < 30) throw new Error('Zu wenig Kerzendaten für eine sinnvolle Analyse (mind. 30 nötig).');
+
+    const halfTrend = computeHalfTrend(data.candles, 2, 2);
+    const superTrendHA = computeSuperTrendHA(data.candles, 10, 3);
+    const mlSuperTrend = computeMLAdaptiveSuperTrend(data.candles, 10, 100, 3);
+
+    atCurrentChartData = { candles: data.candles, halfTrend, superTrendHA, mlSuperTrend };
+    atChartVisibleRange = { start: 0, end: data.candles.length };
+    atVerticalZoomFactor = 1;
+    atVerticalPanOffset = 0;
+
+    document.getElementById('atTag').textContent = `${type === 'crypto' ? 'Krypto' : 'Aktie'} · ${interval}`;
+    document.getElementById('atSym').textContent = `${symbol}${fullName(symbol) ? ' — ' + fullName(symbol) : ''}`;
+    document.getElementById('atResultPanel').style.display = '';
+    renderAtChart();
+    status.textContent = `${data.candles.length} Kerzen geladen (Quelle: ${data.dataSource || '–'}).`;
+  }catch(e){
+    status.textContent = e.message;
+  }
+});
 
 </script>
 </body>

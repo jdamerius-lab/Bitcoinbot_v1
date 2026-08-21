@@ -310,6 +310,7 @@
           <button class="secondary" id="toggleHalfTrendBtn" title="HalfTrend Long/Short Signal Engine (Portierung nach BigBeluga/everget, CC BY-NC-SA 4.0) -- Linie, Kanal, TP/SL-Zonen, Performance- und Multi-Asset-Dashboard">HalfTrend</button>
           <button class="secondary" id="toggleMtfDayBtn" title="Korridor aus den letzten 24 Kerzen des übergeordneten Zeitrahmens (höchstes Hoch/tiefstes Tief) + Einstiegstrigger auf dem nächstkleineren Zeitrahmen">MTF-Day</button>
           <button class="secondary" id="toggleMtfSwingBtn" title="Korridor aus den letzten 4 Swing-Hochs/-Tiefs des übergeordneten Zeitrahmens + Einstiegstrigger auf dem nächstkleineren Zeitrahmen">MTF-Swing</button>
+          <button class="secondary" id="toggleSupertrendHaBtn" title="Supertrend MTF Heikin Ashi (Portierung nach LonesomeTheBlue, Mozilla Public License 2.0) -- Supertrend-Linie auf geglätteten Heikin-Ashi-Kerzen des aktiven Zeitrahmens + Bestätigungslinie/Kreis-Marker auf automatisch gewähltem höheren Zeitrahmen">Supertrend HA</button>
           <span id="mtfCorridorTfWrap" style="display:inline-flex;align-items:center;gap:4px">
             <label id="mtfCorridorTfLabel" style="margin:0;font-size:11px">Korridor-Zeitrahmen</label>
             <select id="mtfCorridorTfSelect" style="width:auto"></select>
@@ -433,7 +434,7 @@
     </div>
     <div class="status" id="trendGaugeStatus" style="margin-top:6px">Lade…</div>
     <div class="footnote">
-      Mittelwert des Trendscores (gewichteter Konsens aller 11 Strategien, siehe Trendscore-Overlay) über alle
+      Mittelwert des Trendscores (gewichteter Konsens aller 12 Strategien, siehe Trendscore-Overlay) über alle
       11 Zeitrahmen von 1 Minute bis 1 Monat, jeweils für den gerade aktiven Coin. Reine Heuristik zur
       Einordnung der aktuellen Gesamtlage über kurze bis lange Sicht hinweg, keine Anlageberatung.
     </div>
@@ -441,7 +442,7 @@
 
   <div class="footnote">
     Blaues Dreieck unten = Long-Einstieg, oranges Dreieck oben = Short-Einstieg. Hohler Kreis = Ausstieg. Standardmäßig zeigt
-    der Chart die Signale <strong>aller</strong> 14 Strategien gleichzeitig (Overlay „Alle Strategien"); beim Darüberfahren
+    der Chart die Signale <strong>aller</strong> 15 Strategien gleichzeitig (Overlay „Alle Strategien"); beim Darüberfahren
     verrät das Banner oben rechts, welche Strategie(n) genau ausgelöst haben. Alarm-Blöcke zeigen die jeweils letzten
     Signale je Coin (neu → alt) — bei Intervallen bis 30 Min zeitbasiert (30-Minuten-Fenster), bei größeren Intervallen
     kerzenbasiert (letzte 15 Kerzen), da ein festes Zeitfenster dort zu schnell leerläuft. Ältere Signale bleiben trotzdem
@@ -461,7 +462,7 @@
   <div class="exit-banner">
     <div class="exit-banner-row">
       <div>
-        <label>Exit-Strategie (gilt für alle 14 Strategien)</label>
+        <label>Exit-Strategie (gilt für alle 15 Strategien)</label>
         <select id="exitModeSelect"></select>
       </div>
       <div id="exitParamWrap" style="display:none">
@@ -507,20 +508,20 @@
       — welcher Zeitrahmen als "höher" gilt, ist per Select frei wählbar (Standard: deutlich größerer Sprung statt
       nur der nächstgrößeren Kerze, damit der Trend dort wirklich unabhängig ist). Swing-Breakout: Wechsel nur bei
       Schlusskurs jenseits des letzten Swing-Hochs/-Tiefs, statt nur einer Indikator-Schwelle. Alle Filter einzeln
-      an/abschaltbar, kombinierbar, gelten für alle 14 Strategien.
+      an/abschaltbar, kombinierbar, gelten für alle 15 Strategien.
     </div>
   </div>
 </div>
 
 <div class="bottom-note">
   Live-Kerzenchart über die öffentliche Binance-API (BTCEUR / ETHEUR / SOLEUR) mit Fadenkreuz-Cursor, EMAs, Fair-Value-Gaps
-  und Fibonacci-Retracement. Standardmäßig laufen die 14 Strategien immer long ODER short, Ausstieg = nächstes Gegensignal
+  und Fibonacci-Retracement. Standardmäßig laufen die 15 Strategien immer long ODER short, Ausstieg = nächstes Gegensignal
   (reine Annahme, keine echte Exit-Logik). Über das Exit-Strategie-Banner unter dem Chart lässt sich das für alle 10
   Strategien gemeinsam auf ein fixes Stop-Loss/Take-Profit, einen ATR-Trailing-Stop oder ein Zeitlimit umstellen — dann
   kann eine Position auch zwischenzeitlich flach sein. Der Chart zeigt
-  standardmäßig die Signale aller 14 Strategien gleichzeitig (per Dropdown auf eine einzelne Strategie einschränkbar); das
+  standardmäßig die Signale aller 15 Strategien gleichzeitig (per Dropdown auf eine einzelne Strategie einschränkbar); das
   Hover-Banner oben rechts nennt beim Darüberfahren die genauen auslösenden Strategien. Die Alarm-Blöcke scannen
-  alle 14 Strategien je Coin auf dem eingestellten Zeitrahmen: bei Intervallen bis 30 Minuten zeitbasiert (30-Min-Fenster),
+  alle 15 Strategien je Coin auf dem eingestellten Zeitrahmen: bei Intervallen bis 30 Minuten zeitbasiert (30-Min-Fenster),
   bei größeren Intervallen kerzenbasiert (letzte 15 Kerzen), jeweils mit Uhrzeit, neueste zuerst. Live-Preis läuft über
   einen Binance-WebSocket (Fallback: Polling) und färbt sich grün/rot je nach Kursrichtung. Zoom per Mausrad oder Buttons
   hält die neueste Kerze am rechten Rand fest. Historie wird beim Zurückscrollen/-zoomen automatisch im Hintergrund
@@ -628,7 +629,7 @@
   </div>
   <div id="reliabilityBestComboWrap"></div>
   <div class="footnote">
-    Testet zusätzlich alle 8 Exit-Modi (nicht nur den oben aktuell eingestellten) je Strategie und Zeitrahmen und
+    Testet zusätzlich alle 9 Exit-Modi (nicht nur den oben aktuell eingestellten) je Strategie und Zeitrahmen und
     zeigt pro Zeitrahmen, welche Entry+Exit-Kombination den höchsten Reliability-Score erreicht. Ist "Filter mit
     einbeziehen" aktiv, wird zusätzlich für genau diese Gewinner-Kombination je Zeitrahmen die beste Einstellung
     der vier Entry-Filter gesucht (dieselbe zweistufige Idee wie beim Kombinationsoptimierer oben, hier aber
@@ -671,7 +672,7 @@
     unten) — Tests/Änderungen im Analyse-Tab wirken sich nicht mehr auf die laufende Automatik aus. Ein
     Strategie-/Zeitrahmen-Wechsel hier betrifft nur <strong>neue</strong> Einstiege — eine bereits offene Position
     bleibt bis zu ihrem Ausstieg an die Strategie/den Zeitrahmen "eingefroren", mit der/dem sie eröffnet wurde. Im
-    Modus <strong>„Trendscore"</strong> steuert statt einer Einzelstrategie der gewichtete Konsens aller 11 Strategien
+    Modus <strong>„Trendscore"</strong> steuert statt einer Einzelstrategie der gewichtete Konsens aller 12 Strategien
     (siehe Trendscore-Button/-Kästchen im Analyse-Tab) Ein- und Ausstieg; eine so eröffnete Position bleibt ebenfalls
     an dieses Konsens-Signal "eingefroren", auch wenn der Modus später gewechselt wird. Prüft
     alle 30 Sekunden (und sofort beim Zurückkehren in den Tab) für alle aktiven Coins, ob die maßgebliche
@@ -690,7 +691,7 @@
   <div class="exit-banner">
     <div class="exit-banner-row">
       <div>
-        <label>Exit-Strategie (gilt für alle 14 Strategien, nur Automatik)</label>
+        <label>Exit-Strategie (gilt für alle 15 Strategien, nur Automatik)</label>
         <select id="autoExitModeSelect"></select>
       </div>
       <div id="autoExitParamWrap" style="display:none">
@@ -822,7 +823,7 @@
   <div class="exit-banner-desc">
     Fragt alle 30 Sekunden die öffentlichen, offenen Perp-Positionen der angegebenen Hyperliquid-Wallet ab
     (<code>clearinghouseState</code> — öffentlich einsehbar, kein API-Key nötig) und bildet neu auftauchende bzw.
-    verschwindende Positionen als eigenständige Paper-Trades nach, komplett unabhängig von den 14 Strategien oben.
+    verschwindende Positionen als eigenständige Paper-Trades nach, komplett unabhängig von den 15 Strategien oben.
     Die Rendite bei Schließung ist eine <strong>Näherung</strong> aus dem zuletzt bekannten unrealisierten
     Gewinn/Verlust der Wallet (unrealizedPnl ÷ Positionswert), nicht der exakte Fill-Preis. Reine Beobachtung,
     keine echte Order-Ausführung, kein Bezug zu einem eigenen Bitvavo-/Binance-/Hyperliquid-Konto. Vergangene
@@ -974,7 +975,8 @@ const STRAT_LABELS = {
   mlsupertrend: "ML Adaptive Supertrend (K-Means)",
   halftrend:  "HalfTrend (BigBeluga)",
   mtfday:     "MTF-Day-Korridor",
-  mtfswing:   "MTF-Swing-Korridor"
+  mtfswing:   "MTF-Swing-Korridor",
+  supertrendha: "Supertrend MTF Heikin Ashi"
 };
 const STRAT_LABELS_FULL = {
   sma:        "SMA-Crossover (Trendfolge)",
@@ -990,7 +992,8 @@ const STRAT_LABELS_FULL = {
   mlsupertrend: "ML Adaptive Supertrend (K-Means-Volatilitätsregime, Trendfolge)",
   halftrend:  "HalfTrend Long/Short Signal Engine (Trendfolge, Hysterese-Kanal, Portierung nach BigBeluga/everget)",
   mtfday:     "MTF-Day-Korridor (24-Kerzen-Korridor des übergeordneten Zeitrahmens + Einstiegstrigger)",
-  mtfswing:   "MTF-Swing-Korridor (Swing-Punkt-Korridor des übergeordneten Zeitrahmens + Einstiegstrigger)"
+  mtfswing:   "MTF-Swing-Korridor (Swing-Punkt-Korridor des übergeordneten Zeitrahmens + Einstiegstrigger)",
+  supertrendha: "Supertrend MTF Heikin Ashi (Heikin-Ashi-Supertrend + höherer Zeitrahmen als Bestätigung, Portierung nach LonesomeTheBlue)"
 };
 const EMA_CONFIGS = [
   {period:9,   color:'#ffe9a8', label:'EMA 9'},
@@ -1025,7 +1028,9 @@ const EXIT_MODES = {
   adaptive: { label:'Adaptiver Profit-Protect-Exit (Trailing + Breakeven + Reversal)', paramLabel:'ATR-Multiplikator (Trailing-Phase)', paramDefault:3, min:0.5, max:8, step:0.1,
     desc:'Gestaffelter Exit in drei Phasen, gedacht speziell fürs unbeaufsichtigte Automatik-Trading: (1) direkt nach dem Einstieg schützt nur ein ganz normaler ATR-Trailing-Stop (X × ATR(14)) gegen eine sofortige Fehlbewegung — frühe Reversal-Muster werden hier bewusst ignoriert, das ist zu diesem Zeitpunkt meist nur Rauschen um den Einstieg. (2) Sobald der Trade um mindestens 1×ATR im Plus liegt, wird der Stop mindestens auf Breakeven angehoben — ab hier ist der Trade abgesichert, ein Fehlschlag kostet höchstens noch Gebühren/Slippage. (3) Ist dieser Breakeven-Schutz erreicht UND taucht danach ein Candlestick-Umkehrmuster, ein Dreiecks-Ausbruch gegen die Position oder eine RSI-Erschöpfung auf, wird SOFORT ausgestiegen, statt auf den nachlaufenden Trailing-Stop zu warten — genau das soll verhindern, dass bereits erzielter Gewinn erst wieder komplett abgegeben wird, bevor der Exit reagiert. Der ATR-Trailing-Stop selbst läuft die ganze Zeit als letztes Sicherheitsnetz mit.' },
   tpladder: { label:'HalfTrend TP1/TP2/TP3-Leiter (BigBeluga)', paramLabel:'Risiko-Multiplikator (SL-Abstand = ATR(100)/2 × X, TP3 = 3× davon)', paramDefault:3, min:0.5, max:8, step:0.1,
-    desc:'Das eigene Take-Profit/Stop-Loss-System des HalfTrend-Overlays (siehe HalfTrend-Toggle-Button), hier als Exit-Modus für ALLE 14 Strategien nutzbar — z.B. im Automatik-Trading. Bei Einstieg wird ein Risikoabstand = ATR(100)/2 × X festgelegt, TP1/TP2/TP3 liegen im Verhältnis 1×/2×/3× davon entfernt. Anders als beim fixen "Stop-Loss/Take-Profit"-Modus (1:2, sofortiger Exit) schließt die Position hier erst bei TP3 ODER Stop-Loss vollständig — ein bloßes Erreichen von TP1/TP2 allein beendet den Trade noch nicht, die Position bleibt weiter offen in Richtung TP3.' }
+    desc:'Das eigene Take-Profit/Stop-Loss-System des HalfTrend-Overlays (siehe HalfTrend-Toggle-Button), hier als Exit-Modus für ALLE 15 Strategien nutzbar — z.B. im Automatik-Trading. Bei Einstieg wird ein Risikoabstand = ATR(100)/2 × X festgelegt, TP1/TP2/TP3 liegen im Verhältnis 1×/2×/3× davon entfernt. Anders als beim fixen "Stop-Loss/Take-Profit"-Modus (1:2, sofortiger Exit) schließt die Position hier erst bei TP3 ODER Stop-Loss vollständig — ein bloßes Erreichen von TP1/TP2 allein beendet den Trade noch nicht, die Position bleibt weiter offen in Richtung TP3.' },
+  none: { label:'Keine Exit-Strategie (bis Backtest-Ende halten)', paramLabel:null, paramDefault:null,
+    desc:'Steigt beim allerersten Einstiegssignal ein und hält diese EINE Position bis zum Ende der geladenen Historie — kein Stop-Loss, kein Take-Profit, keine Zeit-/Struktur-Grenze und auch KEIN Ausstieg bei einem späteren Gegensignal (anders als "Signalumkehr"). Zeigt die reine Wirkung des allerersten Signals ohne jede Exit-Logik, quasi ein Buy&Hold-Test ab dem ersten Treffer.' }
 };
 let exitMode = 'reversal';
 let exitParam = null;
@@ -1063,6 +1068,7 @@ let showMlSupertrend = false;
 let showHalfTrend = false;
 let showMtfDay = false;
 let showMtfSwing = false;
+let showSupertrendHa = false;
 let showDailyBox = false;
 let showFVG = false;
 let showFib = false;
@@ -1161,7 +1167,7 @@ let autoCoinPaused = {};    // coin -> true, wenn die Automatik für diesen Coin
 // Strategien über ein Vergleichsfenster die beste rollierende Rendite erzielt hat, und bei ausreichendem
 // Vorsprung + Mindesthaltezeit dorthin rotiert. Bewusst mit Sicherheitsbremsen gegen Overfitting/Whipsaw --
 // siehe runAutoTradeDynamicForCoin(). "Trendscore"-Modus: nutzt statt einer Einzelstrategie den gewichteten
-// Konsens aus allen 11 Strategien (siehe computeTrendScoreResult()) als Entry/Exit-Signal -- siehe
+// Konsens aus allen 12 Strategien (siehe computeTrendScoreResult()) als Entry/Exit-Signal -- siehe
 // runAutoTradeTrendScoreForCoin().
 let autoTradeMode = 'fixed';        // 'fixed' | 'dynamic' | 'trendscore'
 let autoDynamicWindow = 100;        // Vergleichsfenster in Kerzen für den rollierenden Rendite-Vergleich
@@ -1190,7 +1196,7 @@ const AUTO_TRADE_LS_KEYS = {
 };
 
 // ---------- Wallet-Copy-Trading (Hyperliquid, experimentell) ----------
-// Eigenständiges, von den 14 Strategien komplett unabhängiges Paper-Trading-Modul: fragt periodisch die
+// Eigenständiges, von den 15 Strategien komplett unabhängiges Paper-Trading-Modul: fragt periodisch die
 // öffentlichen offenen Positionen einer Hyperliquid-Wallet ab (kein API-Key nötig, siehe hlFetchClearinghouseState)
 // und bildet Positions-Änderungen als Trades nach. Läuft nur, wenn hlWalletCopyEnabled true ist und eine
 // syntaktisch gültige Adresse eingetragen wurde.
@@ -1871,6 +1877,123 @@ function computeHalfTrendMultiAssetScan(interval){
     if(lastIdx<0) return { coin, label: meta.label, short: meta.short, status:'loading', trend:null };
     return { coin, label: meta.label, short: meta.short, status:'ok', trend: ht.trendAt[lastIdx]===0 ? 'long' : 'short' };
   });
+}
+
+// ---------- Supertrend MTF Heikin Ashi (Portierung nach LonesomeTheBlue, Mozilla Public License 2.0) ----------
+// Portierung des vom Nutzer bereitgestellten Pine-Script-v4-Quellcodes "Supertrend MTF Heikin Ashi" (© LonesomeTheBlue,
+// veröffentlicht unter der Mozilla Public License 2.0, https://mozilla.org/MPL/2.0/). Zwei unabhängige
+// Supertrend-Linien auf geglätteten Heikin-Ashi-Kerzen: eine auf dem AKTIVEN Zeitrahmen (Haupt-Trendlinie,
+// fließt als Strategie #15 in den Trendscore-Konsens ein) und eine zweite, rein visuelle Bestätigungslinie auf
+// einem automatisch gewählten HÖHEREN Zeitrahmen (mit Kreis-Marker bei Trendwechsel, wie im Original).
+// Statt Pines security(...,[1],lookahead_on)-Trick (Zugriff auf die zuletzt GESCHLOSSENE HTF-Kerze ohne Repaint)
+// nutzt diese Portierung dieselbe bereits im Tool etablierte, kausale Lösung wie computeHigherTFTrend()/
+// computeMtfCorridorSeries(): mapToHigherTF() bildet jede aktive Kerze auf den Index der zugehörigen, bereits
+// geladenen und historisch abgeschlossenen HTF-Kerze ab -- gleiches Ergebnis (keine Zukunftsdaten), ohne Pines
+// spezielle Lookahead-Mechanik nachzubilden.
+const SUPERTREND_HA_ATR_PERIOD = 7, SUPERTREND_HA_MULT = 2.0; // Pine-Original-Defaults ("ATR Period"=7, "ATR Factor"=2.0)
+// Automatische HTF-Zuordnung, an die vom Nutzer mitgelieferte Pine-Ladder angelehnt (1->5, 3->15, 5->15, 15->60,
+// 30->120, 45->120, 60->240, 120->240, 180->240, 240->D, D->W, W->5W, sonst D), aber auf die in diesem Tool
+// tatsächlich existierenden Intervalle (INTERVALS oben) abgebildet, da es z.B. '3m'/'45m'/'2h'/'3h'/'5w' hier
+// nicht gibt -- jeweils auf das nächstsinnvolle, deutlich größere verfügbare Intervall gerundet. Bewusst an 4
+// Stellen (30m, 4h, 1d, 1w) vom naheliegendsten Rundungsergebnis abgewichen, um NIE mit DEFAULT_NEXT_HIGHER_TF
+// (dem Standard-Bezugszeitrahmen des MTF-Filters weiter oben) übereinzustimmen: würden beide auf denselben
+// Zeitrahmen zeigen, würde das bloße Aktivieren des Supertrend-HA-Buttons als Nebeneffekt genau die Kerzendaten
+// nachladen, die der (separate, ggf. aktive) MTF-Filter braucht -- der bis dahin mangels Daten wirkungslos war
+// und dann unerwartet "scharf" würde, ohne dass der Nutzer diesen Filter selbst angefasst hat (auf Nutzerwunsch
+// entkoppelt, nachdem genau das beobachtet wurde: Einstiege änderten sich beim Ein-/Ausschalten des Overlays).
+const SUPERTREND_HA_HTF_MAP = {
+  '1m':'5m', '5m':'15m', '15m':'1h', '30m':'1h', '1h':'4h', '4h':'12h', '12h':'1d', '1d':'3d', '3d':'1w'
+  // '1w'/'1M' haben keinen kollisionsfreien höheren Zeitrahmen mehr übrig (bzw. gar keinen mehr wie '1M' schon
+  // bei DEFAULT_NEXT_HIGHER_TF) -> HTF-Linie dort automatisch aus, statt die Entkopplung durch eine Kollision zu erkaufen.
+};
+// Heikin-Ashi-Kerzen aus normalen OHLC-Daten (rein kausal -- jede Kerze hängt nur von sich selbst und der
+// UNMITTELBAR vorherigen HA-Kerze ab, kein Blick in die Zukunft): HA-Close = Durchschnitt von O/H/L/C, HA-Open =
+// Mittelpunkt der VORHERIGEN HA-Kerze (erste Kerze: Mittelpunkt aus echtem Open/Close), HA-High/-Low = Extremum
+// aus echtem High/Low und den beiden HA-Randwerten.
+function computeHeikinAshi(opens, highs, lows, closes){
+  const n = closes.length;
+  const haOpen = new Array(n).fill(null), haHigh = new Array(n).fill(null);
+  const haLow = new Array(n).fill(null), haClose = new Array(n).fill(null);
+  for(let i=0;i<n;i++){
+    haClose[i] = (opens[i]+highs[i]+lows[i]+closes[i]) / 4;
+    haOpen[i] = i===0 ? (opens[i]+closes[i])/2 : (haOpen[i-1]+haClose[i-1])/2;
+    haHigh[i] = Math.max(highs[i], haOpen[i], haClose[i]);
+    haLow[i] = Math.min(lows[i], haOpen[i], haClose[i]);
+  }
+  return { haOpen, haHigh, haLow, haClose };
+}
+// Die eigentliche Supertrend-Bandberechnung des Pine-Originals -- bewusst NICHT computeSupertrendFromVolSeries()
+// (die bestehende Supertrend-Funktion des Tools, siehe ML Adaptive Supertrend oben) wiederverwendet, weil das
+// Original eine leicht andere Formel nutzt (TUp/TDown ratchen per max()/min() auf Basis des VORHERIGEN
+// Schlusskurses gegen die VORHERIGE eigene Bandgrenze, statt eines Halten-oder-Zurücksetzen-Vergleichs mit der
+// aktuellen Bandgrenze) -- für eine treue Portierung wird hier exakt die Original-Rekursion abgebildet.
+function computeSupertrendHaBand(haHigh, haLow, haClose, period, mult){
+  const n = haClose.length;
+  const atrArr = atr(haHigh, haLow, haClose, period);
+  const up = new Array(n).fill(null), dn = new Array(n).fill(null);
+  const trend = new Array(n).fill(null), trail = new Array(n).fill(null);
+  for(let i=0;i<n;i++){
+    const a = atrArr[i];
+    if(a==null) continue; // wie Pine: solange Atr `na` ist, bleiben TUp/TDown/Trend ebenfalls unbestimmt
+    const mid = (haHigh[i]+haLow[i]) / 2;
+    const rawUp = mid - mult*a, rawDn = mid + mult*a;
+    const prevClose = i>0 ? haClose[i-1] : null;
+    const prevUp = i>0 ? up[i-1] : null, prevDn = i>0 ? dn[i-1] : null;
+    // TUp := c[1] > TUp[1] ? max(Up,TUp[1]) : Up  /  TDown := c[1] < TDown[1] ? min(Dn,TDown[1]) : Dn
+    up[i] = (prevUp!=null && prevClose!=null && prevClose > prevUp) ? Math.max(rawUp, prevUp) : rawUp;
+    dn[i] = (prevDn!=null && prevClose!=null && prevClose < prevDn) ? Math.min(rawDn, prevDn) : rawDn;
+    // Trend := c > TDown[1] ? 1 : c < TUp[1] ? -1 : nz(Trend[1],1)
+    const prevTrend = i>0 ? trend[i-1] : null;
+    if(prevDn!=null && haClose[i] > prevDn) trend[i] = 1;
+    else if(prevUp!=null && haClose[i] < prevUp) trend[i] = -1;
+    else trend[i] = prevTrend != null ? prevTrend : 1;
+    trail[i] = trend[i]===1 ? up[i] : dn[i]; // Trailingsl = Trend==1 ? TUp : TDown
+  }
+  return { atrArr, up, dn, trend, trail };
+}
+// Nur die LOKALE (aktiver Zeitrahmen) Supertrend-Berechnung -- wird sowohl von der Strategie (#15 in
+// buildStrategiesCore, unabhängig vom Chart/Overlay-Button) als auch vom HTF-Wrapper unten für die jeweils
+// eigene Kerzenreihe genutzt.
+function computeSupertrendHaLocal(opens, highs, lows, closes){
+  const ha = computeHeikinAshi(opens, highs, lows, closes);
+  const band = computeSupertrendHaBand(ha.haHigh, ha.haLow, ha.haClose, SUPERTREND_HA_ATR_PERIOD, SUPERTREND_HA_MULT);
+  return { ...ha, ...band };
+}
+let pendingSupertrendHaFetch = {};
+// Lädt bei Bedarf im Hintergrund die Daten des automatisch gewählten höheren Zeitrahmens nach (analog zu
+// computeHigherTFTrend()/ensureMtfCorridorData() oben) -- nur solange der Supertrend-HA-Button aktiv ist.
+function ensureSupertrendHaData(coin, interval){
+  const htfInterval = SUPERTREND_HA_HTF_MAP[interval];
+  if(!htfInterval) return;
+  const key = coin+'::'+htfInterval;
+  if(ohlcCache[key] || pendingSupertrendHaFetch[key]) return;
+  pendingSupertrendHaFetch[key] = true;
+  ensureData(coin, htfInterval).then(()=>{
+    delete pendingSupertrendHaFetch[key];
+    if(activeCoin===coin && activeInterval===interval && showSupertrendHa){
+      refreshChartDatasets(); drawChart();
+    }
+  }).catch(()=>{ delete pendingSupertrendHaFetch[key]; });
+}
+// Bündelt lokale + HTF-Supertrend-Linie für den Chart-Overlay. Die HTF-Linie wird auf der vollen, bereits
+// geladenen Historie des höheren Zeitrahmens berechnet und per mapToHigherTF() auf jede aktive Kerze abgebildet
+// (kausal, siehe Kommentar oben) -- fehlen die HTF-Daten noch (nicht geladen), liefert die Funktion trotzdem die
+// lokale Linie, nur ohne HTF-Teil (htf: null), statt zu blockieren; ensureSupertrendHaData() stößt das
+// Nachladen an.
+function computeSupertrendMtfHeikinAshi(coin, interval){
+  const data = ohlcCache[coin+'::'+interval];
+  if(!data) return null;
+  const local = computeSupertrendHaLocal(data.opens, data.highs, data.lows, data.closes);
+
+  const htfInterval = SUPERTREND_HA_HTF_MAP[interval];
+  const htfData = htfInterval ? ohlcCache[coin+'::'+htfInterval] : null;
+  let htf = null, activeToHtf = null;
+  if(htfData && htfData.closes.length > SUPERTREND_HA_ATR_PERIOD + 1){
+    const htfLocal = computeSupertrendHaLocal(htfData.opens, htfData.highs, htfData.lows, htfData.closes);
+    activeToHtf = mapToHigherTF(data.times, htfData.times);
+    htf = { ...htfLocal, times: htfData.times };
+  }
+  return { local, htf, activeToHtf, htfInterval };
 }
 
 // ---------- MTF-Overlay (Day-/Swing-Korridor + Einstiegstrigger auf kleinerem Zeitrahmen) ----------
@@ -2556,6 +2679,25 @@ function simulateExits(signal, highs, lows, closes, ctx, mode, param, reentryCoo
   }
   return {trades, exits, position};
 }
+// "Keine Exit-Strategie" (exitMode 'none', auf Nutzerwunsch): hält die ALLERERSTE Position (long oder short) bis
+// zum letzten geladenen Kerzenindex, unabhängig von jedem weiteren Signal -- selbst ein späteres Gegensignal
+// schließt die Position NICHT (anders als 'reversal', das genau darauf reagiert). Liefert dieselbe {trades,
+// exits, position}-Form wie simulateExits(), damit finalizeStrategy() den restlichen Auswertungscode
+// unverändert weiterverwenden kann -- exits bleibt hier bewusst immer leer (kein einziger Ausstieg möglich).
+function simulateNoExit(signal, closes){
+  const n = closes.length;
+  const position = new Array(n).fill(0);
+  const trades = [];
+  let openType = null;
+  for(let i=0;i<n;i++){
+    if(openType === null){
+      if(signal[i] === 1){ openType = 'long'; trades.push({i, type:'long'}); }
+      else if(signal[i] === -1){ openType = 'short'; trades.push({i, type:'short'}); }
+    }
+    if(openType != null) position[i] = openType === 'long' ? 1 : -1;
+  }
+  return { trades, exits: [], position };
+}
 function equityStatsFromPosition(position, closes){
   const n = closes.length;
   const equity = new Array(n).fill(1);
@@ -2574,7 +2716,9 @@ function finalizeStrategy(signal, highs, lows, closes, exitCtx){
   if(exitMode === 'reversal'){
     return positionToResult(signal, closes); // unverändertes Standardverhalten: Exit = nächstes Gegensignal
   }
-  const sim = simulateExits(signal, highs, lows, closes, exitCtx, exitMode, exitParam, entryConfirmBars);
+  const sim = exitMode === 'none'
+    ? simulateNoExit(signal, closes) // kein Exit-Kriterium -- hält die erste Position bis zum Ende
+    : simulateExits(signal, highs, lows, closes, exitCtx, exitMode, exitParam, entryConfirmBars);
   const {equity, maxDD} = equityStatsFromPosition(sim.position, closes);
   const n = closes.length;
   const totalReturn = equity[n-1]-1;
@@ -2930,7 +3074,7 @@ function buildStrategiesCore(coin, interval, key){
   // Risikologik des Originalskripts wird UNABHÄNGIG davon separat fürs Chart-Overlay simuliert (siehe
   // computeHalfTrendFull()/drawHalfTrendOverlay()). Fließt bewusst NICHT in den Trendscore-Konsens ein (siehe
   // TRENDSCORE_EXCLUDED_STRATS/computeTrendScoreWeights()) -- auf Nutzerwunsch als eigenständige, gleichwertige
-  // Einzelstrategie, ohne den bestehenden 11-Strategien-Konsens zu verändern.
+  // Einzelstrategie, ohne den bestehenden 12-Strategien-Konsens zu verändern.
   {
     const ht = computeHalfTrend(highs, lows, closes);
     const position = ht.trendAt.map(t => t===0 ? 1 : (t===1 ? -1 : 0));
@@ -2955,6 +3099,18 @@ function buildStrategiesCore(coin, interval, key){
     const mtfSwing = computeMtfCorridorSeries(coin, interval, 'swing');
     const positionSwing = mtfSwing ? mtfSwing.rawPosition : new Array(n).fill(0);
     strategies.mtfswing = finalizeStrategy(applyEntryFilters(positionSwing, entryCtx), highs, lows, closes, exitCtx);
+  }
+  // 15. Supertrend MTF Heikin Ashi (Portierung nach LonesomeTheBlue) -- siehe computeSupertrendHaLocal() weiter
+  // oben. Long, solange die auf Heikin-Ashi-Kerzen berechnete lokale Trailing-Stop-Linie bullisch ist (Trend=1
+  // im Original), Short während bärisch (Trend=-1). Nutzt bewusst NUR die lokale Linie als Signal (wie der
+  // Haupt-Plot im Original) -- die HTF-Bestätigungslinie bleibt ein rein visueller Zusatz im Chart-Overlay, ohne
+  // eigene Strategie-Position. Fließt (anders als HalfTrend/MTF-Overlay) in den Trendscore-Konsens ein -- gleiches
+  // Prinzip wie ML Adaptive Supertrend: reiner Band-Flip ohne eigenes TP/SL-System, das mit dem global gewählten
+  // Exit-Modus kollidieren könnte.
+  {
+    const st = computeSupertrendHaLocal(opens, highs, lows, closes);
+    const position = st.trend.map(t => t != null ? t : 0);
+    strategies.supertrendha = finalizeStrategy(applyEntryFilters(position, entryCtx), highs, lows, closes, exitCtx);
   }
 
   strategyCache[key] = strategies;
@@ -3230,7 +3386,7 @@ function describePattern(patterns){
   return { title: 'Kein Muster erkannt', text: 'Weder ein Candlestick-Muster an der letzten Kerze noch ein Dreiecksmuster in den letzten bestätigten Swing-Punkten.' };
 }
 
-// ---------- Trendscore: gewichteter Konsens aus allen 11 Strategien ----------
+// ---------- Trendscore: gewichteter Konsens aus allen 12 Strategien ----------
 // Bewusst KEINE eigene Strategie/kein eigener Dropdown-Eintrag -- eine rein additive Zusammenfassung der bereits über
 // buildStrategies() vorhandenen Ergebnisse, nur über einen eigenen Chart-Overlay-Button sichtbar/aktivierbar.
 // Gewichtung nach eigener Backtest-Performance: jede Strategie zählt proportional zu 1 + ihrer Überrendite
@@ -3722,6 +3878,80 @@ function drawMlSupertrendOverlay(ctx, mlst, d, iFrom, iTo, scaleX, scaleY, xStep
   }
   ctx.restore();
 }
+// Farben angelehnt an die Original-Pine-Farben (lokal: lime/red, HTF: blue/red).
+const SUPERTREND_HA_COLORS = { localBull: '#00e676', localBear: '#f85149', htfBull: '#2f81f7', htfBear: '#f85149' };
+// Zeichnet das Supertrend-MTF-Heikin-Ashi-Overlay: lokale Trendlinie (dünn, grün/rot) + HTF-Bestätigungslinie
+// (dicker, blau/rot) + Kreis-Marker an jedem HTF-Trendwechsel -- wie die zwei plot()-Aufrufe + die beiden
+// plot.style_circles-Aufrufe im Original, nur ohne Pines eine-Kerze-Lücke am exakten Flip-Bar (kosmetische
+// Vereinfachung, siehe Kommentar bei computeSupertrendHaBand() weiter oben) und im selben durchgehenden
+// Segment-Zeichenstil wie die übrigen Trendfolge-Overlays dieses Tools (ML Adaptive Supertrend/HalfTrend).
+function drawSupertrendHaOverlay(ctx, st, d, iFrom, iTo, scaleX, scaleY, xStep){
+  ctx.save();
+  const local = st.local;
+  let segStart = null, segTrend = null;
+  function flushLocal(segEndExclusive){
+    if(segStart==null || segEndExclusive<=segStart) return;
+    ctx.strokeStyle = segTrend===1 ? SUPERTREND_HA_COLORS.localBull : SUPERTREND_HA_COLORS.localBear;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    let started=false;
+    for(let j=segStart;j<segEndExclusive;j++){
+      if(local.trail[j]==null) continue;
+      const x=scaleX(j), y=scaleY(local.trail[j]);
+      if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+  }
+  for(let i=iFrom;i<=iTo;i++){
+    const t = local.trend[i];
+    if(t==null){ flushLocal(i); segStart=null; segTrend=null; continue; }
+    if(segTrend==null){ segStart=i; segTrend=t; }
+    else if(t!==segTrend){ flushLocal(i); segStart=i; segTrend=t; }
+  }
+  flushLocal(iTo+1);
+
+  if(st.htf && st.activeToHtf){
+    const htf = st.htf, map = st.activeToHtf;
+    let hSegStart = null, hSegTrend = null;
+    function flushHtf(segEndExclusive){
+      if(hSegStart==null || segEndExclusive<=hSegStart) return;
+      ctx.strokeStyle = hSegTrend===1 ? SUPERTREND_HA_COLORS.htfBull : SUPERTREND_HA_COLORS.htfBear;
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      let started=false;
+      for(let j=hSegStart;j<segEndExclusive;j++){
+        const hj = map[j];
+        if(hj<0 || htf.trail[hj]==null) continue;
+        const x=scaleX(j), y=scaleY(htf.trail[hj]);
+        if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y);
+      }
+      ctx.stroke();
+    }
+    for(let i=iFrom;i<=iTo;i++){
+      const hj = map[i];
+      const t = hj>=0 ? htf.trend[hj] : null;
+      if(t==null){ flushHtf(i); hSegStart=null; hSegTrend=null; continue; }
+      if(hSegTrend==null){ hSegStart=i; hSegTrend=t; }
+      else if(t!==hSegTrend){ flushHtf(i); hSegStart=i; hSegTrend=t; }
+    }
+    flushHtf(iTo+1);
+
+    // Kreis-Marker genau an der aktiven Kerze, an der zum ersten Mal eine neue (bereits geschlossene) HTF-Kerze
+    // mit geändertem Trend sichtbar wird -- entspricht Trend[1]!=Trend im Original, nur je aktiver Kerze bewertet.
+    for(let i=Math.max(iFrom,1); i<=iTo; i++){
+      const hj = map[i], hjPrev = map[i-1];
+      if(hj<0 || hj===hjPrev) continue;
+      const t = htf.trend[hj], prevT = hj>0 ? htf.trend[hj-1] : null;
+      if(t==null || prevT==null || t===prevT) continue;
+      const x = scaleX(i), y = scaleY(htf.trail[hj]);
+      ctx.fillStyle = t===1 ? SUPERTREND_HA_COLORS.htfBull : SUPERTREND_HA_COLORS.htfBear;
+      ctx.beginPath();
+      ctx.arc(x, y, 4, 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
 const HALFTREND_COLORS = { bull: { line:'#3fb950', fill:'rgba(63,185,80,0.12)' }, bear: { line:'#f85149', fill:'rgba(248,81,73,0.12)' } };
 // Zeichnet das komplette HalfTrend-Overlay unter einem einzigen Button (wie explizit gewünscht): HalfTrend-Linie
 // inkl. ATR-Kanalbänder (Farbe je nach Trend), Dreieck-Marker mit LONG/SHORT-Beschriftung an jedem Trendwechsel,
@@ -4095,9 +4325,17 @@ function drawTrendScoreOverlay(ctx, trendScore, d, iFrom, iTo, scaleX, scaleY){
     ctx.stroke();
   }
   // Einstiegs-Raute: eigene Form (Raute statt Dreieck) UND long/short-Farbcodierung wie die 9 Strategie-Marker,
-  // damit auf einen Blick erkennbar ist, ob der Konsens gerade long oder short eröffnet hat.
-  trendScore.trades.forEach(t=>{
+  // damit auf einen Blick erkennbar ist, ob der Konsens gerade long oder short eröffnet hat. Zeigt NUR einen
+  // Marker, wenn sich die Richtung gegenüber dem vorherigen Trade tatsächlich ändert (auf Nutzerwunsch, analog
+  // zum MTF-Overlay) -- der gewählte Exit-Modus kann sonst mehrfach hintereinander in dieselbe Richtung
+  // aus-/wiedereinsteigen (z.B. Stop-Out + sofortiger Re-Entry, ohne dass sich der Konsens selbst gedreht hätte),
+  // was sonst mehrere Rauten in Folge erzeugen würde, obwohl der Trend die ganze Zeit gleich blieb. trendScore.
+  // trades ist chronologisch sortiert (siehe finalizeStrategy()), daher reicht der Vergleich mit dem jeweils
+  // VORHERIGEN Eintrag im GESAMTEN Array -- unabhängig davon, ob dieser gerade sichtbar ist oder nicht.
+  trendScore.trades.forEach((t, idx)=>{
     if(t.i < iFrom || t.i > iTo) return;
+    const prevType = idx > 0 ? trendScore.trades[idx-1].type : null;
+    if(t.type === prevType) return;
     const x = scaleX(t.i);
     const isLong = t.type === 'long';
     const y = isLong ? scaleY(d.lows[t.i]) - 16 : scaleY(d.highs[t.i]) + 16;
@@ -4321,6 +4559,18 @@ function drawChart(){
       });
     }
   });
+  if(showSupertrendHa && chart.$supertrendHa){
+    const st = chart.$supertrendHa;
+    for(let i=view.start; i<=view.end; i++){
+      const v = st.local.trail[i];
+      if(v!=null){ if(v<lo) lo=v; if(v>hi) hi=v; }
+      if(st.htf && st.activeToHtf){
+        const hj = st.activeToHtf[i];
+        const hv = hj>=0 ? st.htf.trail[hj] : null;
+        if(hv!=null){ if(hv<lo) lo=hv; if(hv>hi) hi=hv; }
+      }
+    }
+  }
   if(showDailyBox && chart.$dailyBox){
     chart.$dailyBox.forEach(box=>{
       if(box.endIdx < view.start || box.startIdx > view.end) return;
@@ -4360,6 +4610,7 @@ function drawChart(){
   if(showHalfTrend && chart.$halfTrend) drawHalfTrendOverlay(ctx, chart.$halfTrend, d, iFrom, iTo, scaleX, scaleY, xStep);
   if(showMtfDay && chart.$mtfDay) drawMtfCorridorOverlay(ctx, chart.$mtfDay, d, iFrom, iTo, scaleX, scaleY, xStep, 'day');
   if(showMtfSwing && chart.$mtfSwing) drawMtfCorridorOverlay(ctx, chart.$mtfSwing, d, iFrom, iTo, scaleX, scaleY, xStep, 'swing');
+  if(showSupertrendHa && chart.$supertrendHa) drawSupertrendHaOverlay(ctx, chart.$supertrendHa, d, iFrom, iTo, scaleX, scaleY, xStep);
   if(showSwings && chart.$swings) drawSwings(ctx, chart.$swings, d, iFrom, iTo, scaleX, scaleY, layout);
   if(showPatterns && chart.$patterns) drawPatternOverlay(ctx, chart.$patterns, d, iFrom, iTo, scaleX, scaleY);
   if(showTrendScore && chart.$trendScore) drawTrendScoreOverlay(ctx, chart.$trendScore, d, iFrom, iTo, scaleX, scaleY);
@@ -4504,7 +4755,7 @@ function computeOverlayData(){
   const allStrategies = buildStrategies(activeCoin, activeInterval);
   const n = closes.length;
 
-  // "all" = Sammelanzeige: Signale ALLER 14 Strategien werden gemeinsam eingezeichnet, statt nur der einen
+  // "all" = Sammelanzeige: Signale ALLER 15 Strategien werden gemeinsam eingezeichnet, statt nur der einen
   // im Dropdown gewählten. Pro Kerze wird zusätzlich gemerkt, welche Strategie(n) dort ausgelöst haben, damit
   // das Hover-Banner das transparent macht.
   const keysToShow = stratKey === 'all' ? Object.keys(allStrategies) : stratKey === 'none' ? [] : [stratKey];
@@ -4571,8 +4822,9 @@ function computeChartMeta(d){
   // Jeweils nur berechnen, wenn der zugehörige Overlay-Button aktiv ist (spart Rechenzeit, wenn ungenutzt).
   const mtfDay = showMtfDay ? computeMtfCorridorSeries(activeCoin, activeInterval, 'day') : null;
   const mtfSwing = showMtfSwing ? computeMtfCorridorSeries(activeCoin, activeInterval, 'swing') : null;
+  const supertrendHa = showSupertrendHa ? computeSupertrendMtfHeikinAshi(activeCoin, activeInterval) : null;
   const dailyBox = computeDailyBoxes(d.times, d.opens, d.highs, d.lows, d.closes);
-  return { fvg, markers, ichi, swings, srZones, patterns, trendScore, boll, mlSupertrend, halfTrend, mtfDay, mtfSwing, dailyBox };
+  return { fvg, markers, ichi, swings, srZones, patterns, trendScore, boll, mlSupertrend, halfTrend, mtfDay, mtfSwing, supertrendHa, dailyBox };
 }
 
 function renderChart(){
@@ -4600,6 +4852,7 @@ function renderChart(){
     $halfTrend: meta.halfTrend,
     $mtfDay: meta.mtfDay,
     $mtfSwing: meta.mtfSwing,
+    $supertrendHa: meta.supertrendHa,
     $dailyBox: meta.dailyBox,
     $forecast: (showForecast && activeCoin==='bitcoin' && activeInterval==='1d') ? computeCycleForecast(forecastProjectionDays) : null,
     dragging: null,
@@ -4634,6 +4887,7 @@ function refreshChartDatasets(){
   chart.$halfTrend = meta.halfTrend;
   chart.$mtfDay = meta.mtfDay;
   chart.$mtfSwing = meta.mtfSwing;
+  chart.$supertrendHa = meta.supertrendHa;
   chart.$dailyBox = meta.dailyBox;
   chart.$forecast = (showForecast && activeCoin==='bitcoin' && activeInterval==='1d') ? computeCycleForecast(forecastProjectionDays) : null;
   updatePatternExplainUI();
@@ -4707,7 +4961,7 @@ async function runReliabilityMatrix(){
     catch(e){ console.warn('Reliability-Matrix: Kerzendaten für', iv, 'nicht ladbar:', e); }
   }
   if(statusEl) statusEl.textContent = 'Berechne…';
-  // 'trendscore' (gewichteter Konsens aller 11 Strategien) läuft als zusätzliche Zeile mit -- computeSignalReliability
+  // 'trendscore' (gewichteter Konsens aller 12 Strategien) läuft als zusätzliche Zeile mit -- computeSignalReliability
   // kennt diesen Sonderfall (siehe dort) und wertet computeTrendScoreResult().position statt einer der 9
   // buildStrategies()-Positionen aus.
   const stratKeys = [...Object.keys(STRAT_LABELS), 'trendscore'];
@@ -4734,7 +4988,7 @@ async function runReliabilityMatrix(){
   if(btn) btn.disabled = false;
 }
 
-// Wie runReliabilityMatrix(), testet aber zusätzlich alle 8 EXIT_MODES statt nur den gerade aktiven -- pro
+// Wie runReliabilityMatrix(), testet aber zusätzlich alle 9 EXIT_MODES statt nur den gerade aktiven -- pro
 // Zeitrahmen wird über stratKeys × EXIT_MODES gesucht, welche Entry+Exit-Kombination den höchsten
 // Reliability-Score erreicht (Tie-Break: mehr ausgewertete Signale n gewinnt). Optional (Checkbox): statt der
 // schnellen Näherung eine vollständige, garantiert global optimale Suche über Strategie × Exit × alle 4
@@ -4815,14 +5069,14 @@ async function runReliabilityBestComboPerTimeframe(){
   }
   if(statusEl) statusEl.textContent = `${COINS[coin].label} — beste Entry+Exit-Kombination je Zeitrahmen nach Reliability-Score${includeFilters?' (vollständige Suche inkl. Filter)':''}. Aktuelle Einstellungen unverändert.`;
 }
-// Vollständige, garantiert global optimale Suche für EINEN Zeitrahmen: alle 8 Exit-Modi × alle 288 Entry-Filter-
+// Vollständige, garantiert global optimale Suche für EINEN Zeitrahmen: alle 9 Exit-Modi × alle 288 Entry-Filter-
 // Kombinationen (9 Signalfilter × 4 Volumen × 4 Swing-Breakout × 2 MTF) × ALLE Strategien (inkl. Trendscore-
 // Konsens) gemeinsam durchsucht -- im Gegensatz zur zweistufigen Näherung (erst Strategie+Exit fixieren, dann
 // nur dafür Filter verfeinern) kann hier keine Strategie verpasst werden, die nur mit einer bestimmten
-// Filter-Kombination die beste gewesen wäre. 2304 Durchläufe (8×288) reichen aus, um dabei ALLE Strategien
+// Filter-Kombination die beste gewesen wäre. 2592 Durchläufe (9×288) reichen aus, um dabei ALLE Strategien
 // abzudecken: buildStrategies() cached das komplette {stratKey:result}-Objekt pro coin::interval (strategyCache),
 // daher ist die Auswertung der übrigen 14 stratKeys pro Kombination praktisch kostenlos, sobald der EINE
-// buildStrategies()-Aufruf für diese eine Kombination einmal gelaufen ist -- NICHT 2304×15 Aufrufe. onProgress
+// buildStrategies()-Aufruf für diese eine Kombination einmal gelaufen ist -- NICHT 2592×15 Aufrufe. onProgress
 // (optional) wird alle 8 Kombinationen aufgerufen (UI-Fortschritt + kurze Thread-Atempausen, damit der Browser-
 // Tab währenddessen nicht einfriert). Mutiert exitMode/exitParam/die vier Filter-Variablen/strategyCache -- der
 // Aufrufer ist dafuer verantwortlich, den Ausgangszustand danach wiederherzustellen.
@@ -5541,7 +5795,7 @@ function runAutoTradeFixedForCoin(coin){
   if(desiredDir) openAutoPosition(coin, desiredDir, price, time, autoTradeStratKey, autoTradeInterval, lastIdx);
   return true;
 }
-// Trendscore-Modus: nutzt statt einer Einzelstrategie den gewichteten Konsens aus allen 11 Strategien
+// Trendscore-Modus: nutzt statt einer Einzelstrategie den gewichteten Konsens aus allen 12 Strategien
 // (computeTrendScoreResult, Profil 'auto' -> eigenständige Automatik-Filter/Exit-Einstellungen) als Entry/Exit-
 // Signal. stratKey wird bewusst als literal 'trendscore' eingefroren (kein echter Strategie-Key), damit
 // determineAutoModeForCoin() eine so eröffnete Position immer wieder hierhin routet, unabhängig vom aktuell
@@ -6030,6 +6284,12 @@ function populateControls(){
     if(showMtfSwing) ensureMtfCorridorData(activeCoin, activeInterval);
     if(chart){ refreshChartDatasets(); drawChart(); }
   });
+  document.getElementById('toggleSupertrendHaBtn').addEventListener('click', (e)=>{
+    showSupertrendHa = !showSupertrendHa;
+    e.currentTarget.classList.toggle('active', showSupertrendHa);
+    if(showSupertrendHa) ensureSupertrendHaData(activeCoin, activeInterval);
+    if(chart){ refreshChartDatasets(); drawChart(); }
+  });
   document.getElementById('toggleDailyBoxBtn').addEventListener('click', (e)=>{
     showDailyBox = !showDailyBox;
     e.currentTarget.classList.toggle('active', showDailyBox);
@@ -6153,7 +6413,7 @@ function updateTrendScoreExplainUI(){
   el.style.display = '';
   el.innerHTML = `<strong>Trendscore: ${desc.title}</strong> — Trendlinie: <span style="color:${TREND_SCORE_LONG_COLOR}">blau = long-Konsens</span>, ` +
     `<span style="color:${TREND_SCORE_SHORT_COLOR}">orange = short-Konsens</span>, grau = neutral. Rauten-Marker mit „L"/„S" markieren die ` +
-    `Einstiege des Konsens-Signals. Gewichteter Konsens aus allen 11 Strategien ` +
+    `Einstiege des Konsens-Signals. Gewichteter Konsens aus allen 12 Strategien ` +
     `(Gewicht = 1 + eigene Überrendite ggü. Buy&Hold, mind. 0,02): ${weightList}. Historische Rendite dieses ` +
     `Konsens-Signals im geladenen Zeitraum: ${fmtPct(ts.totalReturn)}, Trefferquote ${ts.winRate!=null ? (ts.winRate*100).toFixed(0)+'%' : '—'}. ` +
     `Reine Heuristik, keine Anlageberatung — über Backtest-Fenster/-Länge lässt sich die Aussagekraft wie bei den ` +
@@ -6337,7 +6597,7 @@ function updateMtfCorridorExplainUI(){
     `Läuft als eigenständige Strategie im Dropdown mit, fließt aber NICHT in den Trendscore-Konsens ein. Reine Heuristik, keine Anlageberatung.`;
 }
 
-// ---------- Exit-Strategie-Auswahl (global für alle 14 Strategien) ----------
+// ---------- Exit-Strategie-Auswahl (global für alle 15 Strategien) ----------
 function applyExitModeChange(){
   strategyCache = {}; // Backtest ist exit-abhängig -> für alle Coins/Intervalle neu berechnen
   Object.keys(COINS).forEach(c=>{
@@ -7097,7 +7357,7 @@ function populateAutoModeUI(){
   [
     {v:'fixed', label:'Feste Strategie'},
     {v:'dynamic', label:'Dynamisch: beste Strategie der letzten N Kerzen'},
-    {v:'trendscore', label:'Trendscore: gewichteter Konsens aller 11 Strategien'}
+    {v:'trendscore', label:'Trendscore: gewichteter Konsens aller 12 Strategien'}
   ].forEach(o=>{
     const opt = document.createElement('option');
     opt.value = o.v; opt.textContent = o.label;
@@ -7355,7 +7615,7 @@ function computeCombinedEquityCurve(perCoin){
 }
 // ---------- Markt-Indikatoren-Panel (Analyse-Tab, unter dem Preis-Chart) ----------
 // Rein deskriptiv, live berechnet aus den bereits geladenen Kerzendaten des aktuell gewählten Coins/Zeitrahmens --
-// unabhängig von den 14 Strategien/Exit-Filtern oben (die verändern hier nichts).
+// unabhängig von den 15 Strategien/Exit-Filtern oben (die verändern hier nichts).
 function fmtVolume(x, coin){
   if(x==null || isNaN(x)) return '—';
   const short = coin && COINS[coin] ? COINS[coin].short : '';
