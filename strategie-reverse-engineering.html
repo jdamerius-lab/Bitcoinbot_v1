@@ -298,7 +298,11 @@
         <div class="toolgroup">
           <button class="secondary" id="zoomInBtn">Zoom +</button>
           <button class="secondary" id="zoomOutBtn">Zoom −</button>
-          <button class="secondary" id="resetZoomBtn">Zoom zurücksetzen</button>
+          <button class="secondary" id="yZoomInBtn" title="Y-Achse reinzoomen -- Preisbereich verkleinern, Kerzen wirken größer (auch: Shift + Mausrad)">Höhe +</button>
+          <button class="secondary" id="yZoomOutBtn" title="Y-Achse rauszoomen -- Preisbereich vergrößern (auch: Shift + Mausrad)">Höhe −</button>
+          <button class="secondary" id="yPanUpBtn" title="Sichtbaren Kursbereich nach oben verschieben (auch: Shift + Ziehen)">Preis ↑</button>
+          <button class="secondary" id="yPanDownBtn" title="Sichtbaren Kursbereich nach unten verschieben (auch: Shift + Ziehen)">Preis ↓</button>
+          <button class="secondary" id="resetZoomBtn" title="Setzt sowohl horizontalen als auch vertikalen Zoom/Verschiebung zurück">Zoom zurücksetzen</button>
         </div>
         <div>
           <button class="secondary" id="loadMoreBtn">+ 1000 ältere Kerzen laden</button>
@@ -311,6 +315,7 @@
           <button class="secondary" id="toggleMtfDayBtn" title="Korridor aus den letzten 24 Kerzen des übergeordneten Zeitrahmens (höchstes Hoch/tiefstes Tief) + Einstiegstrigger auf dem nächstkleineren Zeitrahmen">MTF-Day</button>
           <button class="secondary" id="toggleMtfSwingBtn" title="Korridor aus den letzten 4 Swing-Hochs/-Tiefs des übergeordneten Zeitrahmens + Einstiegstrigger auf dem nächstkleineren Zeitrahmen">MTF-Swing</button>
           <button class="secondary" id="toggleSupertrendHaBtn" title="Supertrend MTF Heikin Ashi (Portierung nach LonesomeTheBlue, Mozilla Public License 2.0) -- Supertrend-Linie auf geglätteten Heikin-Ashi-Kerzen des aktiven Zeitrahmens + Bestätigungslinie/Kreis-Marker auf automatisch gewähltem höheren Zeitrahmen">Supertrend HA</button>
+          <button class="secondary" id="toggleDarvasBoxBtn" title="Darvas-Box (nach Nicolas Darvas, eigene Umsetzung des klassischen Box-Prinzips) -- zeichnet Konsolidierungsboxen (Hoch/Tief über mehrere Kerzen bestätigt) und markiert Ausbrüche nach oben/unten als Long-/Short-Signal">Darvas-Box</button>
           <span id="mtfCorridorTfWrap" style="display:inline-flex;align-items:center;gap:4px">
             <label id="mtfCorridorTfLabel" style="margin:0;font-size:11px">Korridor-Zeitrahmen</label>
             <select id="mtfCorridorTfSelect" style="width:auto"></select>
@@ -434,7 +439,7 @@
     </div>
     <div class="status" id="trendGaugeStatus" style="margin-top:6px">Lade…</div>
     <div class="footnote">
-      Mittelwert des Trendscores (gewichteter Konsens aller 12 Strategien, siehe Trendscore-Overlay) über alle
+      Mittelwert des Trendscores (gewichteter Konsens aller 13 Strategien, siehe Trendscore-Overlay) über alle
       11 Zeitrahmen von 1 Minute bis 1 Monat, jeweils für den gerade aktiven Coin. Reine Heuristik zur
       Einordnung der aktuellen Gesamtlage über kurze bis lange Sicht hinweg, keine Anlageberatung.
     </div>
@@ -442,7 +447,7 @@
 
   <div class="footnote">
     Blaues Dreieck unten = Long-Einstieg, oranges Dreieck oben = Short-Einstieg. Hohler Kreis = Ausstieg. Standardmäßig zeigt
-    der Chart die Signale <strong>aller</strong> 15 Strategien gleichzeitig (Overlay „Alle Strategien"); beim Darüberfahren
+    der Chart die Signale <strong>aller</strong> 16 Strategien gleichzeitig (Overlay „Alle Strategien"); beim Darüberfahren
     verrät das Banner oben rechts, welche Strategie(n) genau ausgelöst haben. Alarm-Blöcke zeigen die jeweils letzten
     Signale je Coin (neu → alt) — bei Intervallen bis 30 Min zeitbasiert (30-Minuten-Fenster), bei größeren Intervallen
     kerzenbasiert (letzte 15 Kerzen), da ein festes Zeitfenster dort zu schnell leerläuft. Ältere Signale bleiben trotzdem
@@ -462,7 +467,7 @@
   <div class="exit-banner">
     <div class="exit-banner-row">
       <div>
-        <label>Exit-Strategie (gilt für alle 15 Strategien)</label>
+        <label>Exit-Strategie (gilt für alle 16 Strategien)</label>
         <select id="exitModeSelect"></select>
       </div>
       <div id="exitParamWrap" style="display:none">
@@ -508,20 +513,20 @@
       — welcher Zeitrahmen als "höher" gilt, ist per Select frei wählbar (Standard: deutlich größerer Sprung statt
       nur der nächstgrößeren Kerze, damit der Trend dort wirklich unabhängig ist). Swing-Breakout: Wechsel nur bei
       Schlusskurs jenseits des letzten Swing-Hochs/-Tiefs, statt nur einer Indikator-Schwelle. Alle Filter einzeln
-      an/abschaltbar, kombinierbar, gelten für alle 15 Strategien.
+      an/abschaltbar, kombinierbar, gelten für alle 16 Strategien.
     </div>
   </div>
 </div>
 
 <div class="bottom-note">
   Live-Kerzenchart über die öffentliche Binance-API (BTCEUR / ETHEUR / SOLEUR) mit Fadenkreuz-Cursor, EMAs, Fair-Value-Gaps
-  und Fibonacci-Retracement. Standardmäßig laufen die 15 Strategien immer long ODER short, Ausstieg = nächstes Gegensignal
+  und Fibonacci-Retracement. Standardmäßig laufen die 16 Strategien immer long ODER short, Ausstieg = nächstes Gegensignal
   (reine Annahme, keine echte Exit-Logik). Über das Exit-Strategie-Banner unter dem Chart lässt sich das für alle 10
   Strategien gemeinsam auf ein fixes Stop-Loss/Take-Profit, einen ATR-Trailing-Stop oder ein Zeitlimit umstellen — dann
   kann eine Position auch zwischenzeitlich flach sein. Der Chart zeigt
-  standardmäßig die Signale aller 15 Strategien gleichzeitig (per Dropdown auf eine einzelne Strategie einschränkbar); das
+  standardmäßig die Signale aller 16 Strategien gleichzeitig (per Dropdown auf eine einzelne Strategie einschränkbar); das
   Hover-Banner oben rechts nennt beim Darüberfahren die genauen auslösenden Strategien. Die Alarm-Blöcke scannen
-  alle 15 Strategien je Coin auf dem eingestellten Zeitrahmen: bei Intervallen bis 30 Minuten zeitbasiert (30-Min-Fenster),
+  alle 16 Strategien je Coin auf dem eingestellten Zeitrahmen: bei Intervallen bis 30 Minuten zeitbasiert (30-Min-Fenster),
   bei größeren Intervallen kerzenbasiert (letzte 15 Kerzen), jeweils mit Uhrzeit, neueste zuerst. Live-Preis läuft über
   einen Binance-WebSocket (Fallback: Polling) und färbt sich grün/rot je nach Kursrichtung. Zoom per Mausrad oder Buttons
   hält die neueste Kerze am rechten Rand fest. Historie wird beim Zurückscrollen/-zoomen automatisch im Hintergrund
@@ -672,7 +677,7 @@
     unten) — Tests/Änderungen im Analyse-Tab wirken sich nicht mehr auf die laufende Automatik aus. Ein
     Strategie-/Zeitrahmen-Wechsel hier betrifft nur <strong>neue</strong> Einstiege — eine bereits offene Position
     bleibt bis zu ihrem Ausstieg an die Strategie/den Zeitrahmen "eingefroren", mit der/dem sie eröffnet wurde. Im
-    Modus <strong>„Trendscore"</strong> steuert statt einer Einzelstrategie der gewichtete Konsens aller 12 Strategien
+    Modus <strong>„Trendscore"</strong> steuert statt einer Einzelstrategie der gewichtete Konsens aller 13 Strategien
     (siehe Trendscore-Button/-Kästchen im Analyse-Tab) Ein- und Ausstieg; eine so eröffnete Position bleibt ebenfalls
     an dieses Konsens-Signal "eingefroren", auch wenn der Modus später gewechselt wird. Prüft
     alle 30 Sekunden (und sofort beim Zurückkehren in den Tab) für alle aktiven Coins, ob die maßgebliche
@@ -691,7 +696,7 @@
   <div class="exit-banner">
     <div class="exit-banner-row">
       <div>
-        <label>Exit-Strategie (gilt für alle 15 Strategien, nur Automatik)</label>
+        <label>Exit-Strategie (gilt für alle 16 Strategien, nur Automatik)</label>
         <select id="autoExitModeSelect"></select>
       </div>
       <div id="autoExitParamWrap" style="display:none">
@@ -823,7 +828,7 @@
   <div class="exit-banner-desc">
     Fragt alle 30 Sekunden die öffentlichen, offenen Perp-Positionen der angegebenen Hyperliquid-Wallet ab
     (<code>clearinghouseState</code> — öffentlich einsehbar, kein API-Key nötig) und bildet neu auftauchende bzw.
-    verschwindende Positionen als eigenständige Paper-Trades nach, komplett unabhängig von den 15 Strategien oben.
+    verschwindende Positionen als eigenständige Paper-Trades nach, komplett unabhängig von den 16 Strategien oben.
     Die Rendite bei Schließung ist eine <strong>Näherung</strong> aus dem zuletzt bekannten unrealisierten
     Gewinn/Verlust der Wallet (unrealizedPnl ÷ Positionswert), nicht der exakte Fill-Preis. Reine Beobachtung,
     keine echte Order-Ausführung, kein Bezug zu einem eigenen Bitvavo-/Binance-/Hyperliquid-Konto. Vergangene
@@ -976,7 +981,8 @@ const STRAT_LABELS = {
   halftrend:  "HalfTrend (BigBeluga)",
   mtfday:     "MTF-Day-Korridor",
   mtfswing:   "MTF-Swing-Korridor",
-  supertrendha: "Supertrend MTF Heikin Ashi"
+  supertrendha: "Supertrend MTF Heikin Ashi",
+  darvas:     "Darvas-Box"
 };
 const STRAT_LABELS_FULL = {
   sma:        "SMA-Crossover (Trendfolge)",
@@ -993,7 +999,8 @@ const STRAT_LABELS_FULL = {
   halftrend:  "HalfTrend Long/Short Signal Engine (Trendfolge, Hysterese-Kanal, Portierung nach BigBeluga/everget)",
   mtfday:     "MTF-Day-Korridor (24-Kerzen-Korridor des übergeordneten Zeitrahmens + Einstiegstrigger)",
   mtfswing:   "MTF-Swing-Korridor (Swing-Punkt-Korridor des übergeordneten Zeitrahmens + Einstiegstrigger)",
-  supertrendha: "Supertrend MTF Heikin Ashi (Heikin-Ashi-Supertrend + höherer Zeitrahmen als Bestätigung, Portierung nach LonesomeTheBlue)"
+  supertrendha: "Supertrend MTF Heikin Ashi (Heikin-Ashi-Supertrend + höherer Zeitrahmen als Bestätigung, Portierung nach LonesomeTheBlue)",
+  darvas:     "Darvas-Box (Konsolidierungsbox + Ausbruchssignal, nach Nicolas Darvas)"
 };
 const EMA_CONFIGS = [
   {period:9,   color:'#ffe9a8', label:'EMA 9'},
@@ -1028,7 +1035,7 @@ const EXIT_MODES = {
   adaptive: { label:'Adaptiver Profit-Protect-Exit (Trailing + Breakeven + Reversal)', paramLabel:'ATR-Multiplikator (Trailing-Phase)', paramDefault:3, min:0.5, max:8, step:0.1,
     desc:'Gestaffelter Exit in drei Phasen, gedacht speziell fürs unbeaufsichtigte Automatik-Trading: (1) direkt nach dem Einstieg schützt nur ein ganz normaler ATR-Trailing-Stop (X × ATR(14)) gegen eine sofortige Fehlbewegung — frühe Reversal-Muster werden hier bewusst ignoriert, das ist zu diesem Zeitpunkt meist nur Rauschen um den Einstieg. (2) Sobald der Trade um mindestens 1×ATR im Plus liegt, wird der Stop mindestens auf Breakeven angehoben — ab hier ist der Trade abgesichert, ein Fehlschlag kostet höchstens noch Gebühren/Slippage. (3) Ist dieser Breakeven-Schutz erreicht UND taucht danach ein Candlestick-Umkehrmuster, ein Dreiecks-Ausbruch gegen die Position oder eine RSI-Erschöpfung auf, wird SOFORT ausgestiegen, statt auf den nachlaufenden Trailing-Stop zu warten — genau das soll verhindern, dass bereits erzielter Gewinn erst wieder komplett abgegeben wird, bevor der Exit reagiert. Der ATR-Trailing-Stop selbst läuft die ganze Zeit als letztes Sicherheitsnetz mit.' },
   tpladder: { label:'HalfTrend TP1/TP2/TP3-Leiter (BigBeluga)', paramLabel:'Risiko-Multiplikator (SL-Abstand = ATR(100)/2 × X, TP3 = 3× davon)', paramDefault:3, min:0.5, max:8, step:0.1,
-    desc:'Das eigene Take-Profit/Stop-Loss-System des HalfTrend-Overlays (siehe HalfTrend-Toggle-Button), hier als Exit-Modus für ALLE 15 Strategien nutzbar — z.B. im Automatik-Trading. Bei Einstieg wird ein Risikoabstand = ATR(100)/2 × X festgelegt, TP1/TP2/TP3 liegen im Verhältnis 1×/2×/3× davon entfernt. Anders als beim fixen "Stop-Loss/Take-Profit"-Modus (1:2, sofortiger Exit) schließt die Position hier erst bei TP3 ODER Stop-Loss vollständig — ein bloßes Erreichen von TP1/TP2 allein beendet den Trade noch nicht, die Position bleibt weiter offen in Richtung TP3.' },
+    desc:'Das eigene Take-Profit/Stop-Loss-System des HalfTrend-Overlays (siehe HalfTrend-Toggle-Button), hier als Exit-Modus für ALLE 16 Strategien nutzbar — z.B. im Automatik-Trading. Bei Einstieg wird ein Risikoabstand = ATR(100)/2 × X festgelegt, TP1/TP2/TP3 liegen im Verhältnis 1×/2×/3× davon entfernt. Anders als beim fixen "Stop-Loss/Take-Profit"-Modus (1:2, sofortiger Exit) schließt die Position hier erst bei TP3 ODER Stop-Loss vollständig — ein bloßes Erreichen von TP1/TP2 allein beendet den Trade noch nicht, die Position bleibt weiter offen in Richtung TP3.' },
   none: { label:'Keine Exit-Strategie (bis Backtest-Ende halten)', paramLabel:null, paramDefault:null,
     desc:'Steigt beim allerersten Einstiegssignal ein und hält diese EINE Position bis zum Ende der geladenen Historie — kein Stop-Loss, kein Take-Profit, keine Zeit-/Struktur-Grenze und auch KEIN Ausstieg bei einem späteren Gegensignal (anders als "Signalumkehr"). Zeigt die reine Wirkung des allerersten Signals ohne jede Exit-Logik, quasi ein Buy&Hold-Test ab dem ersten Treffer.' }
 };
@@ -1069,6 +1076,7 @@ let showHalfTrend = false;
 let showMtfDay = false;
 let showMtfSwing = false;
 let showSupertrendHa = false;
+let showDarvasBox = false;
 let showDailyBox = false;
 let showFVG = false;
 let showFib = false;
@@ -1167,7 +1175,7 @@ let autoCoinPaused = {};    // coin -> true, wenn die Automatik für diesen Coin
 // Strategien über ein Vergleichsfenster die beste rollierende Rendite erzielt hat, und bei ausreichendem
 // Vorsprung + Mindesthaltezeit dorthin rotiert. Bewusst mit Sicherheitsbremsen gegen Overfitting/Whipsaw --
 // siehe runAutoTradeDynamicForCoin(). "Trendscore"-Modus: nutzt statt einer Einzelstrategie den gewichteten
-// Konsens aus allen 12 Strategien (siehe computeTrendScoreResult()) als Entry/Exit-Signal -- siehe
+// Konsens aus allen 13 Strategien (siehe computeTrendScoreResult()) als Entry/Exit-Signal -- siehe
 // runAutoTradeTrendScoreForCoin().
 let autoTradeMode = 'fixed';        // 'fixed' | 'dynamic' | 'trendscore'
 let autoDynamicWindow = 100;        // Vergleichsfenster in Kerzen für den rollierenden Rendite-Vergleich
@@ -1196,7 +1204,7 @@ const AUTO_TRADE_LS_KEYS = {
 };
 
 // ---------- Wallet-Copy-Trading (Hyperliquid, experimentell) ----------
-// Eigenständiges, von den 15 Strategien komplett unabhängiges Paper-Trading-Modul: fragt periodisch die
+// Eigenständiges, von den 16 Strategien komplett unabhängiges Paper-Trading-Modul: fragt periodisch die
 // öffentlichen offenen Positionen einer Hyperliquid-Wallet ab (kein API-Key nötig, siehe hlFetchClearinghouseState)
 // und bildet Positions-Änderungen als Trades nach. Läuft nur, wenn hlWalletCopyEnabled true ist und eine
 // syntaktisch gültige Adresse eingetragen wurde.
@@ -1994,6 +2002,88 @@ function computeSupertrendMtfHeikinAshi(coin, interval){
     htf = { ...htfLocal, times: htfData.times };
   }
   return { local, htf, activeToHtf, htfInterval };
+}
+
+// ---------- Darvas-Box (Nicolas Darvas, "How I Made $2,000,000 in the Stock Market", 1960) ----------
+// Eigene, hier dokumentierte Umsetzung des klassischen Box-Prinzips -- KEIN Portierung eines vom Nutzer
+// bereitgestellten Quellcodes (Darvas' Originalmethode ist eine in Buchform beschriebene, diskretionäre
+// Beobachtungsregel aus den 1950ern, kein Algorithmus) -- analog zum bereits bestehenden ML Adaptive Supertrend
+// oben: eine eigenständige, klar dokumentierte Interpretation desselben GRUNDPRINZIPS.
+// Grundidee: Eine "Box" entsteht aus einer Ober- (Widerstand) und Untergrenze (Unterstützung), die sich erst
+// dann als gültig "versiegeln", wenn der Kurs sie über DARVAS_BOX_CONFIRM_BARS Kerzen hinweg nicht mehr
+// durchbricht -- Darvas beobachtete das ursprünglich über mehrere Tage Kursverlauf ohne neues Hoch/Tief.
+// Bricht der Kurs anschließend NACH OBEN aus der fertigen Box aus, gilt das als Kaufsignal (bei Darvas:
+// Fortsetzung des Aufwärtstrends); bricht er NACH UNTEN durch die Untergrenze, als Verkaufssignal/Stop. Nach
+// jedem Ausbruch beginnt die Suche nach der nächsten Box von vorn -- im Aufwärtstrend "stapeln" sich die Boxen so
+// auf immer höherem Niveau (Darvas' bekanntes Bild). Für dieses Tool bidirektional erweitert (Darvas selbst
+// handelte nur long): ein Ausbruch nach unten wird hier ebenso als eigenständiges Short-Signal gewertet, nicht
+// nur als Exit.
+const DARVAS_BOX_CONFIRM_BARS = 3; // klassischer Darvas-Wert: 3 Kerzen ohne neues Extrem versiegeln eine Boxgrenze
+// Rein kausaler Einzeldurchlauf, drei Phasen je "Box-Versuch": 'seekTop' (höchstes Hoch sammeln, bis es
+// DARVAS_BOX_CONFIRM_BARS Kerzen lang nicht mehr überboten wird) -> 'seekBottom' (danach das tiefste Tief
+// sammeln, bis es ebenso lange nicht mehr unterboten wird -- die Box ist dann komplett) -> 'active' (Box fertig,
+// wartet auf einen Ausbruch). Ein neues Hoch WÄHREND der Tief-Suche (also bevor die Box fertig ist) entwertet den
+// bisherigen Top-Kandidaten -- war ja noch kein echter Widerstand -- und die Suche beginnt beim neuen Hoch neu.
+function computeDarvasBoxes(highs, lows, closes){
+  const n = highs.length;
+  const boxTopAt = new Array(n).fill(null);
+  const boxBottomAt = new Array(n).fill(null);
+  const boxConfirmedAt = new Array(n).fill(false);
+  const signal = new Array(n).fill(0); // 1 = Ausbruch nach oben (Long), -1 = Ausbruch nach unten (Short), sonst gehaltene Position
+
+  let phase = 'seekTop';
+  let candidateTop = null, barsSinceTop = 0;
+  let candidateBottom = null, barsSinceBottom = 0;
+  let sealedTop = null, sealedBottom = null;
+  let pos = 0;
+
+  for(let i=0;i<n;i++){
+    if(phase === 'seekTop'){
+      if(candidateTop === null || highs[i] > candidateTop){
+        candidateTop = highs[i]; barsSinceTop = 0;
+      } else {
+        barsSinceTop++;
+        if(barsSinceTop >= DARVAS_BOX_CONFIRM_BARS){
+          sealedTop = candidateTop;
+          phase = 'seekBottom';
+          candidateBottom = lows[i]; barsSinceBottom = 0;
+        }
+      }
+    } else if(phase === 'seekBottom'){
+      if(highs[i] > sealedTop){
+        // Neues Hoch über dem noch unbestätigten Top, bevor die Box fertig ist -> der alte Top-Kandidat war kein
+        // echter Widerstand, komplett neu vom aktuellen Hoch aus suchen (kein Fehlsignal, keine halbfertige Box).
+        phase = 'seekTop'; candidateTop = highs[i]; barsSinceTop = 0; sealedTop = null;
+      } else if(candidateBottom === null || lows[i] < candidateBottom){
+        candidateBottom = lows[i]; barsSinceBottom = 0;
+      } else {
+        barsSinceBottom++;
+        if(barsSinceBottom >= DARVAS_BOX_CONFIRM_BARS){
+          sealedBottom = candidateBottom;
+          phase = 'active';
+        }
+      }
+    }
+    if(phase === 'active'){
+      boxTopAt[i] = sealedTop; boxBottomAt[i] = sealedBottom; boxConfirmedAt[i] = true;
+      if(closes[i] > sealedTop){
+        signal[i] = 1; pos = 1;
+        // Ausbruch nach oben -> nächste Box auf dem neuen (höheren) Niveau suchen, klassisches "Boxen stapeln".
+        phase = 'seekTop'; candidateTop = highs[i]; barsSinceTop = 0; sealedTop = null; sealedBottom = null;
+        continue;
+      } else if(closes[i] < sealedBottom){
+        signal[i] = -1; pos = -1;
+        // Ausbruch nach unten -> die Konsolidierung ist ungültig geworden, komplett neue Box-Suche von vorn.
+        phase = 'seekTop'; candidateTop = highs[i]; barsSinceTop = 0; sealedTop = null; sealedBottom = null;
+        continue;
+      } else {
+        signal[i] = pos; // innerhalb der Box: bisherige Position halten (wie beim Donchian-Breakout)
+      }
+    } else {
+      signal[i] = pos; // noch keine fertige Box -> bisherige Position halten (anfangs 0)
+    }
+  }
+  return { boxTopAt, boxBottomAt, boxConfirmedAt, signal };
 }
 
 // ---------- MTF-Overlay (Day-/Swing-Korridor + Einstiegstrigger auf kleinerem Zeitrahmen) ----------
@@ -3074,7 +3164,7 @@ function buildStrategiesCore(coin, interval, key){
   // Risikologik des Originalskripts wird UNABHÄNGIG davon separat fürs Chart-Overlay simuliert (siehe
   // computeHalfTrendFull()/drawHalfTrendOverlay()). Fließt bewusst NICHT in den Trendscore-Konsens ein (siehe
   // TRENDSCORE_EXCLUDED_STRATS/computeTrendScoreWeights()) -- auf Nutzerwunsch als eigenständige, gleichwertige
-  // Einzelstrategie, ohne den bestehenden 12-Strategien-Konsens zu verändern.
+  // Einzelstrategie, ohne den bestehenden 13-Strategien-Konsens zu verändern.
   {
     const ht = computeHalfTrend(highs, lows, closes);
     const position = ht.trendAt.map(t => t===0 ? 1 : (t===1 ? -1 : 0));
@@ -3111,6 +3201,14 @@ function buildStrategiesCore(coin, interval, key){
     const st = computeSupertrendHaLocal(opens, highs, lows, closes);
     const position = st.trend.map(t => t != null ? t : 0);
     strategies.supertrendha = finalizeStrategy(applyEntryFilters(position, entryCtx), highs, lows, closes, exitCtx);
+  }
+
+  // Darvas-Box (Nicolas Darvas) als eigene Strategie-Position. Fließt ebenfalls in den Trendscore-Konsens ein --
+  // gleiches Prinzip wie ML Adaptive Supertrend/Supertrend HA: reines Richtungssignal (long/short/flat) ohne
+  // eigenes TP/SL-System.
+  {
+    const dbx = computeDarvasBoxes(highs, lows, closes);
+    strategies.darvas = finalizeStrategy(applyEntryFilters(dbx.signal, entryCtx), highs, lows, closes, exitCtx);
   }
 
   strategyCache[key] = strategies;
@@ -3386,7 +3484,7 @@ function describePattern(patterns){
   return { title: 'Kein Muster erkannt', text: 'Weder ein Candlestick-Muster an der letzten Kerze noch ein Dreiecksmuster in den letzten bestätigten Swing-Punkten.' };
 }
 
-// ---------- Trendscore: gewichteter Konsens aus allen 12 Strategien ----------
+// ---------- Trendscore: gewichteter Konsens aus allen 13 Strategien ----------
 // Bewusst KEINE eigene Strategie/kein eigener Dropdown-Eintrag -- eine rein additive Zusammenfassung der bereits über
 // buildStrategies() vorhandenen Ergebnisse, nur über einen eigenen Chart-Overlay-Button sichtbar/aktivierbar.
 // Gewichtung nach eigener Backtest-Performance: jede Strategie zählt proportional zu 1 + ihrer Überrendite
@@ -3555,6 +3653,30 @@ function computePanViewState(baseState, dxPixels, xStep, n){
   if(start < 0){ start = 0; end = width; }
   if(end > n - 1){ end = n - 1; start = Math.max(0, end - width); }
   return clampViewState({ start, end }, n);
+}
+
+// ---- Vertikale Y-Achsen-Zoom/Verschiebung (auf Nutzerwunsch, unabhängig von der horizontalen Fenster-Logik
+// oben) ----
+// yZoom: 1 = Auto-Fit-Preisbereich wie bisher (Standard), <1 = vertikal reingezoomt (schmalerer Preisbereich,
+// Kerzen wirken größer/gestreckter), >1 = rausgezoomt (weiterer Preisbereich, Kerzen wirken flacher). yOffsetFrac:
+// 0 = am Auto-Fit-Mittelpunkt zentriert (Standard), positiv verschiebt den sichtbaren Bereich nach OBEN (höhere
+// Kurse mittig), negativ nach UNTEN -- als Vielfaches des jeweils AKTUELLEN (schon gezoomten) Anzeigebereichs,
+// damit sich ein Verschieben bei jedem Zoom-Level gleich stark anfühlt statt bei starkem Reinzoomen unbrauchbar
+// winzig zu werden (bzw. beim Rausgezoomt-sein riesige Sprünge zu machen).
+function computeYZoomFactor(currentZoom, factor){
+  return Math.max(0.1, Math.min(8, currentZoom * factor));
+}
+function clampYOffsetFrac(frac){
+  return Math.max(-6, Math.min(6, frac));
+}
+// Wendet yZoom/yOffsetFrac auf einen bereits berechneten Auto-Fit-Preisbereich (inkl. Padding) an. rawLo/rawHi
+// (die ECHTE, ungezoomte Kurs-Spanne der sichtbaren Kerzen) bleiben davon unberührt -- Fibonacci-Retracement &
+// Co. sollen weiterhin an den tatsächlichen Daten hängen, nicht an der kosmetischen Nutzer-Verschiebung.
+function applyYZoomAndOffset(autoLo, autoHi, yZoom, yOffsetFrac){
+  const mid = (autoLo + autoHi) / 2;
+  const half = (autoHi - autoLo) / 2 * yZoom;
+  const shiftedMid = mid + yOffsetFrac * half * 2;
+  return { lo: shiftedMid - half, hi: shiftedMid + half };
 }
 
 // ---------- Hover-Info-Overlay (fest positioniert oben rechts über dem Chart, feste Größe) ----------
@@ -3949,6 +4071,56 @@ function drawSupertrendHaOverlay(ctx, st, d, iFrom, iTo, scaleX, scaleY, xStep){
       ctx.arc(x, y, 4, 0, Math.PI*2);
       ctx.fill();
     }
+  }
+  ctx.restore();
+}
+// Eigene, klar abgesetzte Farbe (Gold/Amber) für die Box selbst -- keine Überschneidung mit den grün/rot/blau/
+// orange-Tönen der übrigen Overlays. Ausbruchspfeile nutzen weiterhin die etablierte Bull/Bear-Konvention
+// (Grün=Long-Ausbruch nach oben, Rot=Short-Ausbruch nach unten), analog zu allen anderen Overlays.
+const DARVAS_BOX_COLORS = { border: '#e0b23c', fill: 'rgba(224,178,60,0.10)', bull: '#3fb950', bear: '#f85149' };
+// Zeichnet das Darvas-Box-Overlay: pro zusammenhängendem Lauf identischer (Top,Bottom)-Werte EIN Rechteck
+// (durchgehend, nicht pro Kerze neu gezeichnet -- vermeidet doppelte Linien), plus EIN Pfeil-Marker genau an der
+// Kerze, an der die Box nach oben (long) oder unten (short) verlassen wird -- selber Pfeilstil/Positionierung wie
+// beim MTF-Overlay (MTF_ARROW_MARKER_POINTS), damit alle Overlays optisch konsistent bleiben.
+function drawDarvasBoxOverlay(ctx, dbx, d, iFrom, iTo, scaleX, scaleY, xStep){
+  ctx.save();
+
+  let segStart = null, segTop = null, segBottom = null;
+  function flushBox(segEndExclusive){
+    if(segStart==null || segEndExclusive<=segStart) return;
+    const x1 = scaleX(segStart), x2 = scaleX(segEndExclusive-1) + xStep;
+    const yTop = scaleY(segTop), yBottom = scaleY(segBottom);
+    ctx.fillStyle = DARVAS_BOX_COLORS.fill;
+    ctx.fillRect(x1, yTop, x2-x1, yBottom-yTop);
+    ctx.strokeStyle = DARVAS_BOX_COLORS.border;
+    ctx.lineWidth = 1.4;
+    ctx.strokeRect(x1, yTop, x2-x1, yBottom-yTop);
+  }
+  for(let i=iFrom;i<=iTo;i++){
+    if(!dbx.boxConfirmedAt[i]){ flushBox(i); segStart=null; segTop=null; segBottom=null; continue; }
+    const top = dbx.boxTopAt[i], bottom = dbx.boxBottomAt[i];
+    if(segStart==null){ segStart=i; segTop=top; segBottom=bottom; }
+    else if(top!==segTop || bottom!==segBottom){ flushBox(i); segStart=i; segTop=top; segBottom=bottom; }
+  }
+  flushBox(iTo+1);
+
+  // Ausbruchs-Pfeil genau an der Kerze, an der ein neues, von der Vorkerze abweichendes Signal auftritt (also am
+  // exakten Breakout-Bar) -- boxTopAt[i]/boxBottomAt[i] halten an dieser Stelle noch die Werte der GERADE
+  // verlassenen Box (Reset auf null erfolgt in computeDarvasBoxes() erst NACH der Signal-Zuweisung).
+  for(let i=Math.max(iFrom,1); i<=iTo; i++){
+    const s = dbx.signal[i], prevS = dbx.signal[i-1];
+    if(s===0 || s===prevS) continue;
+    const ref = s===1 ? dbx.boxTopAt[i] : dbx.boxBottomAt[i];
+    const anchor = ref!=null ? ref : d.closes[i];
+    const x = scaleX(i), y = scaleY(anchor) + (s===1 ? -14 : 14);
+    ctx.fillStyle = s===1 ? DARVAS_BOX_COLORS.bull : DARVAS_BOX_COLORS.bear;
+    ctx.beginPath();
+    MTF_ARROW_MARKER_POINTS.forEach(([dx,dy], idx)=>{
+      const px = x+dx, py = y + (s===1 ? dy : -dy);
+      if(idx===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+    });
+    ctx.closePath();
+    ctx.fill();
   }
   ctx.restore();
 }
@@ -4571,6 +4743,15 @@ function drawChart(){
       }
     }
   }
+  if(showDarvasBox && chart.$darvas){
+    const dbx = chart.$darvas;
+    for(let i=view.start; i<=view.end; i++){
+      if(!dbx.boxConfirmedAt[i]) continue;
+      const top = dbx.boxTopAt[i], bottom = dbx.boxBottomAt[i];
+      if(top!=null){ if(top<lo) lo=top; if(top>hi) hi=top; }
+      if(bottom!=null){ if(bottom<lo) lo=bottom; if(bottom>hi) hi=bottom; }
+    }
+  }
   if(showDailyBox && chart.$dailyBox){
     chart.$dailyBox.forEach(box=>{
       if(box.endIdx < view.start || box.startIdx > view.end) return;
@@ -4587,6 +4768,11 @@ function drawChart(){
   const rawLo = lo, rawHi = hi;
   const yPad = (hi - lo) * 0.08 || Math.max(1, hi*0.01) || 1;
   lo -= yPad; hi += yPad;
+  // Manueller Y-Zoom/-Offset (auf Nutzerwunsch) -- Standardwerte yZoom=1/yOffsetFrac=0 lassen das Auto-Fit-
+  // Verhalten von oben komplett unverändert, erst ein Klick auf Höhe+/-/Hoch/Runter (oder Shift+Wheel/-Drag)
+  // weicht davon ab. rawLo/rawHi (für Fibonacci etc.) bleiben bewusst die ECHTE Daten-Spanne, unbeeinflusst davon.
+  const yView = applyYZoomAndOffset(lo, hi, chart.yZoom ?? 1, chart.yOffsetFrac ?? 0);
+  lo = yView.lo; hi = yView.hi;
   const scaleY = (v) => plotBottom - (v - lo) / (hi - lo) * plotH;
 
   chart.$layout = { plotLeft, plotRight, plotTop, plotBottom, plotW, plotH, xStep, view, lo, hi, rawLo, rawHi };
@@ -4611,6 +4797,7 @@ function drawChart(){
   if(showMtfDay && chart.$mtfDay) drawMtfCorridorOverlay(ctx, chart.$mtfDay, d, iFrom, iTo, scaleX, scaleY, xStep, 'day');
   if(showMtfSwing && chart.$mtfSwing) drawMtfCorridorOverlay(ctx, chart.$mtfSwing, d, iFrom, iTo, scaleX, scaleY, xStep, 'swing');
   if(showSupertrendHa && chart.$supertrendHa) drawSupertrendHaOverlay(ctx, chart.$supertrendHa, d, iFrom, iTo, scaleX, scaleY, xStep);
+  if(showDarvasBox && chart.$darvas) drawDarvasBoxOverlay(ctx, chart.$darvas, d, iFrom, iTo, scaleX, scaleY, xStep);
   if(showSwings && chart.$swings) drawSwings(ctx, chart.$swings, d, iFrom, iTo, scaleX, scaleY, layout);
   if(showPatterns && chart.$patterns) drawPatternOverlay(ctx, chart.$patterns, d, iFrom, iTo, scaleX, scaleY);
   if(showTrendScore && chart.$trendScore) drawTrendScoreOverlay(ctx, chart.$trendScore, d, iFrom, iTo, scaleX, scaleY);
@@ -4635,6 +4822,20 @@ function zoomByFactor(factor){
   chart.followLive = true; // Zoom ist immer rechtsbündig an der neuesten Kerze verankert
   drawChart();
   maybeAutoLoadMore();
+}
+// Vertikaler Zoom (Höhe +/-) -- auf Nutzerwunsch, unabhängig vom horizontalen Zoom oben. Ändert NUR chart.yZoom,
+// die horizontale Fensterposition (viewState/fullView) bleibt komplett unangetastet.
+function yZoomByFactor(factor){
+  if(!chart) return;
+  chart.yZoom = computeYZoomFactor(chart.yZoom ?? 1, factor);
+  drawChart();
+}
+// Vertikales Verschieben (Preis hoch/runter) über die Buttons -- fester Schritt von 25% des aktuell sichtbaren
+// (schon gezoomten) Preisbereichs pro Klick, damit sich ein Klick bei jedem Zoom-Level ähnlich stark anfühlt.
+function yPanByStep(direction){
+  if(!chart) return;
+  chart.yOffsetFrac = clampYOffsetFrac((chart.yOffsetFrac ?? 0) + direction * 0.25);
+  drawChart();
 }
 
 function attachChartInteraction(canvas){
@@ -4668,19 +4869,33 @@ function attachChartInteraction(canvas){
   canvas.addEventListener('wheel', (e)=>{
     if(!chart) return;
     e.preventDefault();
-    zoomByFactor(e.deltaY < 0 ? 0.85 : (1/0.85));
+    // Shift+Mausrad = vertikaler Zoom (Höhe) statt horizontalem Zoom -- auf Nutzerwunsch, analog zu Shift+Ziehen
+    // weiter unten. Horizontale Fensterposition bleibt dabei unangetastet.
+    if(e.shiftKey) yZoomByFactor(e.deltaY < 0 ? 0.9 : (1/0.9));
+    else zoomByFactor(e.deltaY < 0 ? 0.85 : (1/0.85));
   }, {passive:false});
 
   canvas.addEventListener('mousedown', (e)=>{
     if(!chart || !chart.$layout) return;
-    chart.dragging = { startX: e.clientX, startState: {...chart.$layout.view} };
-    canvas.style.cursor = 'grabbing';
+    // Normales Ziehen verschiebt jetzt IMMER beide Achsen gleichzeitig (horizontal + vertikal, "Chart greifen und
+    // bewegen") -- auf Nutzerwunsch, damit man die Y-Verschiebung direkt mit der Maus machen kann, ohne eine
+    // Zusatztaste zu brauchen. Shift+Ziehen sperrt die X-Achse (rein vertikales Verschieben) für den Fall, dass
+    // man NUR den Preisbereich anpassen will, ohne dabei versehentlich auch durch die Zeit zu scrollen.
+    chart.dragging = {
+      startX: e.clientX, startY: e.clientY, startState: {...chart.$layout.view},
+      yOnly: e.shiftKey, startYOffsetFrac: chart.yOffsetFrac ?? 0, startPlotH: chart.$layout.plotH
+    };
+    canvas.style.cursor = chart.dragging.yOnly ? 'ns-resize' : 'grabbing';
   });
   window.addEventListener('mousemove', (e)=>{
     if(chart && chart.dragging){
-      const dx = e.clientX - chart.dragging.startX;
-      chart.fullView = false;
-      chart.viewState = computePanViewState(chart.dragging.startState, dx, chart.$layout.xStep, chart.n);
+      const dy = e.clientY - chart.dragging.startY;
+      chart.yOffsetFrac = clampYOffsetFrac(chart.dragging.startYOffsetFrac + dy / chart.dragging.startPlotH);
+      if(!chart.dragging.yOnly){
+        const dx = e.clientX - chart.dragging.startX;
+        chart.fullView = false;
+        chart.viewState = computePanViewState(chart.dragging.startState, dx, chart.$layout.xStep, chart.n);
+      }
       drawChart();
     } else if(chart){
       const rect = canvas.getBoundingClientRect();
@@ -4755,7 +4970,7 @@ function computeOverlayData(){
   const allStrategies = buildStrategies(activeCoin, activeInterval);
   const n = closes.length;
 
-  // "all" = Sammelanzeige: Signale ALLER 15 Strategien werden gemeinsam eingezeichnet, statt nur der einen
+  // "all" = Sammelanzeige: Signale ALLER 16 Strategien werden gemeinsam eingezeichnet, statt nur der einen
   // im Dropdown gewählten. Pro Kerze wird zusätzlich gemerkt, welche Strategie(n) dort ausgelöst haben, damit
   // das Hover-Banner das transparent macht.
   const keysToShow = stratKey === 'all' ? Object.keys(allStrategies) : stratKey === 'none' ? [] : [stratKey];
@@ -4819,12 +5034,13 @@ function computeChartMeta(d){
   const boll = computeBollingerBands(d.closes, 20, 2);
   const mlSupertrend = computeMlAdaptiveSupertrend(d.highs, d.lows, d.closes);
   const halfTrend = computeHalfTrendFull(d.highs, d.lows, d.closes);
+  const darvas = computeDarvasBoxes(d.highs, d.lows, d.closes);
   // Jeweils nur berechnen, wenn der zugehörige Overlay-Button aktiv ist (spart Rechenzeit, wenn ungenutzt).
   const mtfDay = showMtfDay ? computeMtfCorridorSeries(activeCoin, activeInterval, 'day') : null;
   const mtfSwing = showMtfSwing ? computeMtfCorridorSeries(activeCoin, activeInterval, 'swing') : null;
   const supertrendHa = showSupertrendHa ? computeSupertrendMtfHeikinAshi(activeCoin, activeInterval) : null;
   const dailyBox = computeDailyBoxes(d.times, d.opens, d.highs, d.lows, d.closes);
-  return { fvg, markers, ichi, swings, srZones, patterns, trendScore, boll, mlSupertrend, halfTrend, mtfDay, mtfSwing, supertrendHa, dailyBox };
+  return { fvg, markers, ichi, swings, srZones, patterns, trendScore, boll, mlSupertrend, halfTrend, darvas, mtfDay, mtfSwing, supertrendHa, dailyBox };
 }
 
 function renderChart(){
@@ -4838,6 +5054,8 @@ function renderChart(){
     fullView: true,               // true = immer [0, n-1] zeigen (entspricht dem alten x.min/max=undefined Auto-Fit)
     viewState: { start: 0, end: Math.max(0, d.closes.length-1) }, // erst relevant, sobald fullView=false wird
     followLive: true,             // nur relevant wenn fullView=false: Fenster bei neuen Kerzen automatisch mitschieben?
+    yZoom: 1,                     // manueller Y-Achsen-Zoom (1 = Auto-Fit, siehe applyYZoomAndOffset()) -- setzt sich bei Coin-/Zeitrahmenwechsel zurück, da sich die Preisskala dabei komplett ändert
+    yOffsetFrac: 0,                // manuelle Y-Achsen-Verschiebung (0 = zentriert, siehe applyYZoomAndOffset())
     n: d.closes.length,
     $data: d,
     $fvg: meta.fvg,
@@ -4853,6 +5071,7 @@ function renderChart(){
     $mtfDay: meta.mtfDay,
     $mtfSwing: meta.mtfSwing,
     $supertrendHa: meta.supertrendHa,
+    $darvas: meta.darvas,
     $dailyBox: meta.dailyBox,
     $forecast: (showForecast && activeCoin==='bitcoin' && activeInterval==='1d') ? computeCycleForecast(forecastProjectionDays) : null,
     dragging: null,
@@ -4888,6 +5107,7 @@ function refreshChartDatasets(){
   chart.$mtfDay = meta.mtfDay;
   chart.$mtfSwing = meta.mtfSwing;
   chart.$supertrendHa = meta.supertrendHa;
+  chart.$darvas = meta.darvas;
   chart.$dailyBox = meta.dailyBox;
   chart.$forecast = (showForecast && activeCoin==='bitcoin' && activeInterval==='1d') ? computeCycleForecast(forecastProjectionDays) : null;
   updatePatternExplainUI();
@@ -4961,7 +5181,7 @@ async function runReliabilityMatrix(){
     catch(e){ console.warn('Reliability-Matrix: Kerzendaten für', iv, 'nicht ladbar:', e); }
   }
   if(statusEl) statusEl.textContent = 'Berechne…';
-  // 'trendscore' (gewichteter Konsens aller 12 Strategien) läuft als zusätzliche Zeile mit -- computeSignalReliability
+  // 'trendscore' (gewichteter Konsens aller 13 Strategien) läuft als zusätzliche Zeile mit -- computeSignalReliability
   // kennt diesen Sonderfall (siehe dort) und wertet computeTrendScoreResult().position statt einer der 9
   // buildStrategies()-Positionen aus.
   const stratKeys = [...Object.keys(STRAT_LABELS), 'trendscore'];
@@ -5795,7 +6015,7 @@ function runAutoTradeFixedForCoin(coin){
   if(desiredDir) openAutoPosition(coin, desiredDir, price, time, autoTradeStratKey, autoTradeInterval, lastIdx);
   return true;
 }
-// Trendscore-Modus: nutzt statt einer Einzelstrategie den gewichteten Konsens aus allen 12 Strategien
+// Trendscore-Modus: nutzt statt einer Einzelstrategie den gewichteten Konsens aus allen 13 Strategien
 // (computeTrendScoreResult, Profil 'auto' -> eigenständige Automatik-Filter/Exit-Einstellungen) als Entry/Exit-
 // Signal. stratKey wird bewusst als literal 'trendscore' eingefroren (kein echter Strategie-Key), damit
 // determineAutoModeForCoin() eine so eröffnete Position immer wieder hierhin routet, unabhängig vom aktuell
@@ -6240,10 +6460,18 @@ function populateControls(){
   document.getElementById('loadMoreBtn').addEventListener('click', loadMoreHistory);
   document.getElementById('zoomInBtn').addEventListener('click', ()=> zoomByFactor(0.7));
   document.getElementById('zoomOutBtn').addEventListener('click', ()=> zoomByFactor(1/0.7));
+  // Feinerer Schritt als der horizontale Zoom (0.75) -- auf Nutzerwunsch, damit sich der Preisbereich in kleineren,
+  // besser dosierbaren Stufen einstellen lässt statt bei jedem Klick um ein Viertel zu springen.
+  document.getElementById('yZoomInBtn').addEventListener('click', ()=> yZoomByFactor(0.92));
+  document.getElementById('yZoomOutBtn').addEventListener('click', ()=> yZoomByFactor(1/0.92));
+  document.getElementById('yPanUpBtn').addEventListener('click', ()=> yPanByStep(1));
+  document.getElementById('yPanDownBtn').addEventListener('click', ()=> yPanByStep(-1));
   document.getElementById('resetZoomBtn').addEventListener('click', ()=>{
     if(chart){
       chart.fullView = true;
       chart.followLive = true;
+      chart.yZoom = 1;
+      chart.yOffsetFrac = 0;
       drawChart();
     }
   });
@@ -6288,6 +6516,11 @@ function populateControls(){
     showSupertrendHa = !showSupertrendHa;
     e.currentTarget.classList.toggle('active', showSupertrendHa);
     if(showSupertrendHa) ensureSupertrendHaData(activeCoin, activeInterval);
+    if(chart){ refreshChartDatasets(); drawChart(); }
+  });
+  document.getElementById('toggleDarvasBoxBtn').addEventListener('click', (e)=>{
+    showDarvasBox = !showDarvasBox;
+    e.currentTarget.classList.toggle('active', showDarvasBox);
     if(chart){ refreshChartDatasets(); drawChart(); }
   });
   document.getElementById('toggleDailyBoxBtn').addEventListener('click', (e)=>{
@@ -6413,7 +6646,7 @@ function updateTrendScoreExplainUI(){
   el.style.display = '';
   el.innerHTML = `<strong>Trendscore: ${desc.title}</strong> — Trendlinie: <span style="color:${TREND_SCORE_LONG_COLOR}">blau = long-Konsens</span>, ` +
     `<span style="color:${TREND_SCORE_SHORT_COLOR}">orange = short-Konsens</span>, grau = neutral. Rauten-Marker mit „L"/„S" markieren die ` +
-    `Einstiege des Konsens-Signals. Gewichteter Konsens aus allen 12 Strategien ` +
+    `Einstiege des Konsens-Signals. Gewichteter Konsens aus allen 13 Strategien ` +
     `(Gewicht = 1 + eigene Überrendite ggü. Buy&Hold, mind. 0,02): ${weightList}. Historische Rendite dieses ` +
     `Konsens-Signals im geladenen Zeitraum: ${fmtPct(ts.totalReturn)}, Trefferquote ${ts.winRate!=null ? (ts.winRate*100).toFixed(0)+'%' : '—'}. ` +
     `Reine Heuristik, keine Anlageberatung — über Backtest-Fenster/-Länge lässt sich die Aussagekraft wie bei den ` +
@@ -6597,7 +6830,7 @@ function updateMtfCorridorExplainUI(){
     `Läuft als eigenständige Strategie im Dropdown mit, fließt aber NICHT in den Trendscore-Konsens ein. Reine Heuristik, keine Anlageberatung.`;
 }
 
-// ---------- Exit-Strategie-Auswahl (global für alle 15 Strategien) ----------
+// ---------- Exit-Strategie-Auswahl (global für alle 16 Strategien) ----------
 function applyExitModeChange(){
   strategyCache = {}; // Backtest ist exit-abhängig -> für alle Coins/Intervalle neu berechnen
   Object.keys(COINS).forEach(c=>{
@@ -7206,6 +7439,10 @@ const SIMPLE_MODE_MOVES = [
   // Landen alle im selben Slot, Reihenfolge im Array = Reihenfolge im Slot.
   {elId:'zoomInBtn',          slotId:'simpleChartToolsSlot'},
   {elId:'zoomOutBtn',         slotId:'simpleChartToolsSlot'},
+  {elId:'yZoomInBtn',         slotId:'simpleChartToolsSlot'},
+  {elId:'yZoomOutBtn',        slotId:'simpleChartToolsSlot'},
+  {elId:'yPanUpBtn',          slotId:'simpleChartToolsSlot'},
+  {elId:'yPanDownBtn',        slotId:'simpleChartToolsSlot'},
   {elId:'resetZoomBtn',       slotId:'simpleChartToolsSlot'},
   {elId:'toggleEmaBtn',       slotId:'simpleChartToolsSlot'},
   {elId:'toggleFvgBtn',       slotId:'simpleChartToolsSlot'},
@@ -7357,7 +7594,7 @@ function populateAutoModeUI(){
   [
     {v:'fixed', label:'Feste Strategie'},
     {v:'dynamic', label:'Dynamisch: beste Strategie der letzten N Kerzen'},
-    {v:'trendscore', label:'Trendscore: gewichteter Konsens aller 12 Strategien'}
+    {v:'trendscore', label:'Trendscore: gewichteter Konsens aller 13 Strategien'}
   ].forEach(o=>{
     const opt = document.createElement('option');
     opt.value = o.v; opt.textContent = o.label;
@@ -7615,7 +7852,7 @@ function computeCombinedEquityCurve(perCoin){
 }
 // ---------- Markt-Indikatoren-Panel (Analyse-Tab, unter dem Preis-Chart) ----------
 // Rein deskriptiv, live berechnet aus den bereits geladenen Kerzendaten des aktuell gewählten Coins/Zeitrahmens --
-// unabhängig von den 15 Strategien/Exit-Filtern oben (die verändern hier nichts).
+// unabhängig von den 16 Strategien/Exit-Filtern oben (die verändern hier nichts).
 function fmtVolume(x, coin){
   if(x==null || isNaN(x)) return '—';
   const short = coin && COINS[coin] ? COINS[coin].short : '';

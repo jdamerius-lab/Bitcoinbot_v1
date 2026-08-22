@@ -458,6 +458,7 @@
         <div><div class="asset-tag" id="scanChartTag"></div><div class="sym" id="scanChartSym"></div></div>
         <button class="remove-btn" id="scanChartClose" title="Schließen">✕</button>
       </div>
+      <div class="hint" id="scanChartAutoRefreshHint" style="margin-bottom:6px;"></div>
       <div class="addrow" style="gap:10px;margin-bottom:6px;">
         <div class="field">
           <label>Chart-Zeitrahmen (unabhängig vom Scan)</label>
@@ -635,6 +636,7 @@
         <button class="ghost small at-toggle-btn" id="atToggleSuperTrendHA" data-active="0">SuperTrend HA: aus</button>
         <button class="ghost small at-toggle-btn" id="atToggleMLSuperTrend" data-active="0">ML Adaptive SuperTrend: aus</button>
         <button class="ghost small at-toggle-btn" id="atToggleDailyBox" data-active="0">Tagesbox: aus</button>
+        <button class="ghost small at-toggle-btn" id="atToggleDarvasBox" data-active="0">Darvas Box: aus</button>
       </div>
       <div class="hint" id="atStatus"></div>
     </div>
@@ -1290,8 +1292,13 @@ const CORS_PROXIES = [
   u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
 ];
 
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
 // Versucht eine URL direkt, dann über die CORS-Proxys der Reihe nach.
 // parseFn bekommt den Response-Body (Text) und muss Kerzen zurückgeben oder werfen.
+// Bei Anzeichen von Rate-Limiting (HTTP 403/429 vom Proxy) kurz, zufällig gestreut warten,
+// bevor der nächste Proxy dran ist -- die kostenlosen Proxys vertragen keine Bursts von
+// vielen gleichzeitigen Anfragen (wie sie ein paralleler Scan erzeugt).
 async function fetchDirectThenProxied(target, parseFn, limit, errors, label){
   try{
     const r = await fetch(target);
@@ -1303,6 +1310,9 @@ async function fetchDirectThenProxied(target, parseFn, limit, errors, label){
       const r = await fetch(proxyFn(target));
       if (r.ok){ return { ...parseFn(await r.text(), limit), via: 'CORS-Proxy' }; }
       errors.push(`${label} Proxy: HTTP ${r.status}`);
+      if (r.status === 403 || r.status === 429){
+        await sleep(400 + Math.random() * 400);
+      }
     }catch(e){ errors.push(`${label} Proxy: ${e.message}`); }
   }
   return null;
@@ -1322,44 +1332,55 @@ function parseYahooResult(text, limit){
     t, o: q.open?.[i], h: q.high?.[i], l: q.low?.[i], c: q.close?.[i], v: q.volume?.[i] || 0,
   })).filter(c => c.c !== null && c.c !== undefined && !isNaN(c.c));
   if (!candles.length) throw new Error('Yahoo-Antwort enthielt keine verwertbaren Kerzen.');
-  return { candles: candles.slice(-limit), via: 'direkt' };
+  const resolvedName = result.meta?.longName || result.meta?.shortName || null;
+  return { candles: candles.slice(-limit), via: 'direkt', resolvedName };
 }
 
 const STOOQ_INTERVAL_MAP = {'1d':'d', '1w':'w', '1mo':'m'};
-const YAHOO_INTERVAL_MAP = {'1d':'1d', '1w':'1wk', '1mo':'1mo'};
-const YAHOO_RANGE_MAP = {'1d':'10y', '1w':'20y', '1mo':'max'};
+// Yahoo kann tatsächlich Intraday (im Gegensatz zu Stooq) -- war bisher künstlich auf
+// Tages-/Wochen-/Monatskerzen beschränkt, obwohl Yahoos eigene API das gar nicht verlangt.
+// Rückblick-Grenzen laut Yahoo: 1m ~7 Tage, andere Intraday-Auflösungen ~60 Tage zurück.
+const YAHOO_INTERVAL_MAP = {'1m':'1m', '5m':'5m', '15m':'15m', '30m':'30m', '1h':'60m', '1d':'1d', '1w':'1wk', '1mo':'1mo'};
+const YAHOO_RANGE_MAP = {'1m':'7d', '5m':'60d', '15m':'60d', '30m':'60d', '1h':'60d', '1d':'10y', '1w':'20y', '1mo':'max'};
 
 async function fetchStockCandlesWithFallback(symbol, limit, interval='1d'){
-  if (!STOOQ_INTERVAL_MAP[interval]){
+  const stooqSupported = !!STOOQ_INTERVAL_MAP[interval];
+  const yahooSupported = !!YAHOO_INTERVAL_MAP[interval];
+  if (!stooqSupported && !yahooSupported){
     throw new Error(
-      `Zeitrahmen '${interval}' braucht Alpaca -- Stooq/Yahoo liefern kostenlos nur Tages-, Wochen- und ` +
-      `Monatskerzen, kein Intraday. Trag einen Alpaca-Key in den Einstellungen ein, oder wähle 1 Tag/1 Woche/1 Monat.`
+      `Zeitrahmen '${interval}' wird weder von Stooq noch von Yahoo Finance (kostenlos) unterstützt -- ` +
+      `Trag einen Alpaca-Key in den Einstellungen ein, oder wähle einen anderen Zeitrahmen.`
     );
   }
-  const stooqI = STOOQ_INTERVAL_MAP[interval];
-  const stooqCandidates = symbol.includes('.') ? [symbol] : [symbol, `${symbol}.US`];
   const errors = [];
 
-  for (const sym of stooqCandidates){
-    const target = `https://stooq.com/q/d/l/?s=${encodeURIComponent(sym)}&i=${stooqI}`;
-    const res = await fetchDirectThenProxied(target, parseStooqResult, limit, errors, `Stooq(${sym})`);
-    if (res) return { ...res, resolvedSymbol: sym, source: 'Stooq' };
+  if (stooqSupported){
+    const stooqI = STOOQ_INTERVAL_MAP[interval];
+    const stooqCandidates = symbol.includes('.') ? [symbol] : [symbol, `${symbol}.US`];
+    for (const sym of stooqCandidates){
+      const target = `https://stooq.com/q/d/l/?s=${encodeURIComponent(sym)}&i=${stooqI}`;
+      const res = await fetchDirectThenProxied(target, parseStooqResult, limit, errors, `Stooq(${sym})`);
+      if (res) return { ...res, resolvedSymbol: sym, source: 'Stooq' };
+    }
   }
 
-  // Yahoo Finance als zweite Quelle probieren -- eigene Symbol-Konvention
-  // (US meist ohne Suffix, London ".L", Amsterdam ".AS", Xetra ".DE" usw.)
-  const yInterval = YAHOO_INTERVAL_MAP[interval];
-  const yRange = YAHOO_RANGE_MAP[interval];
-  const yahooTarget = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${yRange}&interval=${yInterval}`;
-  const yRes = await fetchDirectThenProxied(yahooTarget, parseYahooResult, limit, errors, `Yahoo(${symbol})`);
-  if (yRes) return { ...yRes, resolvedSymbol: symbol, source: 'Yahoo Finance' };
+  if (yahooSupported){
+    // Yahoo Finance als zweite Quelle probieren -- eigene Symbol-Konvention
+    // (US meist ohne Suffix, London ".L", Amsterdam ".AS", Xetra ".DE" usw.)
+    const yInterval = YAHOO_INTERVAL_MAP[interval];
+    const yRange = YAHOO_RANGE_MAP[interval];
+    const yahooTarget = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${yRange}&interval=${yInterval}`;
+    const yRes = await fetchDirectThenProxied(yahooTarget, parseYahooResult, limit, errors, `Yahoo(${symbol})`);
+    if (yRes) return { ...yRes, resolvedSymbol: symbol, source: 'Yahoo Finance' };
+  }
 
   throw new Error(
-    `Weder Stooq noch Yahoo Finance erreichbar für '${symbol}' (versucht: ${stooqCandidates.join(', ')} bei Stooq, ` +
-    `'${symbol}' bei Yahoo). Bitpanda selbst liefert nur den aktuellen Preis, keine Kurshistorie -- ` +
-    `deshalb kann ich hier nicht einfach die Quelle wechseln. Bei europäischen Werten ggf. anderes ` +
-    `Symbolformat probieren (Stooq: 'ASML.NL', Yahoo: 'ASML.AS'). Zuverlässigste Lösung: kostenlosen ` +
-    `FMP-Key oder Alpaca in den Einstellungen eintragen. [${errors.slice(0,4).join(' | ')}]`
+    `Weder Stooq noch Yahoo Finance erreichbar für '${symbol}' bei Zeitrahmen '${interval}' ` +
+    `(versucht: ${stooqSupported ? (symbol.includes('.') ? [symbol] : [symbol, `${symbol}.US`]).join(', ') + ' bei Stooq, ' : ''}` +
+    `${yahooSupported ? `'${symbol}' bei Yahoo` : ''}). Bitpanda selbst liefert nur den aktuellen Preis, keine ` +
+    `Kurshistorie -- deshalb kann ich hier nicht einfach die Quelle wechseln. Bei europäischen Werten ggf. ` +
+    `anderes Symbolformat probieren (Stooq: 'ASML.NL', Yahoo: 'ASML.AS'). Zuverlässigste Lösung: kostenlosen ` +
+    `FMP-Key oder Alpaca in den Einstellungen eintragen. [${errors.join(' | ')}]`
   );
 }
 
@@ -1507,6 +1528,42 @@ const SYMBOL_NAMES = {
   'ADS.DE':'Adidas AG', 'DB1.DE':'Deutsche Börse AG', 'RWE.DE':'RWE AG', 'EOAN.DE':'E.ON SE',
   'IFX.DE':'Infineon Technologies AG', 'MRK.DE':'Merck KGaA (Deutschland)', 'DHL.DE':'DHL Group',
   'HEN3.DE':'Henkel AG (Vz.)', 'FRE.DE':'Fresenius SE',
+  // DAX 40 -- restliche 20 (zusätzlich zu den bereits oben stehenden 20)
+  'AIR.PA':'Airbus SE', 'BEI.DE':'Beiersdorf AG', 'BNR.DE':'Brenntag SE', 'CBK.DE':'Commerzbank AG',
+  'CON.DE':'Continental AG', 'DTG.DE':'Daimler Truck Holding AG', 'FME.DE':'Fresenius Medical Care AG',
+  'G1A.DE':'GEA Group AG', 'HNR1.DE':'Hannover Rück SE', 'HEI.DE':'Heidelberg Materials AG',
+  'MTX.DE':'MTU Aero Engines AG', 'PAH3.DE':'Porsche SE', 'QIA.DE':'Qiagen N.V.', 'RHM.DE':'Rheinmetall AG',
+  'G24.DE':'Scout24 SE', 'ENR.DE':'Siemens Energy AG', 'SHL.DE':'Siemens Healthineers AG',
+  'SY1.DE':'Symrise AG', 'VNA.DE':'Vonovia SE', 'ZAL.DE':'Zalando SE',
+  // MDAX (Auswahl)
+  'TLX.DE':'Talanx AG', 'VTWR.HM':'Vantage Towers AG', 'KBX.DE':'Knorr-Bremse AG', 'LHA.DE':'Deutsche Lufthansa AG',
+  'HLE.DE':'Hella GmbH & Co. KGaA', 'RAA.DE':'Rational AG', 'KGX.DE':'Kion Group AG', 'NDA.DE':'Aurubis AG',
+  'FRA.DE':'Fraport AG', 'EVK.DE':'Evonik Industries AG', 'TKA.DE':'ThyssenKrupp AG', 'EVD.DE':'CTS Eventim AG',
+  'O2D.HM':'Telefónica Deutschland Holding AG', 'LEG.DE':'LEG Immobilien SE', 'UTDI.DE':'United Internet AG',
+  'FPE3.DE':'Fuchs SE (Vz.)', 'WCH.DE':'Wacker Chemie AG', 'BC8.DE':'Bechtle AG', 'AG1.DE':'Auto1 Group SE',
+  'FNTN.DE':'freenet AG', 'AT1.DE':'Aroundtown SA', 'JUN3.DE':'Jungheinrich AG', 'TEG.DE':'TAG Immobilien AG',
+  'SDF.DE':'K+S AG', 'BOSS.DE':'Hugo Boss AG', 'AFX.DE':'Carl Zeiss Meditec AG', 'SAX.DE':'Ströer SE & Co. KGaA',
+  'GYC.DE':'Grand City Properties S.A.', 'ZO1.HM':'Zooplus AG', 'DUE.DE':'Dürr AG', 'COP.DE':'CompuGroup Medical SE',
+  'BFSA.DE':'Befesa S.A.', 'LXS.DE':'Lanxess AG', 'PSM.DE':'ProSiebenSat.1 Media SE', 'TMV.DE':'TeamViewer SE',
+  'EVT.DE':'Evotec SE', 'COK.DE':'Cancom SE', 'GXI.DE':'Gerresheimer AG', 'HYQ.DE':'Hypoport SE',
+  // SDAX (Auswahl)
+  'HOT.DE':'Hochtief AG', 'DWS.DE':'DWS Group GmbH & Co. KGaA', 'HAG.DE':'Hensoldt AG', 'NDX1.DE':'Nordex SE',
+  'RTLL.LU':'RTL Group S.A.', 'GBF.DE':'Bilfinger SE', 'KRN.DE':'Krones AG', '1U1.DE':'1&1 AG',
+  'FTK.DE':'flatexDEGIRO AG', 'FIE.DE':'Fielmann Group AG', 'SZG.DE':'Salzgitter AG', 'SIX2.DE':'Sixt SE',
+  'DMP.DE':'Dermapharm Holding SE', 'VBK.DE':'Verbio AG', 'CEC.DE':'Ceconomy AG', 'B4B.DE':'Metro AG',
+  'KWS.DE':'KWS Saat SE & Co. KGaA', 'SZU.DE':'Südzucker AG', 'BYW6.DE':'BayWa AG', 'DEZ.DE':'Deutz AG',
+  'PFV.DE':'Pfeiffer Vacuum Technology AG', 'WAF.DE':'Siltronic AG', 'JEN.DE':'Jenoptik AG',
+  'DEQ.DE':'Deutsche EuroShop AG', 'RDC.DE':'Redcare Pharmacy N.V.', 'KTN.DE':'Kontron AG',
+  'HBH.DE':'Hornbach Holding AG & Co. KGaA', 'YSN.DE':'secunet Security Networks AG', 'WAC.DE':'Wacker Neuson SE',
+  'AOF.DE':'Atoss Software SE', 'YOU.DE':'ABOUT YOU Holding SE', 'S92.DE':'SMA Solar Technology AG',
+  'ADV.DE':'Adtran Networks SE', 'KCO.DE':'Klöckner & Co SE', 'TIMA.DE':'ZEAL Network SE', 'JST.DE':'Jost Werke SE',
+  'EUZ.DE':'Eckert & Ziegler AG', 'SFQ.DE':'SAF-Holland SE', 'INH.DE':'Indus Holding AG',
+  'CWC.DE':'Cewe Stiftung & Co. KGaA', 'STO3.DE':'Sto SE & Co. KGaA', 'GLJ.DE':'Grenke AG',
+  'PAT.DE':'Patrizia AG', 'NA9.DE':'Nagarro SE', 'SGL.DE':'SGL Carbon SE', 'TPE.DE':'PVA TePla AG',
+  'NOEJ.DE':'Norma Group SE', 'BSL.DE':'Basler AG', 'INS.DE':'Instone Real Estate Group SE',
+  // TecDAX-Ergänzungen (nicht schon oben gelistet)
+  'NEM.DE':'Nemetschek SE', 'AIXA.DE':'Aixtron SE', 'LPK.DE':'LPKF Laser & Electronics AG',
+  'SRT3.DE':'Sartorius AG (Vz.)', 'SMHN.DE':'Süss MicroTec SE',
   // Krypto
   'BTC-EUR':'Bitcoin', 'ETH-EUR':'Ethereum', 'SOL-EUR':'Solana', 'XRP-EUR':'XRP', 'ADA-EUR':'Cardano',
   'BNB-EUR':'BNB', 'DOT-EUR':'Polkadot', 'LINK-EUR':'Chainlink', 'AVAX-EUR':'Avalanche',
@@ -2038,7 +2095,7 @@ function renderCard(item, data){
 
   return `<div class="card" id="card-${cardId(item)}" style="--label-color:${labelColorVar(cls)}">
     <div class="card-head">
-      <div><div class="asset-tag">${item.type==='crypto'?'Krypto':'Aktie'}</div><div class="sym">${item.symbol}</div>${fullName(item.symbol)?`<div class="company-name">${fullName(item.symbol)}</div>`:''}</div>
+      <div><div class="asset-tag">${item.type==='crypto'?'Krypto':'Aktie'}</div><div class="sym">${item.symbol}</div>${(data.resolvedName||fullName(item.symbol))?`<div class="company-name">${data.resolvedName||fullName(item.symbol)}</div>`:''}</div>
       <button class="remove-btn" data-action="remove" data-id="${cardId(item)}" title="Entfernen">✕</button>
     </div>
     <div style="margin-bottom:8px;">${tfSelect}</div>
@@ -2061,6 +2118,20 @@ function rerenderAll(){
   }).join('') || '<div class="loading">Noch keine Aktien auf der Watchlist.</div>';
 }
 
+// Erkennt Börsen-Suffixe, die Alpaca (nur US-Börsen) strukturell nie haben kann --
+// bewusst NUR eindeutige, bekannte internationale Suffixe, damit US-Sonderfälle wie
+// "BRK.A"/"BRK.B" (die auch einen Punkt enthalten) weiterhin bei Alpaca versucht werden.
+const NON_US_EXCHANGE_SUFFIXES = [
+  '.DE','.F','.SG','.MU','.DU','.HM','.HA', // Deutschland (Xetra/Frankfurt/regional)
+  '.L','.PA','.AS','.NL','.MI','.MC','.SW','.VI','.BR','.ST','.OL','.CO','.HE','.IS','.WA','.PR','.LS', // Europa
+  '.TO','.V', // Kanada
+  '.HK','.T','.KS','.SS','.SZ','.TW','.SI','.AX','.NZ','.BD','.JK','.KL','.SA', // Asien/Pazifik/Sonstige
+];
+function isLikelyNonUsTicker(symbol){
+  const s = symbol.toUpperCase();
+  return NON_US_EXCHANGE_SUFFIXES.some(suf => s.endsWith(suf));
+}
+
 async function getAnalysisFor(item, opts={}){
   const { includeCandles = true, includeBitpanda = true, candleLimit = 90 } = opts;
   const fetchLimit = Math.max(250, candleLimit);
@@ -2076,9 +2147,12 @@ async function getAnalysisFor(item, opts={}){
       if (bp){ result.bitpandaPrice = bp.price; result.bitpandaChangeDayPct = bp.changeDayPct; }
     }
   } else {
-    let candles, source, resolvedSymbol, note;
+    let candles, source, resolvedSymbol, resolvedName, note;
 
-    if (settings.alpacaKey && settings.alpacaSecret){
+    // Alpaca hat strukturell NUR US-Börsen -- bei erkennbar nicht-US-Symbolen (Börsen-
+    // Suffix wie .DE, .L, .PA usw.) den garantiert sinnlosen Alpaca-Versuch überspringen.
+    // Spart bei Scans mit vielen europäischen Werten einen kompletten Netzwerk-Umweg pro Symbol.
+    if (settings.alpacaKey && settings.alpacaSecret && !isLikelyNonUsTicker(item.symbol)){
       try{
         candles = await fetchAlpacaCandles(item.symbol, item.interval, fetchLimit, settings.alpacaKey, settings.alpacaSecret);
         source = `Alpaca (IEX, ${item.interval})`;
@@ -2093,7 +2167,7 @@ async function getAnalysisFor(item, opts={}){
     } else if (!candles) {
       try{
         const res = await fetchStockCandlesWithFallback(item.symbol, fetchLimit, item.interval);
-        candles = res.candles; resolvedSymbol = res.resolvedSymbol;
+        candles = res.candles; resolvedSymbol = res.resolvedSymbol; resolvedName = res.resolvedName;
         source = `${res.source} (${item.interval==='1w'?'Wochenkerzen':item.interval==='1mo'?'Monatskerzen':'Tageskerzen'}${res.via==='CORS-Proxy' ? ', über Proxy' : ''})`;
       } catch(stooqErr){
         if (settings.fmpKey && item.interval === '1d'){
@@ -2114,6 +2188,7 @@ async function getAnalysisFor(item, opts={}){
     result.dataSource = source;
     if (note) result.note = note;
     if (resolvedSymbol && resolvedSymbol !== item.symbol) result.resolvedSymbol = resolvedSymbol;
+    if (resolvedName) result.resolvedName = resolvedName;
     if (includeBitpanda){
       const bp = await fetchBitpandaTicker(item.symbol, settings.bitpandaKey);
       if (bp){ result.bitpandaPrice = bp.price; result.bitpandaChangeDayPct = bp.changeDayPct; }
@@ -2251,7 +2326,10 @@ const CATEGORIES = {
   europa:        { label: 'Europa Standardwerte (ex-DAX)',    items: S(['MC.PA','OR.PA','SAN.PA','AI.PA','TTE.PA','NESN.SW','NOVN.SW','ROG.SW','ENEL.MI','ISP.MI']) },
   krypto_major:  { label: 'Krypto-Majors',                    items: C(['BTC-EUR','ETH-EUR','SOL-EUR','XRP-EUR','BNB-EUR']) },
   krypto_alt:    { label: 'Krypto Altcoins & DeFi',           items: C(['ADA-EUR','DOT-EUR','LINK-EUR','AVAX-EUR','UNI-EUR','AAVE-EUR','PAXG-EUR','MATIC-EUR','ATOM-EUR','NEAR-EUR','FIL-EUR','LTC-EUR','BCH-EUR','ETC-EUR','ALGO-EUR','INJ-EUR']) },
-  dax20:         { label: 'DAX Top 20 (Deutschland)',         items: S(['SAP.DE','SIE.DE','ALV.DE','DTE.DE','MBG.DE','BMW.DE','BAS.DE','BAYN.DE','VOW3.DE','MUV2.DE','DBK.DE','ADS.DE','DB1.DE','RWE.DE','EOAN.DE','IFX.DE','MRK.DE','DHL.DE','HEN3.DE','FRE.DE']) },
+  dax20:         { label: 'DAX 40 (Deutschland, komplett)',    items: S(['SAP.DE','SIE.DE','ALV.DE','DTE.DE','MBG.DE','BMW.DE','BAS.DE','BAYN.DE','VOW3.DE','MUV2.DE','DBK.DE','ADS.DE','DB1.DE','RWE.DE','EOAN.DE','IFX.DE','MRK.DE','DHL.DE','HEN3.DE','FRE.DE','AIR.PA','BEI.DE','BNR.DE','CBK.DE','CON.DE','DTG.DE','FME.DE','G1A.DE','HNR1.DE','HEI.DE','MTX.DE','PAH3.DE','QIA.DE','RHM.DE','G24.DE','ENR.DE','SHL.DE','SY1.DE','VNA.DE','ZAL.DE']) },
+  mdax50:        { label: 'MDAX Top 50 (Deutschland)',         items: S(['TLX.DE','VTWR.HM','KBX.DE','LHA.DE','HLE.DE','RAA.DE','KGX.DE','NDA.DE','NEM.DE','FRA.DE','EVK.DE','TKA.DE','EVD.DE','O2D.HM','LEG.DE','UTDI.DE','FPE3.DE','WCH.DE','BC8.DE','AG1.DE','FNTN.DE','AT1.DE','JUN3.DE','TEG.DE','AIXA.DE','SDF.DE','BOSS.DE','AFX.DE','SAX.DE','GYC.DE','ZO1.HM','DUE.DE','COP.DE','BFSA.DE','LXS.DE','PSM.DE','TMV.DE','EVT.DE','COK.DE','GXI.DE','HYQ.DE']) },
+  sdax50:        { label: 'SDAX Top 50 (Deutschland)',         items: S(['HOT.DE','8TRA.DE','DWS.DE','HAG.DE','NDX1.DE','RTLL.LU','GBF.DE','KRN.DE','1U1.DE','FTK.DE','FIE.DE','SZG.DE','SIX2.DE','DMP.DE','VBK.DE','CEC.DE','B4B.DE','KWS.DE','SZU.DE','BYW6.DE','DEZ.DE','PFV.DE','WAF.DE','JEN.DE','DEQ.DE','RDC.DE','KTN.DE','HBH.DE','YSN.DE','WAC.DE','AOF.DE','YOU.DE','S92.DE','ADV.DE','KCO.DE','TIMA.DE','JST.DE','EUZ.DE','SFQ.DE','INH.DE','CWC.DE','STO3.DE','GLJ.DE','PAT.DE','NA9.DE','SGL.DE','TPE.DE','NOEJ.DE','BSL.DE','INS.DE']) },
+  tecdax:        { label: 'TecDAX (Deutschland, Technologie)', items: S(['SAP.DE','IFX.DE','SHL.DE','QIA.DE','SRT3.DE','NEM.DE','NDX1.DE','AIXA.DE','WAF.DE','UTDI.DE','BC8.DE','COP.DE','COK.DE','EVT.DE','TMV.DE','JEN.DE','TPE.DE','BSL.DE','YSN.DE','ADV.DE','LPK.DE','AOF.DE','NA9.DE','1U1.DE','FNTN.DE','KTN.DE','PFV.DE','SMHN.DE']) },
   nasdaq_top:    { label: 'Nasdaq Top-Werte (USA)',           items: S(['AAPL','MSFT','NVDA','AMZN','GOOGL','META','AVGO','TSLA','COST','NFLX','PEP','ADBE','CSCO','TMUS','AMD','QCOM','INTU','CMCSA','TXN','AMAT','ASML','MU','PANW','ISRG','BKNG','ABNB','MDLZ','ADP','GILD','VRTX']) },
   sp500_top:     { label: 'S&P 500 Top-Werte (USA, breit)',   items: S(['AAPL','MSFT','NVDA','GOOGL','AMZN','META','LLY','AVGO','TSLA','JPM','WMT','V','UNH','XOM','ORCL','MA','HD','PG','COST','JNJ','ABBV','BAC','KO','CVX','MRK','ADBE','CRM','PEP','NFLX','TMO']) },
   rohstoff_etf:  { label: 'Edelmetalle & Rohstoffe (ETFs)',   items: S(['GLD','SLV','CPER','USO','UNG','PPLT','PALL','DBA']) },
@@ -2506,6 +2584,10 @@ async function runScan(){
   btn.disabled = true;
   document.getElementById('scanChartPanel').style.display = 'none';
   const results = [];
+  // Zurück auf strikt sequenziell (eine Anfrage nach der anderen, keine Parallelität) --
+  // das hat zuverlässig funktioniert, bevor hier auf mehrere gleichzeitige Anfragen umgestellt
+  // wurde. Die kostenlosen, geteilten CORS-Proxys vertragen offenbar keine gebündelte Last,
+  // egal wie stark man die Nebenläufigkeit begrenzt. Langsamer, aber verlässlicher.
   for (let i = 0; i < scanList.length; i++){
     const itemWithTf = { ...scanList[i], interval: timeframe };
     status.textContent = `Scanne ${i+1}/${scanList.length}: ${itemWithTf.symbol} …`;
@@ -2517,6 +2599,7 @@ async function runScan(){
     }
     renderScanResults(results);
   }
+
   status.textContent = `Fertig — ${new Date().toLocaleTimeString('de-DE')}`;
   btn.disabled = false;
 }
@@ -2528,6 +2611,7 @@ document.getElementById('scanRunBtn').addEventListener('click', runScan);
 let currentChartItem = null;   // {type, symbol}
 let currentChartData = null;   // Analyse-Ergebnis inkl. .candles (volle Historie)
 let chartVisibleRange = null;  // {start, end} Indizes in currentChartData.candles
+let scanAutoRefreshTimer = null;
 
 function zoomChart(factor){
   if (!currentChartData || !currentChartData.candles) return;
@@ -2826,29 +2910,51 @@ window.addEventListener('mousemove', (e) => {
 window.addEventListener('mouseup', () => { chartDragState.dragging = false; });
 
 async function showBigChart(item, interval){
+  if (scanAutoRefreshTimer) clearInterval(scanAutoRefreshTimer);
   currentChartItem = { type: item.type, symbol: item.symbol, interval };
   document.getElementById('scanChartTag').textContent = `${item.type==='crypto'?'Krypto':'Aktie'} · ${interval}`;
   document.getElementById('scanChartSym').textContent = `${item.symbol}${fullName(item.symbol)?' — '+fullName(item.symbol):''}`;
   document.getElementById('scanChartTimeframe').value = interval;
 
-  // Beim Öffnen/Timeframe-Wechsel immer tief nachladen (viel mehr als die 90 Kerzen aus dem Scan),
-  // damit beim Rauszoomen echte Historie da ist statt nach ein paar Klicks am Rand anzustoßen.
-  document.getElementById('scanChartBody').innerHTML = '<div class="hint">Lädt Chart-Historie …</div>';
+  await refreshBigChartData(false);
+  scanAutoRefreshTimer = setInterval(() => refreshBigChartData(true), 30000);
+}
+
+let scanAutoRefreshTick = 0;
+
+// Lädt den Chart neu -- bei Auto-Refresh bleibt die Zoomstufe (Fensterbreite) erhalten,
+// rechtsverankert auf die neue aktuellste Kerze; bei einem frischen Öffnen/Timeframe-Wechsel
+// wird komplett zurückgesetzt.
+async function refreshBigChartData(isAutoRefresh){
+  if (!currentChartItem) return;
+  const { type, symbol, interval } = currentChartItem;
+  if (!isAutoRefresh){
+    document.getElementById('scanChartBody').innerHTML = '<div class="hint">Lädt Chart-Historie …</div>';
+  }
+  let data;
   try{
-    currentChartData = await getAnalysisFor(
-      { type: item.type, symbol: item.symbol, interval },
-      { includeCandles: true, includeBitpanda: false, candleLimit: 1000 }
-    );
+    data = await getAnalysisFor({ type, symbol, interval }, { includeCandles: true, includeBitpanda: false, candleLimit: 1000 });
   }catch(e){
-    document.getElementById('scanChartBody').innerHTML = `<div class="error-text">${e.message}</div>`;
+    if (!isAutoRefresh) document.getElementById('scanChartBody').innerHTML = `<div class="error-text">${e.message}</div>`;
     return;
   }
-  if (currentChartData.error){
-    document.getElementById('scanChartBody').innerHTML = `<div class="error-text">${currentChartData.error}</div>`;
+  if (data.error){
+    if (!isAutoRefresh) document.getElementById('scanChartBody').innerHTML = `<div class="error-text">${data.error}</div>`;
     return;
   }
-  chartVisibleRange = { start: 0, end: (currentChartData.candles || []).length };
+  const prevWindowSize = (isAutoRefresh && chartVisibleRange && currentChartData)
+    ? (chartVisibleRange.end - chartVisibleRange.start)
+    : null;
+  currentChartData = data;
+  const total = (data.candles || []).length;
+  const windowSize = prevWindowSize != null ? Math.min(prevWindowSize, total) : total;
+  chartVisibleRange = { start: Math.max(0, total - windowSize), end: total };
   renderBigChart();
+  if (isAutoRefresh){
+    scanAutoRefreshTick++;
+    const hint = document.getElementById('scanChartAutoRefreshHint');
+    if (hint) hint.textContent = `Auto-Aktualisierung an (alle 30 Sek.), letztes Update: ${new Date().toLocaleTimeString('de-DE')} (#${scanAutoRefreshTick}).`;
+  }
 }
 
 document.getElementById('scanChartTimeframe').addEventListener('change', (e) => {
@@ -2874,6 +2980,7 @@ document.getElementById('scanResults').addEventListener('click', (e) => {
   document.getElementById('scanChartPanel').scrollIntoView({behavior:'smooth', block:'nearest'});
 });
 document.getElementById('scanChartClose').addEventListener('click', () => {
+  if (scanAutoRefreshTimer){ clearInterval(scanAutoRefreshTimer); scanAutoRefreshTimer = null; }
   document.getElementById('scanChartPanel').style.display = 'none';
 });
 
@@ -3248,6 +3355,76 @@ function computeMLAdaptiveSuperTrend(candles, atrPeriod = 10, trainingPeriod = 1
   return st.map((r, i) => ({ ...r, cluster: clusterIdx[i] }));
 }
 
+// Darvas-Box-Strategie (Nicolas Darvas) -- klassisches Verfahren:
+// 1) Ein neues Hoch setzt den Box-Deckel-Kandidaten und startet die Beobachtung neu.
+// 2) Bleiben `confirmDays` Kerzen in Folge UNTER diesem Hoch, gilt der Deckel als bestätigt.
+// 3) Parallel dazu: bleibt das Tief seit dem neuen Hoch `confirmDays` Kerzen stabil
+//    (nicht weiter fallend), gilt der Boden als bestätigt.
+// 4) Sind Deckel UND Boden bestätigt, ist die Box aktiv -- Ausbruch nach oben (Schlusskurs
+//    über dem Deckel) ist das klassische Darvas-Kaufsignal, Bruch nach unten (unter den
+//    Boden) invalidiert die Box (Stop-Loss-Bereich).
+// Gibt ein Array von Boxen zurück: { startIdx, endIdx, top, bottom, breakoutIdx }
+// (breakoutIdx ist null, solange die Box noch nicht nach oben ausgebrochen ist).
+function computeDarvasBoxes(candles, confirmDays = 3){
+  const n = candles.length;
+  const boxes = [];
+  if (n === 0) return boxes;
+
+  let currentHighIdx = 0, currentHigh = candles[0].h;
+  let daysSinceNewHigh = 0;
+  let lowSinceHigh = candles[0].l, daysAtLow = 0;
+  let boxTop = null, boxBottom = null;
+  let activeBox = null;
+
+  for (let i = 1; i < n; i++){
+    const c = candles[i];
+
+    // Ist bereits eine Box bestätigt (Deckel UND Boden gesetzt), zuerst auf Ausbruch/Bruch
+    // prüfen -- ein neues Hoch über den Deckel ist DANN das Kaufsignal, kein Reset der
+    // Beobachtung (das war der ursprüngliche Bug: ein Ausbruch wurde faelschlich wie ein
+    // ganz neues, unabhängiges Hoch behandelt statt wie ein Signal auf die bestehende Box).
+    if (boxTop !== null && boxBottom !== null){
+      if (c.c > boxTop && activeBox.breakoutIdx === null){
+        activeBox.breakoutIdx = i;
+        activeBox.endIdx = i;
+        currentHigh = c.h; currentHighIdx = i;
+        daysSinceNewHigh = 0; lowSinceHigh = c.l; daysAtLow = 0;
+        boxTop = null; boxBottom = null; activeBox = null;
+        continue;
+      }
+      if (c.c < boxBottom){
+        activeBox.endIdx = i; // Bruch nach unten -- Box invalidiert, neue Beobachtung beginnt
+        currentHigh = c.h; currentHighIdx = i;
+        daysSinceNewHigh = 0; lowSinceHigh = c.l; daysAtLow = 0;
+        boxTop = null; boxBottom = null; activeBox = null;
+        continue;
+      }
+      activeBox.endIdx = i; // weiterhin innerhalb der Box
+      continue;
+    }
+
+    // Noch keine bestätigte Box -- normale Beobachtungsphase.
+    if (c.h > currentHigh){
+      currentHigh = c.h; currentHighIdx = i;
+      daysSinceNewHigh = 0; lowSinceHigh = c.l; daysAtLow = 0;
+      continue;
+    }
+
+    daysSinceNewHigh++;
+    if (c.l < lowSinceHigh){ lowSinceHigh = c.l; daysAtLow = 0; }
+    else daysAtLow++;
+
+    if (boxTop === null && daysSinceNewHigh >= confirmDays) boxTop = currentHigh;
+    if (boxBottom === null && daysAtLow >= confirmDays) boxBottom = lowSinceHigh;
+
+    if (boxTop !== null && boxBottom !== null){
+      activeBox = { startIdx: currentHighIdx, endIdx: i, top: boxTop, bottom: boxBottom, breakoutIdx: null };
+      boxes.push(activeBox);
+    }
+  }
+  return boxes;
+}
+
 function computeCorridor(candles, lookback = 24){
   const slice = candles.slice(-lookback);
   if (!slice.length) return null;
@@ -3348,7 +3525,8 @@ async function runChartAnalysisOnce(isAutoRefresh){
   currentCaInterval = tf.entry;
 
   if (!isAutoRefresh){
-    status.textContent = `Lädt … (Korridor ${tf.corridor}, Richtung ${tf.direction}, Einstieg ${tf.entry})`;
+    const nameHint = fullName(symbol) ? ` — ${fullName(symbol)}` : ' (Name unbekannt -- prüfe Symbol/Börsen-Suffix)';
+    status.textContent = `${symbol}${nameHint} · Lädt … (Korridor ${tf.corridor}, Richtung ${tf.direction}, Einstieg ${tf.entry})`;
     document.getElementById('caResultPanel').style.display = 'none';
   }
 
@@ -3376,7 +3554,8 @@ async function runChartAnalysisOnce(isAutoRefresh){
     const lastAny = signals.length ? signals[signals.length - 1] : null;
 
     document.getElementById('caTag').textContent = `${type === 'crypto' ? 'Krypto' : 'Aktie'} · Korridor ${tf.corridor} / Richtung ${tf.direction} / Einstieg ${tf.entry}`;
-    document.getElementById('caSym').textContent = `${symbol}${fullName(symbol) ? ' — ' + fullName(symbol) : ''}`;
+    const resolvedDisplayName = entryData.resolvedName || fullName(symbol);
+    document.getElementById('caSym').textContent = `${symbol}${resolvedDisplayName ? ' — ' + resolvedDisplayName : ''}`;
     document.getElementById('caCandleTf').textContent = CA_TF_LABELS[tf.entry] || tf.entry;
     document.getElementById('caCorridorRange').textContent = corridor ? `${fmtNum(corridor.low)} – ${fmtNum(corridor.high)}` : '–';
 
@@ -3454,7 +3633,8 @@ async function runChartAnalysisOnce(isAutoRefresh){
     status.textContent = `${signals.length} Signal(e) in der Einstiegs-Historie gefunden. ` +
       `Auto-Aktualisierung an (alle 30 Sek.), letztes Update: ${new Date().toLocaleTimeString('de-DE')} (#${caAutoRefreshTick}).`;
   }catch(e){
-    status.textContent = e.message;
+    const nameHint = fullName(symbol) ? ` — ${fullName(symbol)}` : '';
+    status.textContent = `${symbol}${nameHint}: ${e.message}`;
   }
 }
 
@@ -3480,7 +3660,7 @@ let atCurrentChartData = null;   // { candles, halfTrend, superTrendHA, mlSuperT
 let atChartVisibleRange = null;  // { start, end } -- horizontaler Zoom
 let atVerticalZoomFactor = 1;    // >1 = vertikal reingezoomt, <1 = rausgezoomt
 let atVerticalPanOffset = 0;     // Preis-Verschiebung (in Kurseinheiten) durch vertikales Ziehen
-let atOverlays = { halfTrend: false, superTrendHA: false, mlSuperTrend: false, dailyBox: false };
+let atOverlays = { halfTrend: false, superTrendHA: false, mlSuperTrend: false, dailyBox: false, darvasBox: false };
 let atChartDragState = { dragging: false, startX: 0, startY: 0, startRange: null, startVOffset: 0, lastYRange: null };
 let atLastGeometry = null;
 
@@ -3620,6 +3800,13 @@ function renderAtChart(){
   const dailyBoxes = atOverlays.dailyBox ? computeDailyBoxes(visible) : [];
   dailyBoxes.forEach(b => { yMin = Math.min(yMin, b.low); yMax = Math.max(yMax, b.high); });
 
+  // Darvas-Boxen wurden einmalig über die volle Historie berechnet (globale Indizes) --
+  // hier nur auf die im aktuellen Zoom sichtbaren, überschneidenden Boxen filtern.
+  const darvasBoxesVisible = atOverlays.darvasBox && atCurrentChartData.darvasBoxes
+    ? atCurrentChartData.darvasBoxes.filter(b => b.endIdx >= start && b.startIdx < end)
+    : [];
+  darvasBoxesVisible.forEach(b => { yMin = Math.min(yMin, b.bottom); yMax = Math.max(yMax, b.top); });
+
   const pad = (yMax - yMin) * 0.08 || 1;
   yMin -= pad; yMax += pad;
   // Vertikaler Zoom: Bereich um die Mitte herum stauchen/strecken, plus manueller
@@ -3685,6 +3872,29 @@ function renderAtChart(){
     });
   }
 
+  if (atOverlays.darvasBox){
+    darvasBoxesVisible.forEach(box => {
+      const xStart = x(Math.max(box.startIdx, start)) - bodyW/2;
+      const xEnd = x(Math.min(box.endIdx, end - 1)) + bodyW/2;
+      const bw = Math.max(1, xEnd - xStart);
+      const color = '#c9c9c9'; // neutral -- Darvas-Boxen sind nicht per se long/short, bis sie ausbrechen
+      const yTop = y(box.top), yBottom = y(box.bottom);
+      bodyGroup.push(`<rect x="${xStart.toFixed(1)}" y="${yTop.toFixed(1)}" width="${bw.toFixed(1)}" height="${(yBottom-yTop).toFixed(1)}" fill="${color}" fill-opacity="0.04" stroke="${color}" stroke-width="1" stroke-opacity="0.7" pointer-events="none"/>`);
+      if (box.breakoutIdx !== null && box.breakoutIdx >= start && box.breakoutIdx < end){
+        const c = visible[box.breakoutIdx - start];
+        if (c){
+          const xi = x(box.breakoutIdx);
+          const boxW = 15, boxH = 12, gap = 10;
+          const anchor = y(c.l);
+          const boxY = anchor + gap;
+          bodyGroup.push(`<polygon points="${xi.toFixed(1)},${boxY.toFixed(1)} ${(xi-3).toFixed(1)},${(boxY+5).toFixed(1)} ${(xi+3).toFixed(1)},${(boxY+5).toFixed(1)}" fill="#3ddc84" pointer-events="none"/>`);
+          bodyGroup.push(`<rect x="${(xi-boxW/2).toFixed(1)}" y="${boxY.toFixed(1)}" width="${boxW}" height="${boxH}" rx="3" fill="#3ddc84" pointer-events="none"/>`);
+          bodyGroup.push(`<text x="${xi.toFixed(1)}" y="${(boxY+boxH/2+3).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="#04140c" font-family="'Inter',sans-serif" pointer-events="none">L</text>`);
+        }
+      }
+    });
+  }
+
   visible.forEach((c, li) => {
     const gi = li + start;
     const xi = x(gi);
@@ -3733,6 +3943,7 @@ function renderAtChart(){
     atOverlays.superTrendHA ? '<span style="color:#aaa;">╌ SuperTrend HA (gestrichelt)</span>' : '',
     atOverlays.mlSuperTrend ? '<span style="color:#aaa;">⋯ ML Adaptive SuperTrend (gepunktet)</span>' : '',
     atOverlays.dailyBox ? '<span style="color:#8a8a8a;">▭ Tagesbox</span>' : '',
+    atOverlays.darvasBox ? '<span style="color:#c9c9c9;">▭ Darvas Box (Ausbruch = grünes L)</span>' : '',
     (atOverlays.halfTrend || atOverlays.superTrendHA || atOverlays.mlSuperTrend) ? '<span style="color:#3ddc84;">grün = Long</span> <span style="color:#ff5c5c;">rot = Short</span>' : '',
   ].filter(Boolean).join(' &nbsp; ');
 
@@ -3870,16 +4081,22 @@ atToggle('halfTrend', 'atToggleHalfTrend', 'HalfTrend');
 atToggle('superTrendHA', 'atToggleSuperTrendHA', 'SuperTrend HA');
 atToggle('mlSuperTrend', 'atToggleMLSuperTrend', 'ML Adaptive SuperTrend');
 atToggle('dailyBox', 'atToggleDailyBox', 'Tagesbox');
+atToggle('darvasBox', 'atToggleDarvasBox', 'Darvas Box');
 
-document.getElementById('atRunBtn').addEventListener('click', async () => {
+let atAutoRefreshTimer = null;
+let atAutoRefreshTick = 0;
+
+async function runAtAnalysisOnce(isAutoRefresh){
   const status = document.getElementById('atStatus');
   const type = document.getElementById('atType').value;
   const symbol = document.getElementById('atSymbol').value.trim().toUpperCase();
   const interval = document.getElementById('atInterval').value;
-  if (!symbol){ status.textContent = 'Bitte ein Symbol eingeben.'; return; }
+  if (!symbol){ if (!isAutoRefresh) status.textContent = 'Bitte ein Symbol eingeben.'; return; }
 
-  status.textContent = 'Lädt …';
-  document.getElementById('atResultPanel').style.display = 'none';
+  if (!isAutoRefresh){
+    status.textContent = `${symbol}${fullName(symbol) ? ' — ' + fullName(symbol) : ' (Name unbekannt -- prüfe Symbol/Börsen-Suffix)'} · Lädt …`;
+    document.getElementById('atResultPanel').style.display = 'none';
+  }
 
   try{
     const data = await getAnalysisFor({ type, symbol, interval }, { includeCandles: true, includeBitpanda: false, candleLimit: 500 });
@@ -3889,20 +4106,39 @@ document.getElementById('atRunBtn').addEventListener('click', async () => {
     const halfTrend = computeHalfTrend(data.candles, 2, 2);
     const superTrendHA = computeSuperTrendHA(data.candles, 10, 3);
     const mlSuperTrend = computeMLAdaptiveSuperTrend(data.candles, 10, 100, 3);
+    const darvasBoxes = computeDarvasBoxes(data.candles, 3);
 
-    atCurrentChartData = { candles: data.candles, halfTrend, superTrendHA, mlSuperTrend };
-    atChartVisibleRange = { start: 0, end: data.candles.length };
-    atVerticalZoomFactor = 1;
-    atVerticalPanOffset = 0;
+    // Beim Auto-Refresh die Zoomstufe (Fensterbreite) beibehalten, rechtsverankert auf die
+    // neue aktuellste Kerze -- nur bei einem frischen manuellen Klick alles zurücksetzen.
+    const prevWindowSize = (isAutoRefresh && atChartVisibleRange && atCurrentChartData)
+      ? (atChartVisibleRange.end - atChartVisibleRange.start)
+      : null;
+
+    atCurrentChartData = { candles: data.candles, halfTrend, superTrendHA, mlSuperTrend, darvasBoxes };
+    const total = data.candles.length;
+    const windowSize = prevWindowSize != null ? Math.min(prevWindowSize, total) : total;
+    atChartVisibleRange = { start: Math.max(0, total - windowSize), end: total };
+    if (!isAutoRefresh){ atVerticalZoomFactor = 1; atVerticalPanOffset = 0; }
 
     document.getElementById('atTag').textContent = `${type === 'crypto' ? 'Krypto' : 'Aktie'} · ${interval}`;
-    document.getElementById('atSym').textContent = `${symbol}${fullName(symbol) ? ' — ' + fullName(symbol) : ''}`;
+    const resolvedDisplayName = data.resolvedName || fullName(symbol);
+    document.getElementById('atSym').textContent = `${symbol}${resolvedDisplayName ? ' — ' + resolvedDisplayName : ''}`;
     document.getElementById('atResultPanel').style.display = '';
     renderAtChart();
-    status.textContent = `${data.candles.length} Kerzen geladen (Quelle: ${data.dataSource || '–'}).`;
+    atAutoRefreshTick++;
+    status.textContent = `${data.candles.length} Kerzen geladen (Quelle: ${data.dataSource || '–'}). ` +
+      `Auto-Aktualisierung an (alle 30 Sek.), letztes Update: ${new Date().toLocaleTimeString('de-DE')} (#${atAutoRefreshTick}).`;
   }catch(e){
-    status.textContent = e.message;
+    const nameHint = fullName(symbol) ? ` — ${fullName(symbol)}` : '';
+    status.textContent = `${symbol}${nameHint}: ${e.message}`;
   }
+}
+
+document.getElementById('atRunBtn').addEventListener('click', () => {
+  if (atAutoRefreshTimer) clearInterval(atAutoRefreshTimer);
+  atAutoRefreshTick = 0;
+  runAtAnalysisOnce(false);
+  atAutoRefreshTimer = setInterval(() => runAtAnalysisOnce(true), 30000);
 });
 
 </script>
