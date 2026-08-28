@@ -4085,6 +4085,7 @@ const DARVAS_BOX_COLORS = { border: '#e0b23c', fill: 'rgba(224,178,60,0.10)', bu
 function drawDarvasBoxOverlay(ctx, dbx, d, iFrom, iTo, scaleX, scaleY, xStep){
   ctx.save();
 
+  const segments = [];
   let segStart = null, segTop = null, segBottom = null;
   function flushBox(segEndExclusive){
     if(segStart==null || segEndExclusive<=segStart) return;
@@ -4095,6 +4096,7 @@ function drawDarvasBoxOverlay(ctx, dbx, d, iFrom, iTo, scaleX, scaleY, xStep){
     ctx.strokeStyle = DARVAS_BOX_COLORS.border;
     ctx.lineWidth = 1.4;
     ctx.strokeRect(x1, yTop, x2-x1, yBottom-yTop);
+    segments.push({ x2, yTop, yBottom, endExclusive: segEndExclusive });
   }
   for(let i=iFrom;i<=iTo;i++){
     if(!dbx.boxConfirmedAt[i]){ flushBox(i); segStart=null; segTop=null; segBottom=null; continue; }
@@ -4104,24 +4106,42 @@ function drawDarvasBoxOverlay(ctx, dbx, d, iFrom, iTo, scaleX, scaleY, xStep){
   }
   flushBox(iTo+1);
 
-  // Ausbruchs-Pfeil genau an der Kerze, an der ein neues, von der Vorkerze abweichendes Signal auftritt (also am
-  // exakten Breakout-Bar) -- boxTopAt[i]/boxBottomAt[i] halten an dieser Stelle noch die Werte der GERADE
-  // verlassenen Box (Reset auf null erfolgt in computeDarvasBoxes() erst NACH der Signal-Zuweisung).
-  for(let i=Math.max(iFrom,1); i<=iTo; i++){
+  // Ausbruchs-Markierung DIREKT AM RECHTEN RAND der jeweiligen Box statt als freischwebender Pfeil: ein kleines
+  // Flag-Dreieck, dessen Basis exakt auf der rechten Boxkante (x2) sitzt -- oben an der Box bei Long-Ausbruch,
+  // unten bei Short-Ausbruch -- und das nach außen zeigt. Zusätzlich wird die rechte Kante an dieser Stelle in
+  // Signalfarbe nachgezogen, damit die Kante selbst Teil der Markierung wird und man sofort sieht, WELCHE Box
+  // gebrochen wurde. boxTopAt[i]/boxBottomAt[i] (bzw. das gespeicherte Segment) halten an der Ausbruchs-Kerze
+  // noch die Werte der GERADE verlassenen Box (Reset auf null erfolgt in computeDarvasBoxes() erst NACH der
+  // Signal-Zuweisung), daher entspricht seg.yTop/seg.yBottom exakt der gebrochenen Box.
+  const FLAG_HALF = 7, FLAG_LEN = 12;
+  segments.forEach(seg=>{
+    // Die eigentliche Ausbruchskerze ist die LETZTE Kerze der Box selbst (dort ist boxConfirmedAt noch true, mit
+    // den Werten der GERADE gebrochenen Box) -- also endExclusive-1, nicht endExclusive (das ist schon die erste
+    // Kerze der Suche nach der nächsten Box, dort steht kein Signalwechsel mehr).
+    const i = seg.endExclusive - 1;
+    if(i < Math.max(iFrom,1) || i > iTo) return;
     const s = dbx.signal[i], prevS = dbx.signal[i-1];
-    if(s===0 || s===prevS) continue;
-    const ref = s===1 ? dbx.boxTopAt[i] : dbx.boxBottomAt[i];
-    const anchor = ref!=null ? ref : d.closes[i];
-    const x = scaleX(i), y = scaleY(anchor) + (s===1 ? -14 : 14);
-    ctx.fillStyle = s===1 ? DARVAS_BOX_COLORS.bull : DARVAS_BOX_COLORS.bear;
+    if(s===0 || s===prevS) return;
+    const y = s===1 ? seg.yTop : seg.yBottom;
+    const color = s===1 ? DARVAS_BOX_COLORS.bull : DARVAS_BOX_COLORS.bear;
+
+    // rechte Boxkante an der Ausbruchsstelle betont nachziehen
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.5;
     ctx.beginPath();
-    MTF_ARROW_MARKER_POINTS.forEach(([dx,dy], idx)=>{
-      const px = x+dx, py = y + (s===1 ? dy : -dy);
-      if(idx===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
-    });
+    ctx.moveTo(seg.x2, seg.yTop);
+    ctx.lineTo(seg.x2, seg.yBottom);
+    ctx.stroke();
+
+    // Flag-Dreieck, an der Kante "angeklinkt", zeigt nach außen (oben=Long, unten=Short)
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(seg.x2, y-FLAG_HALF);
+    ctx.lineTo(seg.x2, y+FLAG_HALF);
+    ctx.lineTo(seg.x2+FLAG_LEN, y);
     ctx.closePath();
     ctx.fill();
-  }
+  });
   ctx.restore();
 }
 const HALFTREND_COLORS = { bull: { line:'#3fb950', fill:'rgba(63,185,80,0.12)' }, bear: { line:'#f85149', fill:'rgba(248,81,73,0.12)' } };
