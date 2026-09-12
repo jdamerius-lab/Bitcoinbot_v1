@@ -433,6 +433,46 @@
     </div>
 
     <div class="panel">
+      <h2 class="section" style="margin-bottom:6px;">Rücksetzer im Aufwärtstrend</h2>
+      <div class="hint" style="margin-bottom:12px;">
+        Durchsucht die Scan-Liste oben nach Werten, die über 6 Monate gestiegen sind, im letzten Monat
+        (vor dieser Woche) zurückgesetzt haben und diese Woche wieder steigen. Arbeitet immer mit
+        Tageskerzen, unabhängig vom Zeitrahmen für den normalen Markt-Scan unten.
+      </div>
+      <div class="addrow">
+        <div class="field">
+          <label>Min. 6-Monats-Gewinn</label>
+          <select id="pbMin6m">
+            <option value="0">&gt; 0%</option>
+            <option value="5" selected>&gt; 5%</option>
+            <option value="10">&gt; 10%</option>
+            <option value="20">&gt; 20%</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Min. Monats-Rücksetzer</label>
+          <select id="pbMinPullback">
+            <option value="0">&lt; 0%</option>
+            <option value="3" selected>&lt; -3%</option>
+            <option value="5">&lt; -5%</option>
+            <option value="10">&lt; -10%</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Min. Wochen-Gewinn</label>
+          <select id="pbMinWeek">
+            <option value="0" selected>&gt; 0%</option>
+            <option value="2">&gt; 2%</option>
+            <option value="5">&gt; 5%</option>
+          </select>
+        </div>
+        <div class="field" style="justify-content:flex-end;"><button id="pbRunBtn">🔁 Rücksetzer-Screener starten</button></div>
+      </div>
+      <div class="hint" id="pbStatus" style="margin-top:8px;"></div>
+      <div id="pbResults"></div>
+    </div>
+
+    <div class="panel">
       <div class="addrow" style="justify-content:space-between;">
         <div class="addrow" style="gap:10px;">
           <div class="field">
@@ -2604,6 +2644,109 @@ async function runScan(){
   btn.disabled = false;
 }
 document.getElementById('scanRunBtn').addEventListener('click', runScan);
+
+// ============================================================
+// Rücksetzer-Screener: 6M gestiegen, letzten Monat gefallen, diese Woche wieder steigend
+// ============================================================
+// Arbeitet grundsätzlich mit Tageskerzen (unabhängig vom Zeitrahmen des normalen Scans),
+// weil "6 Monate / 1 Monat / diese Woche" nur auf Tagesbasis sauber definierbar ist.
+// Näherung über Handelstage: ~5 Handelstage = 1 Woche, ~21 = 1 Monat, ~126 = 6 Monate.
+const PB_WEEK_DAYS = 5, PB_MONTH_DAYS = 21, PB_HALFYEAR_DAYS = 126;
+
+function computePullbackMetrics(candles){
+  if (!candles || candles.length < PB_HALFYEAR_DAYS + 5) return null;
+  const closeAt = (idxFromEnd) => candles[candles.length - 1 - idxFromEnd].c;
+  const pct = (a, b) => b ? (a - b) / b * 100 : 0;
+  const closeNow = closeAt(0);
+  const closeWeekAgo = closeAt(PB_WEEK_DAYS);
+  const closeMonthAgo = closeAt(PB_MONTH_DAYS);
+  const closeHalfYearAgo = closeAt(PB_HALFYEAR_DAYS);
+  return {
+    price: closeNow,
+    change6m: pct(closeNow, closeHalfYearAgo),
+    // Rücksetzer bewusst OHNE die aktuelle Woche gemessen (Monatsalt -> Wochenalt),
+    // sonst würde eine starke Erholung diese Woche den Rücksetzer selbst "wegrechnen".
+    changeMonth: pct(closeWeekAgo, closeMonthAgo),
+    changeWeek: pct(closeNow, closeWeekAgo),
+  };
+}
+
+function renderPullbackResults(results, thresholds){
+  const status = document.getElementById('pbStatus');
+  const errors = results.filter(r => r.error);
+  const withData = results.filter(r => !r.error);
+  const matches = withData.filter(r => r.m &&
+    r.m.change6m > thresholds.min6m &&
+    r.m.changeMonth < -thresholds.minPullback &&
+    r.m.changeWeek > thresholds.minWeek);
+  const tooShort = withData.filter(r => !r.m).length;
+
+  matches.sort((a, b) => b.m.changeWeek - a.m.changeWeek);
+
+  status.textContent = `${matches.length} Treffer von ${results.length} Werten in der Scan-Liste` +
+    (tooShort ? ` (${tooShort} mit zu wenig Historie für 6 Monate übersprungen)` : '') +
+    (errors.length ? `, ${errors.length} Fehler` : '') + '.';
+
+  if (!matches.length){
+    document.getElementById('pbResults').innerHTML = errors.length
+      ? `<div class="hint">Keine Treffer. Fehler: ${errors.map(e => `${e.item.symbol} (${e.error})`).join(', ')}</div>`
+      : '';
+    return;
+  }
+
+  const rows = matches.map(r => {
+    const name = fullName(r.item.symbol);
+    const nameCell = `<td class="sym-cell">${r.item.symbol}${name?`<div class="company-name">${name}</div>`:''}</td>`;
+    const currency = guessCurrency(r.item);
+    const cellFor = (v) => `<td class="num change ${v>=0?'pos':'neg'}">${v>0?'+':''}${round2(v)}%</td>`;
+    return `<tr>
+      ${nameCell}
+      <td>${r.item.type==='crypto'?'Krypto':'Aktie'}</td>
+      <td class="num">${fmtNum(r.m.price)} <span class="ccy">${currency}</span></td>
+      ${cellFor(r.m.change6m)}
+      ${cellFor(r.m.changeMonth)}
+      ${cellFor(r.m.changeWeek)}
+    </tr>`;
+  }).join('');
+
+  document.getElementById('pbResults').innerHTML = `
+    <table class="scan-table">
+      <thead><tr><th>Symbol</th><th>Typ</th><th>Preis</th><th>6-Monats-Δ</th><th>Monats-Δ (vor dieser Woche)</th><th>Wochen-Δ</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+async function runPullbackScreen(){
+  const btn = document.getElementById('pbRunBtn');
+  const status = document.getElementById('pbStatus');
+  const thresholds = {
+    min6m: parseFloat(document.getElementById('pbMin6m').value),
+    minPullback: parseFloat(document.getElementById('pbMinPullback').value),
+    minWeek: parseFloat(document.getElementById('pbMinWeek').value),
+  };
+  btn.disabled = true;
+  const results = [];
+  // Sequenziell wie beim normalen Markt-Scan -- die kostenlosen CORS-Proxys vertragen
+  // keine gebündelte Last.
+  for (let i = 0; i < scanList.length; i++){
+    const item = scanList[i];
+    status.textContent = `Prüfe ${i+1}/${scanList.length}: ${item.symbol} …`;
+    try{
+      const data = await getAnalysisFor({ ...item, interval: '1d' }, { includeCandles: true, includeBitpanda: false, candleLimit: PB_HALFYEAR_DAYS + 10 });
+      if (data.error){
+        results.push({ item, error: data.error });
+      } else {
+        results.push({ item, m: computePullbackMetrics(data.candles) });
+      }
+    }catch(e){
+      results.push({ item, error: e.message });
+    }
+    renderPullbackResults(results, thresholds);
+  }
+  status.textContent += ` Fertig — ${new Date().toLocaleTimeString('de-DE')}`;
+  btn.disabled = false;
+}
+document.getElementById('pbRunBtn').addEventListener('click', runPullbackScreen);
 
 // ============================================================
 // Großer Chart im Screening-Tab: Zoom, Pan, eigener Zeitrahmen

@@ -36,6 +36,14 @@
   button:disabled{opacity:.5;cursor:default}
   button.secondary{background:transparent;color:var(--accent);border:1px solid var(--accent)}
   button.secondary.active{background:var(--accent);color:#0e1117}
+  /* Strategie-Buttons: Hintergrund zeigt die AKTUELLE Long/Short-Richtung der jeweiligen Strategie (unabhängig
+     davon, ob das Overlay gerade im Chart eingeblendet ist) -- siehe updateStrategyButtonColors(). Ist der Button
+     zusätzlich aktiv (Overlay eingeblendet), wird die Farbe kräftiger/gesättigter statt blau, damit beide
+     Zustände (aktiv? / long-short?) gleichzeitig ablesbar bleiben. */
+  button.secondary.strat-long{background:rgba(63,185,80,.22);color:var(--green);border-color:var(--green)}
+  button.secondary.strat-short{background:rgba(248,81,73,.22);color:var(--red);border-color:var(--red)}
+  button.secondary.strat-long.active{background:var(--green);color:#06240d;box-shadow:inset 0 0 0 1px rgba(255,255,255,.35)}
+  button.secondary.strat-short.active{background:var(--red);color:#2a0605;box-shadow:inset 0 0 0 1px rgba(255,255,255,.35)}
   label{font-size:10px;color:var(--muted);display:block;margin-bottom:3px}
   table{width:100%;border-collapse:collapse;font-size:11.5px}
   th,td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--border)}
@@ -5063,6 +5071,42 @@ function computeChartMeta(d){
   return { fvg, markers, ichi, swings, srZones, patterns, trendScore, boll, mlSupertrend, halfTrend, darvas, mtfDay, mtfSwing, supertrendHa, dailyBox };
 }
 
+// Ordnet jeden Strategie-Overlay-Button seinem passenden Schlüssel aus buildStrategies() zu -- genau die
+// Buttons, die auch inhaltlich eine der 16 Einzelstrategien mit eindeutigem Long/Short/Flat-Signal repräsentieren
+// (siehe STRAT_LABELS). Reine Zeichen-/Zonen-Overlays ohne eigenes Richtungssignal (FVG, Fibonacci, Ichimoku,
+// Swings, S/R-Zonen, DailyBox) bleiben bewusst außen vor; der Trendscore-Button hat seine eigene, schon
+// bestehende Farbcodierung (siehe trendScoreDirectionClass) und wird hier ebenfalls nicht angefasst.
+const STRATEGY_BUTTON_MAP = {
+  toggleEmaBtn:          'emastack',
+  toggleBollBtn:          'boll',
+  toggleMlSupertrendBtn:  'mlsupertrend',
+  toggleHalfTrendBtn:     'halftrend',
+  toggleMtfDayBtn:        'mtfday',
+  toggleMtfSwingBtn:      'mtfswing',
+  toggleSupertrendHaBtn:  'supertrendha',
+  toggleDarvasBoxBtn:     'darvas',
+  togglePatternBtn:       'pattern'
+};
+// Färbt jeden oben gemappten Button grün/rot ein, je nachdem ob dessen Strategie AKTUELL (letzte Kerze) long
+// oder short steht -- unabhängig davon, ob das Overlay gerade sichtbar ist (das steuert weiterhin nur die
+// separate .active-Klasse). buildStrategies() ist über strategyCache bereits durch computeOverlayData() befüllt,
+// der Aufruf hier ist also i.d.R. ein günstiger Cache-Hit statt einer echten Neuberechnung.
+function updateStrategyButtonColors(){
+  const key = activeCoin+'::'+activeInterval;
+  if(!ohlcCache[key]) return;
+  let strategies;
+  try{ strategies = buildStrategies(activeCoin, activeInterval); }
+  catch(e){ return; } // Daten evtl. noch nicht vollständig geladen -- Buttons bleiben dann einfach ungefärbt
+  Object.entries(STRATEGY_BUTTON_MAP).forEach(([btnId, stratKey])=>{
+    const btn = document.getElementById(btnId);
+    if(!btn) return;
+    const res = strategies[stratKey];
+    const pos = (res && res.position && res.position.length) ? res.position[res.position.length-1] : 0;
+    btn.classList.remove('strat-long','strat-short');
+    if(pos === 1) btn.classList.add('strat-long');
+    else if(pos === -1) btn.classList.add('strat-short');
+  });
+}
 function renderChart(){
   const d = computeOverlayData();
   const meta = computeChartMeta(d);
@@ -5101,6 +5145,7 @@ function renderChart(){
   };
   attachChartInteraction(chartCanvasEl);
   drawChart();
+  updateStrategyButtonColors();
   updatePatternExplainUI();
   updateTrendScoreExplainUI();
   updateMlSupertrendExplainUI();
@@ -5130,6 +5175,7 @@ function refreshChartDatasets(){
   chart.$darvas = meta.darvas;
   chart.$dailyBox = meta.dailyBox;
   chart.$forecast = (showForecast && activeCoin==='bitcoin' && activeInterval==='1d') ? computeCycleForecast(forecastProjectionDays) : null;
+  updateStrategyButtonColors();
   updatePatternExplainUI();
   updateTrendScoreExplainUI();
   updateMlSupertrendExplainUI();
