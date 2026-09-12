@@ -3060,6 +3060,7 @@ function buildStrategiesCore(coin, interval, key){
       } else position[i]=position[i-1];
     }
     strategies.boll = finalizeStrategy(applyEntryFilters(position, entryCtx), highs, lows, closes, exitCtx);
+    strategies.boll.rawPosition = position;
   }
   // 4. Momentum
   {
@@ -3142,6 +3143,7 @@ function buildStrategiesCore(coin, interval, key){
       position[i] = dirAt[i] != null ? dirAt[i] : position[i-1];
     }
     strategies.pattern = finalizeStrategy(applyEntryFilters(position, entryCtx), highs, lows, closes, exitCtx);
+    strategies.pattern.rawPosition = position;
   }
   // 10. EMA-Trend (9/20/50-Stack) -- nutzt dieselbe Klassifikation wie die Marktphase-Kachel im Indikator-Panel
   // (computeEmaStackSignal): nur bei sauber gestapelten EMAs (9>20>50 bzw. 9<20<50) gibt es ein eindeutiges
@@ -3157,6 +3159,7 @@ function buildStrategiesCore(coin, interval, key){
       else position[i] = position[i-1];
     }
     strategies.emastack = finalizeStrategy(applyEntryFilters(position, entryCtx), highs, lows, closes, exitCtx);
+    strategies.emastack.rawPosition = position;
   }
   // 11. ML Adaptive Supertrend (K-Means-Volatilitätsregime) -- siehe computeMlAdaptiveSupertrend() weiter oben.
   // Long, solange der Kurs über der adaptiven Trailing-Stop-Linie liegt, Short darunter (identisches Prinzip
@@ -3165,6 +3168,7 @@ function buildStrategiesCore(coin, interval, key){
     const mlst = computeMlAdaptiveSupertrend(highs, lows, closes);
     const position = mlst.trendAt.map((t,i)=> t != null ? t : 0);
     strategies.mlsupertrend = finalizeStrategy(applyEntryFilters(position, entryCtx), highs, lows, closes, exitCtx);
+    strategies.mlsupertrend.rawPosition = position;
   }
   // 12. HalfTrend (BigBeluga) -- siehe computeHalfTrend() weiter oben. Long, solange der Trend gemäß der
   // HalfTrend-Hysterese-Logik bullisch ist (trend=0 im Original), Short während bärisch (trend=1). Läuft wie
@@ -3177,6 +3181,7 @@ function buildStrategiesCore(coin, interval, key){
     const ht = computeHalfTrend(highs, lows, closes);
     const position = ht.trendAt.map(t => t===0 ? 1 : (t===1 ? -1 : 0));
     strategies.halftrend = finalizeStrategy(applyEntryFilters(position, entryCtx), highs, lows, closes, exitCtx);
+    strategies.halftrend.rawPosition = position;
   }
   // 13./14. MTF-Overlay Day-/Swing-Korridor (eigene Nutzer-Idee, siehe computeMtfCorridorSeries() weiter oben).
   // Position kommt aus den Einstiegstriggern (Engulfing/Momentum-Kerze/3-Kerzen-Folge) auf dem Entry-Zeitrahmen,
@@ -3193,10 +3198,12 @@ function buildStrategiesCore(coin, interval, key){
     const mtfDay = computeMtfCorridorSeries(coin, interval, 'day');
     const positionDay = mtfDay ? mtfDay.rawPosition : new Array(n).fill(0);
     strategies.mtfday = finalizeStrategy(applyEntryFilters(positionDay, entryCtx), highs, lows, closes, exitCtx);
+    strategies.mtfday.rawPosition = positionDay;
 
     const mtfSwing = computeMtfCorridorSeries(coin, interval, 'swing');
     const positionSwing = mtfSwing ? mtfSwing.rawPosition : new Array(n).fill(0);
     strategies.mtfswing = finalizeStrategy(applyEntryFilters(positionSwing, entryCtx), highs, lows, closes, exitCtx);
+    strategies.mtfswing.rawPosition = positionSwing;
   }
   // 15. Supertrend MTF Heikin Ashi (Portierung nach LonesomeTheBlue) -- siehe computeSupertrendHaLocal() weiter
   // oben. Long, solange die auf Heikin-Ashi-Kerzen berechnete lokale Trailing-Stop-Linie bullisch ist (Trend=1
@@ -3209,6 +3216,7 @@ function buildStrategiesCore(coin, interval, key){
     const st = computeSupertrendHaLocal(opens, highs, lows, closes);
     const position = st.trend.map(t => t != null ? t : 0);
     strategies.supertrendha = finalizeStrategy(applyEntryFilters(position, entryCtx), highs, lows, closes, exitCtx);
+    strategies.supertrendha.rawPosition = position;
   }
 
   // Darvas-Box (Nicolas Darvas) als eigene Strategie-Position. Fließt ebenfalls in den Trendscore-Konsens ein --
@@ -3217,6 +3225,7 @@ function buildStrategiesCore(coin, interval, key){
   {
     const dbx = computeDarvasBoxes(highs, lows, closes);
     strategies.darvas = finalizeStrategy(applyEntryFilters(dbx.signal, entryCtx), highs, lows, closes, exitCtx);
+    strategies.darvas.rawPosition = dbx.signal;
   }
 
   strategyCache[key] = strategies;
@@ -5089,8 +5098,13 @@ const STRATEGY_BUTTON_MAP = {
 };
 // Färbt jeden oben gemappten Button grün/rot ein, je nachdem ob dessen Strategie AKTUELL (letzte Kerze) long
 // oder short steht -- unabhängig davon, ob das Overlay gerade sichtbar ist (das steuert weiterhin nur die
-// separate .active-Klasse). buildStrategies() ist über strategyCache bereits durch computeOverlayData() befüllt,
-// der Aufruf hier ist also i.d.R. ein günstiger Cache-Hit statt einer echten Neuberechnung.
+// separate .active-Klasse). Nutzt bewusst das ROHE, ungefilterte Signal (rawPosition, direkt vom Indikator selbst
+// -- vor applyEntryFilters()/dem gewählten Exit-Modus) statt der im Backtest simulierten Position: letztere kann
+// durch Bestätigungskerzen (entryConfirmBars), Volumen-/Swing-/MTF-Filter oder einen ausgelösten Stop-Loss/
+// Trailing-Stop mehrere Kerzen hinter dem tatsächlich im Chart gezeichneten Indikator herhinken oder zwischen-
+// zeitlich flach sein -- der Button soll aber 1:1 zeigen, was die gezeichnete Linie/Box gerade sagt.
+// buildStrategies() ist über strategyCache bereits durch computeOverlayData() befüllt, der Aufruf hier ist also
+// i.d.R. ein günstiger Cache-Hit statt einer echten Neuberechnung.
 function updateStrategyButtonColors(){
   const key = activeCoin+'::'+activeInterval;
   if(!ohlcCache[key]) return;
@@ -5101,7 +5115,8 @@ function updateStrategyButtonColors(){
     const btn = document.getElementById(btnId);
     if(!btn) return;
     const res = strategies[stratKey];
-    const pos = (res && res.position && res.position.length) ? res.position[res.position.length-1] : 0;
+    const raw = res && res.rawPosition;
+    const pos = (raw && raw.length) ? raw[raw.length-1] : 0;
     btn.classList.remove('strat-long','strat-short');
     if(pos === 1) btn.classList.add('strat-long');
     else if(pos === -1) btn.classList.add('strat-short');
